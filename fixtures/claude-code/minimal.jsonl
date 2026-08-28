@@ -1,0 +1,5 @@
+{"type":"mode","mode":"normal","sessionId":"11111111-0000-0000-0000-000000000001"}
+{"parentUuid":null,"isSidechain":false,"type":"user","message":{"role":"user","content":"hello agent"},"uuid":"u1","timestamp":"2026-08-01T10:00:00.000Z","cwd":"/tmp/demo","sessionId":"11111111-0000-0000-0000-000000000001","version":"2.1.241","gitBranch":"main","userType":"external","entrypoint":"cli"}
+{"parentUuid":"u1","isSidechain":false,"type":"assistant","message":{"role":"assistant","model":"claude-fable-5","content":[{"type":"text","text":"hello human"}],"stop_reason":"end_turn"},"uuid":"a1","timestamp":"2026-08-01T10:00:05.000Z","cwd":"/tmp/demo","sessionId":"11111111-0000-0000-0000-000000000001","version":"2.1.241","gitBranch":"main"}
+{"type":"ai-title","aiTitle":"Greeting session","sessionId":"11111111-0000-0000-0000-000000000001"}
+{"type":"last-prompt","lastPrompt":"hello agent","leafUuid":"a1","sessionId":"11111111-0000-0000-0000-000000000001"}

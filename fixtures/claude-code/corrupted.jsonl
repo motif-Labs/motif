@@ -1,0 +1,5 @@
+{"type":"some-future-line-type","payload":{"x":1},"sessionId":"44444444-0000-0000-0000-000000000004"}
+{"parentUuid":null,"isSidechain":false,"type":"user","message":{"role":"user","content":"still works?"},"uuid":"u1","timestamp":"2026-08-01T10:00:00.000Z","cwd":"/tmp/demo","sessionId":"44444444-0000-0000-0000-000000000004","version":"2.1.241"}
+not json at all {{{
+{"parentUuid":"u1","isSidechain":false,"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"yes"}]},"uuid":"a1","timestamp":"2026-08-01T10:00:05.000Z","cwd":"/tmp/demo","sessionId":"44444444-0000-0000-0000-000000000004"}
+{"parentUuid":"a1","isSidechain":false,"type":"user","message":{"role":"user","content":"truncat
