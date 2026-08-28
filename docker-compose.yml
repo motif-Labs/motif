@@ -1,0 +1,18 @@
+services:
+  motif:
+    build: .
+    ports:
+      - '4680:4680'
+    volumes:
+      - motif-data:/data
+    environment:
+      # MOTIF_TOKEN: set-your-own-or-check-first-run-logs
+      # MOTIF_LLM_PROVIDER: anthropic | openai | openai-compatible | claude-code | off
+      # MOTIF_LLM_API_KEY: ...
+      # MOTIF_LLM_BASE_URL: ...   (openai-compatible only)
+      # MOTIF_LLM_MODEL: ...
+      MOTIF_PORT: 4680
+    restart: unless-stopped
+
+volumes:
+  motif-data:

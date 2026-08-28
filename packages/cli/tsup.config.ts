@@ -8,5 +8,5 @@ export default defineConfig({
   clean: true,
   banner: { js: '#!/usr/bin/env node' },
   // Workspace packages are private; inline them into the published bundle.
-  noExternal: ['@motif/core'],
+  noExternal: ['@motif/core', '@motif/server'],
 });

@@ -7,6 +7,7 @@ import { registerConnect } from './commands/connect.js';
 import { registerServer } from './commands/server.js';
 import { registerSync } from './commands/sync.js';
 import { registerUp } from './commands/up.js';
+import { registerUi } from './commands/ui.js';
 
 const program = new Command();
 
@@ -24,6 +25,7 @@ registerConnect(program);
 registerServer(program);
 registerSync(program);
 registerUp(program);
+registerUi(program);
 
 program.parseAsync().catch((err: unknown) => {
   console.error(err instanceof Error ? err.message : String(err));

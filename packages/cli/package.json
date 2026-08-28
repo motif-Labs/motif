@@ -11,13 +11,16 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && node scripts/copy-ui.mjs",
     "dev": "tsx src/index.ts"
   },
   "dependencies": {
+    "@hono/node-server": "^1.13.7",
     "@motif/core": "*",
     "@motif/server": "*",
-    "commander": "^12.1.0"
+    "better-sqlite3": "^11.7.0",
+    "commander": "^12.1.0",
+    "hono": "^4.6.14"
   },
   "engines": {
     "node": ">=20"
