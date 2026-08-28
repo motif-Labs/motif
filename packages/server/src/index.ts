@@ -1,8 +1,10 @@
 import { Hono } from 'hono';
 import { serve, type ServerType } from '@hono/node-server';
 import { streamSSE } from 'hono/streaming';
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { MotifMessage, MotifSession } from '@motif/core';
 import { ensureTeamToken, openDb, type Db } from './db/database.js';
 import { LiveBus } from './live/bus.js';
@@ -46,7 +48,9 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   app.use('/api/*', async (c, next) => {
     if (c.req.path === '/api/health') return next();
     const auth = c.req.header('authorization');
-    if (auth !== `Bearer ${token}`) {
+    // EventSource cannot set headers, so ?token= is accepted as an equivalent
+    const queryToken = c.req.query('token');
+    if (auth !== `Bearer ${token}` && queryToken !== token) {
       return c.json({ error: 'unauthorized' }, 401);
     }
     const member = c.req.header('x-motif-member');
@@ -216,7 +220,36 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     }),
   );
 
+  serveUi(app);
+
   return { app, db, bus, token };
+}
+
+/** Serves the built dashboard (ui/dist) when it ships with the package. */
+function serveUi(app: Hono): void {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    path.join(here, 'ui'), // packaged: dist/ui next to the bundle
+    path.join(here, '..', '..', '..', 'ui', 'dist'), // monorepo dev layout
+  ];
+  const uiDir = candidates.find((d) => fs.existsSync(path.join(d, 'index.html')));
+  if (!uiDir) return;
+  const MIME: Record<string, string> = {
+    '.html': 'text/html; charset=utf-8',
+    '.js': 'text/javascript',
+    '.css': 'text/css',
+    '.svg': 'image/svg+xml',
+    '.ico': 'image/x-icon',
+  };
+  app.get('*', (c) => {
+    const reqPath = c.req.path === '/' ? '/index.html' : c.req.path;
+    const file = path.normalize(path.join(uiDir, reqPath));
+    const fallback = path.join(uiDir, 'index.html'); // SPA hash-router entry
+    const target = file.startsWith(uiDir) && fs.existsSync(file) && fs.statSync(file).isFile() ? file : fallback;
+    return c.body(fs.readFileSync(target), 200, {
+      'content-type': MIME[path.extname(target)] ?? 'application/octet-stream',
+    });
+  });
 }
 
 export function startServer(
