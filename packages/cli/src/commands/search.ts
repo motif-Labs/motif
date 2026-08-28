@@ -1,6 +1,8 @@
 import type { Command } from 'commander';
 import path from 'node:path';
 import { scanLocal, shortId } from '../local.js';
+import { loadConfig } from '../config.js';
+import { MotifClient } from '../api-client.js';
 
 export function registerSearch(program: Command): void {
   program
@@ -8,8 +10,30 @@ export function registerSearch(program: Command): void {
     .description('Search session text (local scan; server FTS once connected)')
     .option('--project <path>', 'only sessions for this project path')
     .option('--json', 'machine-readable output')
-    .action((query: string, opts: { project?: string; json?: boolean }) => {
+    .action(async (query: string, opts: { project?: string; json?: boolean }) => {
       const { claudeDir } = program.opts<{ claudeDir?: string }>();
+      const cfg = loadConfig();
+      if (cfg.serverUrl && cfg.token) {
+        try {
+          const client = new MotifClient({ serverUrl: cfg.serverUrl, token: cfg.token, memberId: cfg.memberId });
+          const rows = await client.search(query);
+          if (opts.json) {
+            console.log(JSON.stringify(rows, null, 2));
+            return;
+          }
+          if (rows.length === 0) {
+            console.log('No matches.');
+            return;
+          }
+          for (const h of rows) {
+            console.log(`${h.id.split(':')[1]?.slice(0, 8)}  ${h.memberName ?? '?'}  ${h.title ?? ''}`);
+            console.log(`   …${h.snippet}…`);
+          }
+          return;
+        } catch {
+          console.error('(server unreachable — falling back to local scan)');
+        }
+      }
       const scan = scanLocal(claudeDir);
       const q = query.toLowerCase();
       const hits: { sessionId: string; shortId: string; title?: string; project: string; snippet: string }[] = [];

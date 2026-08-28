@@ -1,5 +1,8 @@
 import type { Command } from 'commander';
+import type { MotifSession } from '@motif/core';
 import { resolveSession, scanLocal } from '../local.js';
+import { loadConfig } from '../config.js';
+import { MotifClient } from '../api-client.js';
 
 const ROLE_LABEL: Record<string, string> = {
   user: 'user     ',
@@ -15,10 +18,18 @@ export function registerShow(program: Command): void {
     .description('Print a session transcript (id, uuid, or unique uuid prefix)')
     .option('--json', 'full MotifSession as JSON')
     .option('--tools', 'include tool calls and results (hidden by default)')
-    .action((id: string, opts: { json?: boolean; tools?: boolean }) => {
+    .action(async (id: string, opts: { json?: boolean; tools?: boolean }) => {
       const { claudeDir } = program.opts<{ claudeDir?: string }>();
       const scan = scanLocal(claudeDir);
-      const session = resolveSession(scan.sessions, id);
+      let session: MotifSession;
+      try {
+        session = resolveSession(scan.sessions, id); // local parse is always freshest
+      } catch (localErr) {
+        const cfg = loadConfig();
+        if (!cfg.serverUrl || !cfg.token) throw localErr;
+        const client = new MotifClient({ serverUrl: cfg.serverUrl, token: cfg.token, memberId: cfg.memberId });
+        session = await client.getSession(id.includes(':') ? id : `claude-code:${id}`);
+      }
 
       if (opts.json) {
         console.log(JSON.stringify(session, null, 2));
