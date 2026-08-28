@@ -3,6 +3,10 @@ import { registerScan } from './commands/scan.js';
 import { registerList } from './commands/list.js';
 import { registerShow } from './commands/show.js';
 import { registerSearch } from './commands/search.js';
+import { registerConnect } from './commands/connect.js';
+import { registerServer } from './commands/server.js';
+import { registerSync } from './commands/sync.js';
+import { registerUp } from './commands/up.js';
 
 const program = new Command();
 
@@ -16,6 +20,10 @@ registerScan(program);
 registerList(program);
 registerShow(program);
 registerSearch(program);
+registerConnect(program);
+registerServer(program);
+registerSync(program);
+registerUp(program);
 
 program.parseAsync().catch((err: unknown) => {
   console.error(err instanceof Error ? err.message : String(err));

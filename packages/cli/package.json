@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@motif/core": "*",
+    "@motif/server": "*",
     "commander": "^12.1.0"
   },
   "engines": {
