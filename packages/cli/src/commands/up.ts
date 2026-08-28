@@ -1,6 +1,6 @@
 import type { Command } from 'commander';
 import os from 'node:os';
-import { createServer, startServer } from '@motif/server';
+import { createProvider, createServer, startMemoryScheduler, startServer } from '@motif/server';
 import { MotifClient } from '../api-client.js';
 import { loadConfig, saveConfig } from '../config.js';
 import { watchAndSync } from '../daemon/syncer.js';
@@ -16,6 +16,11 @@ export function registerUp(program: Command): void {
       const server = createServer({ dbPath: opts.db });
       startServer(server, { port: Number(opts.port), hostname: '127.0.0.1' });
       const serverUrl = `http://127.0.0.1:${opts.port}`;
+      const provider = createProvider();
+      if (provider) {
+        startMemoryScheduler(server.db, provider, server.bus, { log: console.log });
+        console.log(`Session memory enabled (provider: ${provider.name})`);
+      }
 
       const cfg = loadConfig();
       const client = new MotifClient({ serverUrl, token: server.token });

@@ -233,3 +233,5 @@ export function startServer(
 export { openDb } from './db/database.js';
 export * from './store.js';
 export { LiveBus } from './live/bus.js';
+export { createProvider, type LLMProvider } from './memory/providers.js';
+export { applyNotes, runMemoryTick, startMemoryScheduler } from './memory/pipeline.js';

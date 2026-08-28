@@ -1,5 +1,5 @@
 import type { Command } from 'commander';
-import { createServer, startServer } from '@motif/server';
+import { createProvider, createServer, startMemoryScheduler, startServer } from '@motif/server';
 
 export function registerServer(program: Command): void {
   program
@@ -11,6 +11,11 @@ export function registerServer(program: Command): void {
     .action((opts: { port: string; host: string; db?: string }) => {
       const server = createServer({ dbPath: opts.db });
       startServer(server, { port: Number(opts.port), hostname: opts.host });
+      const provider = createProvider();
+      if (provider) {
+        startMemoryScheduler(server.db, provider, server.bus, { log: console.log });
+        console.log(`Session memory enabled (provider: ${provider.name})`);
+      }
       console.log(`Motif server listening on http://${opts.host}:${opts.port}`);
       console.log(`Team token: ${server.token}`);
       console.log('Teammates connect with:');
