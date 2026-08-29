@@ -29,7 +29,12 @@ export async function fulfillPendingHandoffs(
         outputPath: result.target,
         targetSessionId: result.threadId,
       });
-      log(`handoff #${req.id}: ${req.session_id} → ${result.target}`);
+      const fromTeammate = req.assignee_id !== null && req.requester_name;
+      log(
+        fromTeammate
+          ? `📥 @${req.requester_name} handed you a session — continue with: codex resume ${result.threadId}`
+          : `handoff #${req.id}: ${req.session_id} → ${result.target}`,
+      );
       done++;
     } catch (err) {
       await client

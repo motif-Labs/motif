@@ -14,6 +14,8 @@ import {
   completeHandoffRequest,
   createHandoffRequest,
   exportSession,
+  handoffExecutor,
+  resolveMember,
   fullReplaceSession,
   getSessionMessages,
   getSessionRow,
@@ -312,11 +314,22 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     if (member === undefined) {
       return c.json({ error: 'handoff runs on your machine via your daemon — log in with your member token' }, 403);
     }
-    const body = await c.req.json<{ sessionId?: string; cwd?: string }>();
+    const body = await c.req.json<{ sessionId?: string; cwd?: string; assignee?: string }>();
     if (!body.sessionId) return c.json({ error: 'sessionId required' }, 400);
     if (!getSessionRow(db, body.sessionId)) return c.json({ error: 'session not found' }, 404);
-    const request = createHandoffRequest(db, member, { sessionId: body.sessionId, cwd: body.cwd });
-    bus.publish('handoff-requested', { requestId: request.id, sessionId: request.session_id, memberId: member });
+    let assigneeId: number | undefined;
+    if (body.assignee) {
+      const assignee = resolveMember(db, body.assignee);
+      if (!assignee) return c.json({ error: `no unique member matches "${body.assignee}"` }, 404);
+      if (assignee.id !== member) assigneeId = assignee.id;
+    }
+    const request = createHandoffRequest(db, member, { sessionId: body.sessionId, cwd: body.cwd, assigneeId });
+    // wake the EXECUTOR's daemon — the assignee when handing to a teammate
+    bus.publish('handoff-requested', {
+      requestId: request.id,
+      sessionId: request.session_id,
+      memberId: handoffExecutor(request),
+    });
     return c.json(request);
   });
 
@@ -335,7 +348,8 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     bus.publish('handoff-request-updated', {
       requestId: updated.id,
       sessionId: updated.session_id,
-      memberId: member,
+      memberId: updated.requested_by, // the watcher is whoever asked
+      executorId: member,
       status: updated.status,
       outputPath: updated.output_path ?? undefined,
       targetSessionId: updated.target_session_id ?? undefined,

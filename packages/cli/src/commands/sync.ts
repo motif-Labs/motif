@@ -1,5 +1,6 @@
 import type { Command } from 'commander';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { MotifClient } from '../api-client.js';
@@ -108,6 +109,67 @@ export function registerSync(program: Command): void {
     .description('Show whether the sync daemon is running')
     .action(() => {
       const pid = daemonPid();
-      console.log(pid ? `Daemon running (pid ${pid}).` : 'Daemon is not running.');
+      const paused = fs.existsSync(path.join(motifHome(), 'paused'));
+      console.log(pid ? `Daemon running (pid ${pid})${paused ? ' — paused' : ''}.` : 'Daemon is not running.');
+    });
+
+  daemon
+    .command('pause')
+    .description('Keep the daemon alive but stop shipping sessions')
+    .action(() => {
+      fs.mkdirSync(motifHome(), { recursive: true });
+      fs.writeFileSync(path.join(motifHome(), 'paused'), new Date().toISOString());
+      console.log('Paused — nothing leaves this machine until `motif daemon resume`.');
+    });
+
+  daemon
+    .command('resume')
+    .description('Resume shipping sessions')
+    .action(() => {
+      fs.rmSync(path.join(motifHome(), 'paused'), { force: true });
+      console.log('Resumed — the next sweep syncs any backlog.');
+    });
+
+  daemon
+    .command('install')
+    .description('Start the daemon automatically at login (macOS LaunchAgent / Linux systemd user unit)')
+    .action(() => {
+      const entry = path.resolve(process.argv[1]!);
+      if (process.platform === 'darwin') {
+        const plist = path.join(os.homedir(), 'Library', 'LaunchAgents', 'com.motif.daemon.plist');
+        fs.mkdirSync(path.dirname(plist), { recursive: true });
+        fs.writeFileSync(
+          plist,
+          `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.motif.daemon</string>
+  <key>ProgramArguments</key><array>
+    <string>${process.execPath}</string><string>${entry}</string><string>sync</string><string>--watch</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>${path.join(motifHome(), 'daemon.log')}</string>
+  <key>StandardErrorPath</key><string>${path.join(motifHome(), 'daemon.log')}</string>
+</dict></plist>
+`,
+        );
+        spawn('launchctl', ['load', '-w', plist], { stdio: 'ignore' }).on('close', () => {});
+        console.log(`Installed and loaded LaunchAgent: ${plist}`);
+        console.log('The daemon now starts at every login. Remove with: motif uninstall');
+      } else if (process.platform === 'linux') {
+        const unitDir = path.join(os.homedir(), '.config', 'systemd', 'user');
+        fs.mkdirSync(unitDir, { recursive: true });
+        const unit = path.join(unitDir, 'motif-daemon.service');
+        fs.writeFileSync(
+          unit,
+          `[Unit]\nDescription=Motif session sync daemon\nAfter=network-online.target\n\n[Service]\nExecStart=${process.execPath} ${entry} sync --watch\nRestart=always\nRestartSec=10\n\n[Install]\nWantedBy=default.target\n`,
+        );
+        console.log(`Wrote ${unit}`);
+        console.log('Enable with: systemctl --user daemon-reload && systemctl --user enable --now motif-daemon');
+      } else {
+        console.log('Auto-start install is not automated on this OS yet.');
+        console.log(`Run at login: ${process.execPath} ${entry} sync --watch`);
+      }
     });
 }

@@ -16,13 +16,36 @@ export function registerHandoff(program: Command): void {
     .option('--cwd <path>', "map the session onto your local clone (a teammate's project path differs from yours)")
     .option('--open', 'launch Codex right into the handed-off session')
     .option('--digest [n]', 'compress all but the last n messages into a summary (default n: 60)')
+    .option('--to-member <name>', "hand the session to a TEAMMATE — their daemon materializes it on their machine")
     .option('--dry-run', 'show what would be written without writing')
     .option('--force', 'write even if Codex does not appear to be installed')
     .option('--json', 'machine-readable output')
-    .action(async (id: string, opts: { to: string; cwd?: string; open?: boolean; digest?: string | boolean; dryRun?: boolean; force?: boolean; json?: boolean }) => {
+    .action(async (id: string, opts: { to: string; cwd?: string; open?: boolean; digest?: string | boolean; toMember?: string; dryRun?: boolean; force?: boolean; json?: boolean }) => {
       if (opts.to !== 'codex') throw new Error(`Unsupported handoff target "${opts.to}" (v0.1 supports: codex)`);
       const { claudeDir } = program.opts<{ claudeDir?: string }>();
       const cfg = loadConfig();
+
+      if (opts.toMember) {
+        // teammate handoff runs on THEIR machine, via the server queue
+        if (!cfg.serverUrl || !cfg.memberToken) {
+          throw new Error('Handing to a teammate needs a server connection (motif connect).');
+        }
+        const client = new MotifClient({ serverUrl: cfg.serverUrl, token: cfg.memberToken });
+        // make sure the session exists server-side (sync it if it's only local)
+        const sessionId = id.includes(':') ? id : `claude-code:${id}`;
+        let resolved = sessionId;
+        try {
+          resolved = (await client.exportSession(sessionId)).id;
+        } catch {
+          const local = resolveSession(scanLocal(claudeDir).sessions, id);
+          await client.putSession(local);
+          resolved = local.id;
+        }
+        const req = await client.createHandoffRequest({ sessionId: resolved, cwd: opts.cwd, assignee: opts.toMember });
+        console.log(`Handed ${resolved} to ${opts.toMember} (request #${req.id}).`);
+        console.log('Their daemon will materialize it in their Codex; they get a ready-to-run resume command.');
+        return;
+      }
 
       // local parse is freshest; fall back to the team server for teammates' sessions
       let session: MotifSession;

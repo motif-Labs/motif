@@ -17,6 +17,7 @@ export interface LiveEvents {
     requestId: number;
     sessionId: string;
     memberId: number;
+    executorId?: number;
     status: string;
     outputPath?: string;
     targetSessionId?: string;
