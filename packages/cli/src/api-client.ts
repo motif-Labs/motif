@@ -56,12 +56,23 @@ export class MotifClient {
     return this.request('POST', '/api/admin/prune', { olderThanDays });
   }
 
-  createHandoffRequest(input: { sessionId: string; cwd?: string }): Promise<{ id: number }> {
+  createHandoffRequest(input: { sessionId: string; cwd?: string; assignee?: string }): Promise<{
+    id: number;
+    assignee_id: number | null;
+  }> {
     return this.request('POST', '/api/handoff-requests', input);
   }
 
   listHandoffRequests(status?: string): Promise<
-    { id: number; session_id: string; cwd_override: string | null; status: string }[]
+    {
+      id: number;
+      session_id: string;
+      cwd_override: string | null;
+      status: string;
+      requested_by: number;
+      assignee_id: number | null;
+      requester_name: string | null;
+    }[]
   > {
     return this.request('GET', `/api/handoff-requests${status ? `?status=${status}` : ''}`);
   }

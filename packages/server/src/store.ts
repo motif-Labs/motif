@@ -320,6 +320,8 @@ export interface HandoffRequestRow {
   id: number;
   session_id: string;
   requested_by: number;
+  /** Who executes (and receives) the handoff; null = the requester themselves. */
+  assignee_id: number | null;
   target: string;
   cwd_override: string | null;
   status: 'pending' | 'done' | 'error';
@@ -328,26 +330,41 @@ export interface HandoffRequestRow {
   error: string | null;
   created_at: string;
   completed_at: string | null;
+  /** Joined for display: who asked (relevant when assigned to a teammate). */
+  requester_name?: string | null;
 }
 
 /**
- * Web-initiated handoffs: the server can't write into anyone's ~/.codex, so
- * the dashboard queues a request and the REQUESTER'S OWN daemon executes it
- * on their machine. Requests are strictly self-scoped — a member's daemon
- * only ever sees and fulfils that member's requests.
+ * Queued handoffs: the server can't write into anyone's ~/.codex, so a
+ * request is executed by a daemon on the EXECUTOR'S machine. The executor is
+ * the assignee when set (a teammate being handed the work, Mosaic-style),
+ * otherwise the requester (dashboard button on your own session). A daemon
+ * only ever sees requests it is the executor of.
  */
 export function createHandoffRequest(
   db: Db,
   memberId: number,
-  input: { sessionId: string; target?: string; cwd?: string },
+  input: { sessionId: string; target?: string; cwd?: string; assigneeId?: number },
 ): HandoffRequestRow {
   const res = db
     .prepare(
-      `INSERT INTO handoff_requests (session_id, requested_by, target, cwd_override, created_at)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO handoff_requests (session_id, requested_by, assignee_id, target, cwd_override, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
     )
-    .run(input.sessionId, memberId, input.target ?? 'codex', input.cwd ?? null, new Date().toISOString());
+    .run(
+      input.sessionId,
+      memberId,
+      input.assigneeId ?? null,
+      input.target ?? 'codex',
+      input.cwd ?? null,
+      new Date().toISOString(),
+    );
   return db.prepare('SELECT * FROM handoff_requests WHERE id = ?').get(res.lastInsertRowid) as HandoffRequestRow;
+}
+
+/** The member id whose daemon must execute a request. */
+export function handoffExecutor(row: Pick<HandoffRequestRow, 'requested_by' | 'assignee_id'>): number {
+  return row.assignee_id ?? row.requested_by;
 }
 
 export function listHandoffRequests(
@@ -355,14 +372,13 @@ export function listHandoffRequests(
   memberId: number,
   opts: { status?: string } = {},
 ): HandoffRequestRow[] {
+  const base = `SELECT h.*, m.name AS requester_name FROM handoff_requests h
+                LEFT JOIN members m ON m.id = h.requested_by
+                WHERE COALESCE(h.assignee_id, h.requested_by) = ?`;
   if (opts.status) {
-    return db
-      .prepare('SELECT * FROM handoff_requests WHERE requested_by = ? AND status = ? ORDER BY id')
-      .all(memberId, opts.status) as HandoffRequestRow[];
+    return db.prepare(`${base} AND h.status = ? ORDER BY h.id`).all(memberId, opts.status) as HandoffRequestRow[];
   }
-  return db
-    .prepare('SELECT * FROM handoff_requests WHERE requested_by = ? ORDER BY id DESC LIMIT 50')
-    .all(memberId) as HandoffRequestRow[];
+  return db.prepare(`${base} ORDER BY h.id DESC LIMIT 50`).all(memberId) as HandoffRequestRow[];
 }
 
 export function completeHandoffRequest(
@@ -374,7 +390,7 @@ export function completeHandoffRequest(
   const changed = db
     .prepare(
       `UPDATE handoff_requests SET status = ?, output_path = ?, target_session_id = ?, error = ?, completed_at = ?
-       WHERE id = ? AND requested_by = ? AND status = 'pending'`,
+       WHERE id = ? AND COALESCE(assignee_id, requested_by) = ? AND status = 'pending'`,
     )
     .run(
       result.status,
@@ -387,6 +403,24 @@ export function completeHandoffRequest(
     );
   if (changed.changes === 0) return undefined;
   return db.prepare('SELECT * FROM handoff_requests WHERE id = ?').get(requestId) as HandoffRequestRow;
+}
+
+/** Resolves a teammate reference — id, exact name, or @handle-ish prefix. */
+export function resolveMember(db: Db, ref: string): { id: number; name: string } | undefined {
+  const clean = ref.replace(/^@/, '').trim();
+  if (/^\d+$/.test(clean)) {
+    return db.prepare('SELECT id, name FROM members WHERE id = ?').get(Number(clean)) as
+      | { id: number; name: string }
+      | undefined;
+  }
+  const exact = db
+    .prepare('SELECT id, name FROM members WHERE LOWER(name) = LOWER(?) OR LOWER(email) = LOWER(?)')
+    .get(clean, clean) as { id: number; name: string } | undefined;
+  if (exact) return exact;
+  const prefix = db
+    .prepare('SELECT id, name FROM members WHERE LOWER(name) LIKE LOWER(?) ORDER BY id LIMIT 2')
+    .all(`${clean}%`) as { id: number; name: string }[];
+  return prefix.length === 1 ? prefix[0] : undefined;
 }
 
 export function searchSessions(db: Db, q: string, limit = 30): (SessionListItem & { snippet: string })[] {

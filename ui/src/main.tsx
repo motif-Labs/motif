@@ -283,7 +283,14 @@ function HandoffPanel({ session, me }: { session: SessionDetail; me: Me }) {
   const [state, setState] = useState<'idle' | 'working' | 'done' | 'error'>('idle');
   const [result, setResult] = useState<{ threadId?: string; outputPath?: string; error?: string }>({});
   const [slow, setSlow] = useState(false);
+  const [members, setMembers] = useState<MemberRow[]>([]);
+  const [teammate, setTeammate] = useState('');
+  const [sentTo, setSentTo] = useState('');
   const reqId = useRef<number | undefined>(undefined);
+
+  useEffect(() => {
+    if (me.kind === 'member') api<MemberRow[]>('/api/members').then(setMembers).catch(() => {});
+  }, [me.kind]);
 
   useEffect(() => {
     if (state !== 'working') return;
@@ -306,13 +313,14 @@ function HandoffPanel({ session, me }: { session: SessionDetail; me: Me }) {
     };
   }, [state]);
 
-  const request = async () => {
+  const request = async (assignee?: string) => {
     setState('working');
     setSlow(false);
+    setSentTo(assignee ?? '');
     try {
       const r = await api<HandoffRequest>('/api/handoff-requests', {
         method: 'POST',
-        body: JSON.stringify({ sessionId: session.id }),
+        body: JSON.stringify({ sessionId: session.id, ...(assignee ? { assignee } : {}) }),
       });
       reqId.current = r.id;
     } catch (err) {
@@ -339,32 +347,64 @@ function HandoffPanel({ session, me }: { session: SessionDetail; me: Me }) {
       </div>
     );
   }
+  const teammates = members.filter((m) => m.id !== me.member?.id);
   return (
     <div>
-      <button class="primary" onClick={request} disabled={state === 'working'}>
-        {state === 'working' ? 'Handing off…' : 'Continue in Codex'}
+      <button class="primary" onClick={() => request()} disabled={state === 'working'}>
+        {state === 'working' && !sentTo ? 'Handing off…' : 'Continue in Codex'}
       </button>
+      {teammates.length > 0 && (
+        <div class="searchrow" style="margin:8px 0 0;max-width:none">
+          <select
+            style="flex:1;background:var(--panel);border:1px solid var(--border);border-radius:7px;color:var(--dim);font:inherit;font-size:12px;padding:6px 8px"
+            value={teammate}
+            onChange={(e) => setTeammate((e.target as HTMLSelectElement).value)}
+          >
+            <option value="">hand to teammate…</option>
+            {teammates.map((m) => (
+              <option value={m.name}>{m.name}</option>
+            ))}
+          </select>
+          <button style="width:auto" disabled={!teammate || state === 'working'} onClick={() => request(teammate)}>
+            Send
+          </button>
+        </div>
+      )}
       {state === 'working' && (
         <div class="hint status-wait">
-          Waiting for your daemon to write the Codex session…
-          {slow && (
+          {sentTo
+            ? `Waiting for ${sentTo}'s daemon to materialize the session on their machine…`
+            : 'Waiting for your daemon to write the Codex session…'}
+          {slow && !sentTo && (
             <>
               <br />
               Taking long — is the daemon running? <code>motif daemon start</code>
+            </>
+          )}
+          {slow && sentTo && (
+            <>
+              <br />
+              They'll pick it up whenever their daemon is next online.
             </>
           )}
         </div>
       )}
       {state === 'done' && (
         <div class="hint status-ok">
-          Ready on your machine. Continue with:
-          <div
-            class="cmd"
-            title="Click to copy"
-            onClick={() => navigator.clipboard?.writeText(`codex resume ${result.threadId}`)}
-          >
-            codex resume {result.threadId}
-          </div>
+          {sentTo ? (
+            <>Delivered — {sentTo} has it in their Codex now, with a ready-to-run resume command.</>
+          ) : (
+            <>
+              Ready on your machine. Continue with:
+              <div
+                class="cmd"
+                title="Click to copy"
+                onClick={() => navigator.clipboard?.writeText(`codex resume ${result.threadId}`)}
+              >
+                codex resume {result.threadId}
+              </div>
+            </>
+          )}
         </div>
       )}
       {state === 'error' && <div class="hint status-err">{result.error}</div>}

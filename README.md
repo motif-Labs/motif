@@ -58,10 +58,14 @@ motif daemon start    # sessions now stream to the server live
 **Everyday commands:**
 
 ```bash
-motif list                 # sessions across the whole team, newest first
-motif search "rclone"      # full-text search over everyone's sessions
-motif show <id>            # read any session as a transcript
-motif handoff <id>         # continue a Claude Code session in Codex, natively
+motif list                        # sessions across the whole team, newest first
+motif search "rclone"             # full-text search over everyone's sessions
+motif show <id>                   # read any session as a transcript
+motif handoff <id> --open         # continue a Claude Code session in Codex, natively
+motif handoff <id> --to-member "Ada"   # hand it to a teammate — lands in THEIR Codex
+motif status / motif doctor       # health at a glance / diagnose with fixes
+motif daemon install              # start the daemon at every login
+motif skills                      # teach your agents to query the team memory
 ```
 
 ## Session memory

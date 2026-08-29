@@ -236,6 +236,50 @@ describe('http api', () => {
     expect(completed.status).toBe('done');
   });
 
+  it('a handoff assigned to a teammate is executed by THEIR daemon, not the requester', async () => {
+    const alice = (await (await call('/api/members/register', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'ayse', email: 'ayse@example.com' }),
+    })).json()) as { memberToken: string };
+    const bob = (await (await call('/api/members/register', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'burak', email: 'burak@example.com' }),
+    })).json()) as { memberToken: string };
+
+    const session = makeSession('assign1', [msg('u1', 'user', 'take this over please')]);
+    await call(`/api/sessions/${encodeURIComponent(session.id)}`, { method: 'PUT', body: JSON.stringify(session) }, alice.memberToken);
+
+    // ayse hands the session to burak (by @name)
+    const created = (await (await call('/api/handoff-requests', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId: session.id, assignee: '@burak' }),
+    }, alice.memberToken)).json()) as { id: number; assignee_id: number | null };
+    expect(created.assignee_id).not.toBeNull();
+
+    // burak's daemon sees it (with the requester's name); ayse's does not
+    const bobPending = (await (await call('/api/handoff-requests?status=pending', {}, bob.memberToken)).json()) as {
+      id: number;
+      requester_name: string;
+    }[];
+    expect(bobPending.map((r) => r.id)).toContain(created.id);
+    expect(bobPending.find((r) => r.id === created.id)!.requester_name).toBe('ayse');
+    const alicePending = (await (await call('/api/handoff-requests?status=pending', {}, alice.memberToken)).json()) as { id: number }[];
+    expect(alicePending.map((r) => r.id)).not.toContain(created.id);
+
+    // burak (the executor) completes it; unknown assignee is rejected upfront
+    const done = await call(`/api/handoff-requests/${created.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'done', targetSessionId: 'tid2' }),
+    }, bob.memberToken);
+    expect(done.status).toBe(200);
+    expect(
+      (await call('/api/handoff-requests', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId: session.id, assignee: '@nobody-here' }),
+      }, alice.memberToken)).status,
+    ).toBe(404);
+  });
+
   it('owner-only team rename and member revocation', async () => {
     const owner = (await (await call('/api/members/register', {
       method: 'POST',

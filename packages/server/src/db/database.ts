@@ -163,6 +163,10 @@ const MIGRATIONS: string[] = [
   `,
   // v3 — merge duplicate members created before identity dedup existed
   DEDUPE_MEMBERS_SQL,
+  // v4 — handoffs can be assigned to a teammate (their daemon executes)
+  `
+  ALTER TABLE handoff_requests ADD COLUMN assignee_id INTEGER REFERENCES members(id);
+  `,
 ];
 
 export function openDb(dbPath: string): Db {
