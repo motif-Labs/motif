@@ -52,6 +52,10 @@ export class MotifClient {
     return this.request('DELETE', `/api/sessions/${encodeURIComponent(id)}`);
   }
 
+  prune(olderThanDays: number): Promise<{ ok: boolean; sessions: number; messages: number }> {
+    return this.request('POST', '/api/admin/prune', { olderThanDays });
+  }
+
   createHandoffRequest(input: { sessionId: string; cwd?: string }): Promise<{ id: number }> {
     return this.request('POST', '/api/handoff-requests', input);
   }

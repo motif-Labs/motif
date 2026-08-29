@@ -12,7 +12,7 @@ import {
   toRolloutLines,
   uuidv7,
 } from '@motif/core';
-import { readCursorSession } from '../packages/cli/src/readers/cursor.js';
+import { loadCursorProjectMap, readCursorSession } from '../packages/cli/src/readers/cursor.js';
 import { performCodexHandoff } from '../packages/cli/src/handoff/perform.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -112,5 +112,28 @@ describe('cursor reader', () => {
     expect(s.messages.map((m) => m.role)).toEqual(['user', 'assistant']);
     expect(s.messages[0]!.text).toContain('login form crashes');
     expect(s.updatedAt).toBe(new Date(1756400300000).toISOString());
+  });
+
+  it('maps composers to project paths via workspaceStorage', () => {
+    // layout: <tmp>/User/globalStorage/state.vscdb + <tmp>/User/workspaceStorage/<hash>/…
+    const userDir = path.join(tmp, 'User');
+    const globalDb = path.join(userDir, 'globalStorage', 'state.vscdb');
+    fs.mkdirSync(path.dirname(globalDb), { recursive: true });
+    new Database(globalDb).close();
+
+    const wsDir = path.join(userDir, 'workspaceStorage', 'abc123hash');
+    fs.mkdirSync(wsDir, { recursive: true });
+    fs.writeFileSync(path.join(wsDir, 'workspace.json'), JSON.stringify({ folder: 'file:///Users/me/webapp' }));
+    const wsDb = new Database(path.join(wsDir, 'state.vscdb'));
+    wsDb.exec('CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value TEXT)');
+    wsDb
+      .prepare('INSERT INTO ItemTable VALUES (?, ?)')
+      .run('composer.composerData', JSON.stringify({ allComposers: [{ composerId: 'conv-1' }, { composerId: 'conv-2' }] }));
+    wsDb.close();
+
+    const map = loadCursorProjectMap(globalDb);
+    expect(map.get('conv-1')).toBe('/Users/me/webapp');
+    expect(map.get('conv-2')).toBe('/Users/me/webapp');
+    expect(map.has('unknown')).toBe(false);
   });
 });

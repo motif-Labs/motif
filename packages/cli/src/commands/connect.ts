@@ -33,6 +33,9 @@ export function registerConnect(program: Command): void {
       };
       saveConfig(cfg);
       console.log(`Connected to ${serverUrl} as ${opts.name} (member #${memberId}, ${role}).`);
+      if (!opts.email) {
+        console.log('(tip: pass --email next time — it keeps your identity stable across machines)');
+      }
       console.log('Your personal member token is in ~/.motif/config.json — use it to log in to the dashboard.\n');
 
       // show exactly what would leave this machine before any sync happens

@@ -108,7 +108,7 @@ export interface HandoffResult {
 
 export function performCodexHandoff(
   session: MotifSession,
-  opts: { cwdOverride?: string; force?: boolean } = {},
+  opts: { cwdOverride?: string; force?: boolean; digest?: { keepLast: number } } = {},
 ): HandoffResult {
   if (session.source === 'codex') {
     throw new Error(`Already a Codex session — continue it with: codex resume ${session.sourceSessionId}`);
@@ -121,7 +121,7 @@ export function performCodexHandoff(
   }
 
   const now = new Date();
-  const result = toRolloutLines(session, { threadId: uuidv7(now), now });
+  const result = toRolloutLines(session, { threadId: uuidv7(now), now, digest: opts.digest });
   const target = path.join(home, result.relativePath);
   if (fs.existsSync(target)) throw new Error(`Refusing to overwrite existing rollout: ${target}`);
   fs.mkdirSync(path.dirname(target), { recursive: true });

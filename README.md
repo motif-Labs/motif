@@ -2,6 +2,12 @@
 
 **A unification layer for AI coding agent sessions.** Open source, fully self-hosted.
 
+<p align="center">
+  <img src="docs/assets/handoff.gif" alt="Handing a Claude Code session off to Codex, natively" width="820" />
+</p>
+
+<p align="center"><i>Start in Claude Code, finish in Codex — the session comes with you, natively.</i></p>
+
 Your team writes code with Claude Code, Codex, and Cursor — each tool keeps its sessions
 in its own format, in its own corner. Motif collects them in one place, makes them
 searchable across tools and teammates, streams them live to a team dashboard, and can
@@ -23,6 +29,10 @@ treats it as its own history, not a summary.
   LLM provider (Anthropic, OpenAI, any OpenAI-compatible endpoint, or the local
   `claude` CLI).
 - **Solo mode** — `motif up` runs the same server locally. No team required.
+
+<p align="center">
+  <img src="docs/assets/dashboard.gif" alt="The team dashboard: every member's sessions across Claude Code, Codex, and Cursor" width="820" />
+</p>
 
 ## Quick start
 
@@ -116,6 +126,12 @@ See [SECURITY.md](SECURITY.md) for the full model.
 
 To start the daemon at login, add a user LaunchAgent (macOS) or systemd user
 unit (Linux) that runs `motif sync --watch`; example units live in `docs/`.
+
+**Backups & retention:** everything lives in one SQLite file
+(`~/.motif/motif.db`, or the `/data` volume under Docker). Copy that file on
+a schedule, or point [Litestream](https://litestream.io) at it for continuous
+replication. Keep the database lean with `motif prune --older-than 90` —
+old raw sessions go, distilled memory notes stay.
 
 ## Status
 
