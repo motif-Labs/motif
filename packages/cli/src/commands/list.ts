@@ -17,7 +17,7 @@ export function registerList(program: Command): void {
       const cfg = loadConfig();
       if (!opts.local && cfg.serverUrl && cfg.token) {
         try {
-          const client = new MotifClient({ serverUrl: cfg.serverUrl, token: cfg.token, memberId: cfg.memberId });
+          const client = new MotifClient({ serverUrl: cfg.serverUrl, token: cfg.memberToken ?? cfg.token });
           const rows = await client.listSessions({
             project: opts.project ? path.resolve(opts.project) : undefined,
             limit: Number(opts.limit) || 20,

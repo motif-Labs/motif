@@ -23,14 +23,32 @@ export function registerUp(program: Command): void {
       }
 
       const cfg = loadConfig();
-      const client = new MotifClient({ serverUrl, token: server.token });
       const name = cfg.name ?? os.userInfo().username;
-      const { memberId } = await client.register({ name, email: cfg.email, machine: os.hostname() });
-      saveConfig({ ...cfg, serverUrl, token: server.token, memberId, name });
+      // reuse the stored identity when it still works; register mints one otherwise
+      let memberId = cfg.memberId;
+      let memberToken = cfg.memberToken;
+      const stillValid =
+        memberToken && cfg.serverUrl === serverUrl
+          ? await new MotifClient({ serverUrl, token: memberToken })
+              .me()
+              .then((m) => m.kind === 'member')
+              .catch(() => false)
+          : false;
+      if (!stillValid) {
+        const reg = await new MotifClient({ serverUrl, token: server.token }).register({
+          name,
+          email: cfg.email,
+          machine: os.hostname(),
+        });
+        memberId = reg.memberId;
+        memberToken = reg.memberToken;
+      }
+      saveConfig({ ...cfg, serverUrl, token: server.token, memberToken, memberId, name });
 
-      const syncClient = new MotifClient({ serverUrl, token: server.token, memberId });
+      const syncClient = new MotifClient({ serverUrl, token: memberToken! });
       watchAndSync(syncClient, cfg, {
         claudeDir,
+        live: { serverUrl, token: memberToken!, log: (m) => console.log(m) },
         onReport: (r) => {
           if (r.pushed) console.log(`synced: ${r.pushed} session(s)`);
         },

@@ -61,12 +61,47 @@ MOTIF_LLM_PROVIDER=anthropic MOTIF_LLM_API_KEY=sk-... npx motif server
 # or: openai | openai-compatible (any baseURL: Ollama, vLLM, OpenRouter) | claude-code (local CLI, no key)
 ```
 
-## Privacy
+## Security model
 
-Sessions sync to **your** server and nowhere else. The daemon applies
-`exclude` globs and `redactPatterns` regexes from `~/.motif/config.json`
-before anything leaves the machine. Put TLS in front with your reverse proxy
-(e.g. Caddy) for teams outside a trusted network.
+Two credentials, two levels:
+
+- **Team token** — shared once when the server first starts. Grants *read*
+  access (dashboard, search) and lets a new teammate register. It can never
+  write sessions or trigger actions: there is no identity to attribute.
+- **Member token** — minted per person/device by `motif connect`, stored in
+  `~/.motif/config.json` (only a hash lives on the server). Every write is
+  attributed to the token's owner; a claimed name or header changes nothing,
+  so members cannot impersonate each other.
+
+Everyone on the team can *read* everyone's synced sessions — that is the
+product. Nobody can *write as* someone else, and dashboard-initiated handoffs
+only ever execute on the requester's own machine, via their own daemon.
+
+**Privacy controls, applied before anything leaves a machine:** `exclude`
+globs keep whole projects local; `redactPatterns` regexes scrub message text
+*and* tool inputs. Put TLS in front with your reverse proxy (a two-line Caddy
+config) for teams outside a trusted network.
+
+## Running it for a team, 24/7
+
+One server per team, one daemon per dev machine:
+
+```bash
+# Company server (survives restarts; SQLite lives in the volume)
+docker compose up -d
+# or without Docker:  MOTIF_TOKEN=<fixed-token> npx motif server
+
+# Each developer, once:
+npx motif connect https://motif.internal.yourco.dev --token <team-token> --name "Ada" --email ada@yourco.dev
+motif daemon start        # logs: ~/.motif/daemon.log (auto-rotated)
+```
+
+The daemon is a single lightweight watcher (fs events + a 60 s sweep); the
+server is one process over one SQLite file — comfortably handles a 10–15
+person team. Health check for your monitoring: `GET /api/health`.
+
+To start the daemon at login, add a user LaunchAgent (macOS) or systemd user
+unit (Linux) that runs `motif sync --watch`; example units live in `docs/`.
 
 ## Status
 

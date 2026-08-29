@@ -4,7 +4,10 @@ import path from 'node:path';
 
 export interface MotifConfig {
   serverUrl?: string;
+  /** Team token — bootstrap/registration and read-only dashboard login. */
   token?: string;
+  /** Per-device member token — identity for every write; minted by `motif connect`. */
+  memberToken?: string;
   memberId?: number;
   name?: string;
   email?: string;
@@ -37,10 +40,10 @@ export function saveConfig(cfg: MotifConfig): void {
 
 export function requireConnection(cfg: MotifConfig): asserts cfg is MotifConfig & {
   serverUrl: string;
-  token: string;
+  memberToken: string;
   memberId: number;
 } {
-  if (!cfg.serverUrl || !cfg.token || cfg.memberId === undefined) {
+  if (!cfg.serverUrl || !cfg.memberToken || cfg.memberId === undefined) {
     throw new Error('Not connected to a Motif server. Run: motif connect <url> --token <token> --name <you>');
   }
 }

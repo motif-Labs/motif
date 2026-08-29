@@ -26,29 +26,70 @@ export function prefixHash(ids: string[]): string {
   return crypto.createHash('sha256').update(ids.join('\n')).digest('hex');
 }
 
+function hashToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+/**
+ * Registers (or re-recognizes) a member and mints a per-device member token.
+ * Identity on every later request comes from that token — never from a
+ * client-claimed header. The first member becomes the owner.
+ */
 export function registerMember(
   db: Db,
   input: { name: string; email?: string; machine?: string },
-): { memberId: number; created: boolean } {
+): { memberId: number; memberToken: string; role: string; created: boolean } {
   const now = new Date().toISOString();
+  let existing: { id: number; role: string } | undefined;
   if (input.email) {
-    const existing = db.prepare('SELECT id FROM members WHERE email = ?').get(input.email) as
-      | { id: number }
+    existing = db.prepare('SELECT id, role FROM members WHERE email = ?').get(input.email) as
+      | { id: number; role: string }
       | undefined;
-    if (existing) {
-      db.prepare('UPDATE members SET name = ?, machine = ?, last_seen_at = ? WHERE id = ?').run(
-        input.name,
-        input.machine ?? null,
-        now,
-        existing.id,
-      );
-      return { memberId: existing.id, created: false };
-    }
   }
-  const res = db
-    .prepare('INSERT INTO members(name, email, machine, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?)')
-    .run(input.name, input.email ?? null, input.machine ?? null, now, now);
-  return { memberId: Number(res.lastInsertRowid), created: true };
+  if (!existing) {
+    // no email: same person reconnecting from the same machine keeps one identity
+    existing = db
+      .prepare('SELECT id, role FROM members WHERE email IS NULL AND name = ? AND machine = ?')
+      .get(input.name, input.machine ?? null) as { id: number; role: string } | undefined;
+  }
+
+  let memberId: number;
+  let role: string;
+  let created = false;
+  if (existing) {
+    memberId = existing.id;
+    role = existing.role;
+    db.prepare('UPDATE members SET name = ?, machine = ?, last_seen_at = ? WHERE id = ?').run(
+      input.name,
+      input.machine ?? null,
+      now,
+      memberId,
+    );
+  } else {
+    const isFirst = (db.prepare('SELECT COUNT(*) AS n FROM members').get() as { n: number }).n === 0;
+    role = isFirst ? 'owner' : 'member';
+    const res = db
+      .prepare('INSERT INTO members(name, email, machine, role, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(input.name, input.email ?? null, input.machine ?? null, role, now, now);
+    memberId = Number(res.lastInsertRowid);
+    created = true;
+  }
+
+  const memberToken = `mm_${crypto.randomBytes(24).toString('base64url')}`;
+  db.prepare(
+    'INSERT INTO member_tokens (member_id, token_hash, machine, created_at, last_used_at) VALUES (?, ?, ?, ?, ?)',
+  ).run(memberId, hashToken(memberToken), input.machine ?? null, now, now);
+  return { memberId, memberToken, role, created };
+}
+
+/** Maps a bearer token to a member id; undefined if it is not a member token. */
+export function resolveMemberByToken(db: Db, token: string): number | undefined {
+  const row = db
+    .prepare('SELECT id, member_id FROM member_tokens WHERE token_hash = ?')
+    .get(hashToken(token)) as { id: number; member_id: number } | undefined;
+  if (!row) return undefined;
+  db.prepare('UPDATE member_tokens SET last_used_at = ? WHERE id = ?').run(new Date().toISOString(), row.id);
+  return row.member_id;
 }
 
 export function touchMember(db: Db, memberId: number): void {
@@ -263,6 +304,88 @@ export function exportSession(db: Db, id: string): MotifSession | undefined {
   };
 }
 
+/** FTS5 MATCH treats quotes/operators as syntax; quote each term so raw user input never 500s. */
+export function ftsQuery(q: string): string {
+  return q
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((t) => `"${t.replace(/"/g, '""')}"`)
+    .join(' ');
+}
+
+export interface HandoffRequestRow {
+  id: number;
+  session_id: string;
+  requested_by: number;
+  target: string;
+  cwd_override: string | null;
+  status: 'pending' | 'done' | 'error';
+  output_path: string | null;
+  target_session_id: string | null;
+  error: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+/**
+ * Web-initiated handoffs: the server can't write into anyone's ~/.codex, so
+ * the dashboard queues a request and the REQUESTER'S OWN daemon executes it
+ * on their machine. Requests are strictly self-scoped — a member's daemon
+ * only ever sees and fulfils that member's requests.
+ */
+export function createHandoffRequest(
+  db: Db,
+  memberId: number,
+  input: { sessionId: string; target?: string; cwd?: string },
+): HandoffRequestRow {
+  const res = db
+    .prepare(
+      `INSERT INTO handoff_requests (session_id, requested_by, target, cwd_override, created_at)
+       VALUES (?, ?, ?, ?, ?)`,
+    )
+    .run(input.sessionId, memberId, input.target ?? 'codex', input.cwd ?? null, new Date().toISOString());
+  return db.prepare('SELECT * FROM handoff_requests WHERE id = ?').get(res.lastInsertRowid) as HandoffRequestRow;
+}
+
+export function listHandoffRequests(
+  db: Db,
+  memberId: number,
+  opts: { status?: string } = {},
+): HandoffRequestRow[] {
+  if (opts.status) {
+    return db
+      .prepare('SELECT * FROM handoff_requests WHERE requested_by = ? AND status = ? ORDER BY id')
+      .all(memberId, opts.status) as HandoffRequestRow[];
+  }
+  return db
+    .prepare('SELECT * FROM handoff_requests WHERE requested_by = ? ORDER BY id DESC LIMIT 50')
+    .all(memberId) as HandoffRequestRow[];
+}
+
+export function completeHandoffRequest(
+  db: Db,
+  memberId: number,
+  requestId: number,
+  result: { status: 'done' | 'error'; outputPath?: string; targetSessionId?: string; error?: string },
+): HandoffRequestRow | undefined {
+  const changed = db
+    .prepare(
+      `UPDATE handoff_requests SET status = ?, output_path = ?, target_session_id = ?, error = ?, completed_at = ?
+       WHERE id = ? AND requested_by = ? AND status = 'pending'`,
+    )
+    .run(
+      result.status,
+      result.outputPath ?? null,
+      result.targetSessionId ?? null,
+      result.error ?? null,
+      new Date().toISOString(),
+      requestId,
+      memberId,
+    );
+  if (changed.changes === 0) return undefined;
+  return db.prepare('SELECT * FROM handoff_requests WHERE id = ?').get(requestId) as HandoffRequestRow;
+}
+
 export function searchSessions(db: Db, q: string, limit = 30): (SessionListItem & { snippet: string })[] {
   const rows = db
     .prepare(
@@ -281,7 +404,7 @@ export function searchSessions(db: Db, q: string, limit = 30): (SessionListItem 
        ORDER BY best_rank
        LIMIT ?`,
     )
-    .all(q, limit) as ({
+    .all(ftsQuery(q), limit) as ({
     id: string;
     source: string;
     member_id: number;

@@ -101,7 +101,7 @@ interface RawLine {
   version?: string;
   isSidechain?: boolean;
   isMeta?: boolean;
-  message?: { role?: string; content?: unknown };
+  message?: { role?: string; content?: unknown; model?: string };
   leafUuid?: string;
   aiTitle?: string;
   [key: string]: unknown;
@@ -141,6 +141,7 @@ export function readClaudeSession(filePath: string): MotifSession {
   let projectPath = '';
   let gitBranch: string | undefined;
   let toolVersion: string | undefined;
+  let model: string | undefined;
   let firstPrompt: string | undefined;
   let order = 0;
 
@@ -169,6 +170,7 @@ export function readClaudeSession(filePath: string): MotifSession {
     if (!projectPath && typeof line.cwd === 'string') projectPath = line.cwd;
     if (typeof line.gitBranch === 'string' && line.gitBranch) gitBranch = line.gitBranch;
     if (typeof line.version === 'string') toolVersion = line.version;
+    if (line.type === 'assistant' && typeof line.message?.model === 'string') model = line.message.model;
     if (
       firstPrompt === undefined &&
       line.type === 'user' &&
@@ -319,6 +321,8 @@ export function readClaudeSession(filePath: string): MotifSession {
       subagentCount,
       branchCount: Math.max(0, branchLeaves.length - 1),
       parseErrors,
+      model,
+      sourceBytes: Buffer.byteLength(raw),
     },
   };
 }

@@ -90,6 +90,34 @@ const MIGRATIONS: string[] = [
     created_at TEXT NOT NULL
   );
   `,
+  // v2 — identity from per-member tokens (never from a claimed header) + web-initiated handoffs
+  `
+  ALTER TABLE members ADD COLUMN role TEXT NOT NULL DEFAULT 'member';
+
+  CREATE TABLE member_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    machine TEXT,
+    created_at TEXT NOT NULL,
+    last_used_at TEXT
+  );
+
+  CREATE TABLE handoff_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    requested_by INTEGER NOT NULL REFERENCES members(id),
+    target TEXT NOT NULL DEFAULT 'codex',
+    cwd_override TEXT,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','done','error')),
+    output_path TEXT,
+    target_session_id TEXT,
+    error TEXT,
+    created_at TEXT NOT NULL,
+    completed_at TEXT
+  );
+  CREATE INDEX idx_handoff_requests_member ON handoff_requests(requested_by, status);
+  `,
 ];
 
 export function openDb(dbPath: string): Db {

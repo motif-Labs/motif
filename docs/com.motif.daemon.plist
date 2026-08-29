@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- macOS LaunchAgent: starts the Motif sync daemon at login.
+     Install:  cp docs/com.motif.daemon.plist ~/Library/LaunchAgents/
+               launchctl load ~/Library/LaunchAgents/com.motif.daemon.plist
+     Adjust the motif path if you installed it somewhere else (`which motif`). -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.motif.daemon</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/motif</string>
+    <string>sync</string>
+    <string>--watch</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/tmp/motif-daemon.log</string>
+  <key>StandardErrorPath</key><string>/tmp/motif-daemon.log</string>
+</dict>
+</plist>

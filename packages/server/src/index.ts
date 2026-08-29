@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { serve, type ServerType } from '@hono/node-server';
 import { streamSSE } from 'hono/streaming';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -10,12 +11,16 @@ import { ensureTeamToken, openDb, type Db } from './db/database.js';
 import { LiveBus } from './live/bus.js';
 import {
   appendMessages,
+  completeHandoffRequest,
+  createHandoffRequest,
   exportSession,
   fullReplaceSession,
   getSessionMessages,
   getSessionRow,
+  listHandoffRequests,
   listSessions,
   registerMember,
+  resolveMemberByToken,
   searchSessions,
   touchMember,
   type SessionMetaPayload,
@@ -45,24 +50,42 @@ export function createServer(config: ServerConfig = {}): MotifServer {
 
   app.get('/api/health', (c) => c.json({ ok: true, name: 'motif' }));
 
+  const safeEqual = (a: string, b: string): boolean => {
+    const ha = crypto.createHash('sha256').update(a).digest();
+    const hb = crypto.createHash('sha256').update(b).digest();
+    return crypto.timingSafeEqual(ha, hb);
+  };
+
+  // Identity comes from the token itself, never from a client-claimed header:
+  //  - team token  → read access + member registration (cannot write sessions)
+  //  - member token → full access, identity implied by the token
   app.use('/api/*', async (c, next) => {
     if (c.req.path === '/api/health') return next();
-    const auth = c.req.header('authorization');
+    const header = c.req.header('authorization');
     // EventSource cannot set headers, so ?token= is accepted as an equivalent
-    const queryToken = c.req.query('token');
-    if (auth !== `Bearer ${token}` && queryToken !== token) {
-      return c.json({ error: 'unauthorized' }, 401);
-    }
-    const member = c.req.header('x-motif-member');
-    if (member && /^\d+$/.test(member)) {
-      c.set('memberId' as never, Number(member) as never);
-      touchMember(db, Number(member));
+    const presented = header?.startsWith('Bearer ') ? header.slice(7) : (c.req.query('token') ?? '');
+    if (!presented) return c.json({ error: 'unauthorized' }, 401);
+    if (safeEqual(presented, token)) {
+      c.set('authKind' as never, 'team' as never);
+    } else {
+      const member = resolveMemberByToken(db, presented);
+      if (member === undefined) return c.json({ error: 'unauthorized' }, 401);
+      c.set('authKind' as never, 'member' as never);
+      c.set('memberId' as never, member as never);
+      touchMember(db, member);
     }
     return next();
   });
 
   const memberId = (c: { get: (k: never) => unknown }): number | undefined =>
     c.get('memberId' as never) as number | undefined;
+
+  app.get('/api/me', (c) => {
+    const id = memberId(c);
+    if (id === undefined) return c.json({ kind: 'team' });
+    const row = db.prepare('SELECT id, name, email, role FROM members WHERE id = ?').get(id);
+    return c.json({ kind: 'member', member: row });
+  });
 
   app.post('/api/members/register', async (c) => {
     const body = await c.req.json<{ name?: string; email?: string; machine?: string }>();
@@ -73,7 +96,9 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   });
 
   app.get('/api/members', (c) => {
-    const rows = db.prepare('SELECT id, name, email, machine, last_seen_at FROM members').all();
+    const rows = db
+      .prepare('SELECT id, name, email, machine, role, created_at, last_seen_at FROM members ORDER BY id')
+      .all();
     return c.json(rows);
   });
 
@@ -113,10 +138,14 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   app.get('/api/sessions/:id', (c) => {
     const row = getSessionRow(db, c.req.param('id'));
     if (!row) return c.json({ error: 'not found' }, 404);
+    const member = db.prepare('SELECT name FROM members WHERE id = ?').get(row.member_id) as
+      | { name: string }
+      | undefined;
     return c.json({
       id: row.id,
       source: row.source,
       memberId: row.member_id,
+      memberName: member?.name ?? null,
       sourcePath: row.source_path,
       projectPath: row.project_path,
       gitBranch: row.git_branch,
@@ -132,7 +161,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
 
   app.put('/api/sessions/:id', async (c) => {
     const member = memberId(c);
-    if (!member) return c.json({ error: 'x-motif-member header required' }, 400);
+    if (member === undefined) return c.json({ error: 'writes require a member token (motif connect)' }, 403);
     const session = await c.req.json<MotifSession>();
     if (session.id !== c.req.param('id')) return c.json({ error: 'id mismatch' }, 400);
     const row = fullReplaceSession(db, member, session);
@@ -149,7 +178,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
 
   app.post('/api/sessions/:id/messages', async (c) => {
     const member = memberId(c);
-    if (!member) return c.json({ error: 'x-motif-member header required' }, 400);
+    if (member === undefined) return c.json({ error: 'writes require a member token (motif connect)' }, 403);
     const body = await c.req.json<{
       session: SessionMetaPayload;
       afterId: string | null;
@@ -173,8 +202,46 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     return c.json({ ok: true, appended: result.appended, lastId: result.lastId });
   });
 
+  app.post('/api/handoff-requests', async (c) => {
+    const member = memberId(c);
+    if (member === undefined) {
+      return c.json({ error: 'handoff runs on your machine via your daemon — log in with your member token' }, 403);
+    }
+    const body = await c.req.json<{ sessionId?: string; cwd?: string }>();
+    if (!body.sessionId) return c.json({ error: 'sessionId required' }, 400);
+    if (!getSessionRow(db, body.sessionId)) return c.json({ error: 'session not found' }, 404);
+    const request = createHandoffRequest(db, member, { sessionId: body.sessionId, cwd: body.cwd });
+    bus.publish('handoff-requested', { requestId: request.id, sessionId: request.session_id, memberId: member });
+    return c.json(request);
+  });
+
+  app.get('/api/handoff-requests', (c) => {
+    const member = memberId(c);
+    if (member === undefined) return c.json({ error: 'member token required' }, 403);
+    return c.json(listHandoffRequests(db, member, { status: c.req.query('status') }));
+  });
+
+  app.patch('/api/handoff-requests/:id', async (c) => {
+    const member = memberId(c);
+    if (member === undefined) return c.json({ error: 'member token required' }, 403);
+    const body = await c.req.json<{ status: 'done' | 'error'; outputPath?: string; targetSessionId?: string; error?: string }>();
+    const updated = completeHandoffRequest(db, member, Number(c.req.param('id')), body);
+    if (!updated) return c.json({ error: 'not found or not yours or not pending' }, 404);
+    bus.publish('handoff-request-updated', {
+      requestId: updated.id,
+      sessionId: updated.session_id,
+      memberId: member,
+      status: updated.status,
+      outputPath: updated.output_path ?? undefined,
+      targetSessionId: updated.target_session_id ?? undefined,
+      error: updated.error ?? undefined,
+    });
+    return c.json(updated);
+  });
+
   app.post('/api/handoffs', async (c) => {
     const member = memberId(c);
+    if (member === undefined) return c.json({ error: 'member token required' }, 403);
     const body = await c.req.json<{ sessionId: string; target: string; outputPath?: string; targetSessionId?: string }>();
     const row = getSessionRow(db, body.sessionId);
     db.prepare(

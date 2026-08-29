@@ -15,7 +15,7 @@ export function registerSearch(program: Command): void {
       const cfg = loadConfig();
       if (cfg.serverUrl && cfg.token) {
         try {
-          const client = new MotifClient({ serverUrl: cfg.serverUrl, token: cfg.token, memberId: cfg.memberId });
+          const client = new MotifClient({ serverUrl: cfg.serverUrl, token: cfg.memberToken ?? cfg.token });
           const rows = await client.search(query);
           if (opts.json) {
             console.log(JSON.stringify(rows, null, 2));

@@ -13,7 +13,7 @@ export function registerConnect(program: Command): void {
     .action(async (serverUrl: string, opts: { token: string; name: string; email?: string }) => {
       const client = new MotifClient({ serverUrl, token: opts.token });
       await client.health();
-      const { memberId } = await client.register({
+      const { memberId, memberToken, role } = await client.register({
         name: opts.name,
         email: opts.email,
         machine: os.hostname(),
@@ -22,11 +22,13 @@ export function registerConnect(program: Command): void {
         ...loadConfig(),
         serverUrl,
         token: opts.token,
+        memberToken,
         memberId,
         name: opts.name,
         email: opts.email,
       });
-      console.log(`Connected to ${serverUrl} as ${opts.name} (member #${memberId}).`);
+      console.log(`Connected to ${serverUrl} as ${opts.name} (member #${memberId}, ${role}).`);
+      console.log('Your personal member token is stored in ~/.motif/config.json — use it to log in to the dashboard.');
       console.log('Start syncing with: motif daemon start   (or one-shot: motif sync)');
     });
 }

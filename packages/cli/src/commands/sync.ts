@@ -40,7 +40,7 @@ export function registerSync(program: Command): void {
       const { claudeDir } = program.opts<{ claudeDir?: string }>();
       const cfg = loadConfig();
       requireConnection(cfg);
-      const client = new MotifClient({ serverUrl: cfg.serverUrl, token: cfg.token, memberId: cfg.memberId });
+      const client = new MotifClient({ serverUrl: cfg.serverUrl, token: cfg.memberToken });
       if (!opts.watch) {
         const report = await syncOnce(client, cfg, { claudeDir, force: opts.force });
         console.log(reportLine(report));
@@ -50,6 +50,7 @@ export function registerSync(program: Command): void {
       console.log(`Watching for session changes (server: ${cfg.serverUrl})…`);
       watchAndSync(client, cfg, {
         claudeDir,
+        live: { serverUrl: cfg.serverUrl, token: cfg.memberToken, log: (m) => console.log(`[${new Date().toISOString()}] ${m}`) },
         onReport: (r) => {
           if (r.pushed || r.errors.length) console.log(`[${new Date().toISOString()}] ${reportLine(r)}`);
         },
@@ -71,7 +72,14 @@ export function registerSync(program: Command): void {
         return;
       }
       fs.mkdirSync(motifHome(), { recursive: true });
-      const log = fs.openSync(path.join(motifHome(), 'daemon.log'), 'a');
+      const logPath = path.join(motifHome(), 'daemon.log');
+      try {
+        // a 24/7 daemon must not grow its log forever; keep one rotated copy
+        if (fs.statSync(logPath).size > 5 * 1024 * 1024) fs.renameSync(logPath, `${logPath}.old`);
+      } catch {
+        /* no log yet */
+      }
+      const log = fs.openSync(logPath, 'a');
       const child = spawn(process.execPath, [process.argv[1]!, 'sync', '--watch'], {
         detached: true,
         stdio: ['ignore', log, log],

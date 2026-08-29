@@ -2,8 +2,8 @@ import type { MotifMessage, MotifSession } from '@motif/core';
 
 export interface ClientOptions {
   serverUrl: string;
+  /** Bearer credential: the member token for writes, or the team token for read-only use. */
   token: string;
-  memberId?: number;
 }
 
 export class ApiError extends Error {
@@ -23,7 +23,6 @@ export class MotifClient {
       method,
       headers: {
         authorization: `Bearer ${this.opts.token}`,
-        ...(this.opts.memberId !== undefined ? { 'x-motif-member': String(this.opts.memberId) } : {}),
         ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -37,8 +36,33 @@ export class MotifClient {
     return this.request('GET', '/api/health');
   }
 
-  register(input: { name: string; email?: string; machine?: string }): Promise<{ memberId: number }> {
+  register(input: { name: string; email?: string; machine?: string }): Promise<{
+    memberId: number;
+    memberToken: string;
+    role: string;
+  }> {
     return this.request('POST', '/api/members/register', input);
+  }
+
+  me(): Promise<{ kind: 'team' | 'member'; member?: { id: number; name: string } }> {
+    return this.request('GET', '/api/me');
+  }
+
+  createHandoffRequest(input: { sessionId: string; cwd?: string }): Promise<{ id: number }> {
+    return this.request('POST', '/api/handoff-requests', input);
+  }
+
+  listHandoffRequests(status?: string): Promise<
+    { id: number; session_id: string; cwd_override: string | null; status: string }[]
+  > {
+    return this.request('GET', `/api/handoff-requests${status ? `?status=${status}` : ''}`);
+  }
+
+  completeHandoffRequest(
+    id: number,
+    result: { status: 'done' | 'error'; outputPath?: string; targetSessionId?: string; error?: string },
+  ): Promise<unknown> {
+    return this.request('PATCH', `/api/handoff-requests/${id}`, result);
   }
 
   putSession(session: MotifSession): Promise<{ ok: boolean; lastId: string | null }> {

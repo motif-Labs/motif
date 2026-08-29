@@ -117,35 +117,57 @@ describe('http api', () => {
     server.db.close();
   });
 
-  const call = (path_: string, init: RequestInit = {}, member?: number) =>
+  const call = (path_: string, init: RequestInit = {}, token = 'test-token') =>
     fetch(base + path_, {
       ...init,
       headers: {
-        authorization: 'Bearer test-token',
+        authorization: `Bearer ${token}`,
         'content-type': 'application/json',
-        ...(member !== undefined ? { 'x-motif-member': String(member) } : {}),
         ...init.headers,
       },
     });
 
-  it('rejects bad tokens and accepts the flow end to end', async () => {
+  it('derives identity from member tokens, never from claimed headers', async () => {
     expect((await fetch(`${base}/api/sessions`)).status).toBe(401);
+    expect((await call('/api/sessions', {}, 'wrong-token')).status).toBe(401);
 
     const reg = await call('/api/members/register', {
       method: 'POST',
       body: JSON.stringify({ name: 'mert', email: 'm@example.com' }),
     });
-    const { memberId } = (await reg.json()) as { memberId: number };
+    const { memberToken, role } = (await reg.json()) as { memberToken: string; role: string };
+    expect(memberToken).toMatch(/^mm_/);
+    expect(role).toBe('owner'); // first member
 
     const session = makeSession('h1', [msg('u1', 'user', 'server smoke test')]);
+
+    // the shared team token cannot write sessions — no identity to attribute
+    const teamPut = await call(`/api/sessions/${encodeURIComponent(session.id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(session),
+    });
+    expect(teamPut.status).toBe(403);
+
+    // a spoofed member header changes nothing — identity is the token
+    const spoofed = await call(`/api/sessions/${encodeURIComponent(session.id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(session),
+      headers: { 'x-motif-member': '999' },
+    });
+    expect(spoofed.status).toBe(403);
+
     const put = await call(`/api/sessions/${encodeURIComponent(session.id)}`, {
       method: 'PUT',
       body: JSON.stringify(session),
-    }, memberId);
+    }, memberToken);
     expect(put.status).toBe(200);
 
-    const list = (await (await call('/api/sessions')).json()) as { id: string }[];
+    const me = (await (await call('/api/me', {}, memberToken)).json()) as { kind: string };
+    expect(me.kind).toBe('member');
+
+    const list = (await (await call('/api/sessions')).json()) as { id: string; memberName: string }[];
     expect(list.map((s) => s.id)).toContain(session.id);
+    expect(list[0]!.memberName).toBe('mert');
 
     const conflict = await call(`/api/sessions/${encodeURIComponent(session.id)}/messages`, {
       method: 'POST',
@@ -155,10 +177,62 @@ describe('http api', () => {
         prefixHash: 'nope',
         messages: [msg('u2', 'user', 'x')],
       }),
-    }, memberId);
+    }, memberToken);
     expect(conflict.status).toBe(409);
 
     const exported = (await (await call(`/api/sessions/${encodeURIComponent(session.id)}/export`)).json()) as MotifSession;
     expect(exported.messages).toHaveLength(1);
+  });
+
+  it('scopes handoff requests to the requesting member', async () => {
+    const regA = (await (await call('/api/members/register', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'alice', email: 'a@example.com' }),
+    })).json()) as { memberToken: string };
+    const regB = (await (await call('/api/members/register', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'bob', email: 'b@example.com' }),
+    })).json()) as { memberToken: string };
+
+    const session = makeSession('hr1', [msg('u1', 'user', 'handoff me')]);
+    await call(`/api/sessions/${encodeURIComponent(session.id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(session),
+    }, regA.memberToken);
+
+    // team token cannot request a handoff (no machine to run it on)
+    expect(
+      (await call('/api/handoff-requests', { method: 'POST', body: JSON.stringify({ sessionId: session.id }) })).status,
+    ).toBe(403);
+
+    const created = (await (await call('/api/handoff-requests', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId: session.id, cwd: '/tmp/clone' }),
+    }, regA.memberToken)).json()) as { id: number; status: string };
+    expect(created.status).toBe('pending');
+
+    // bob's daemon must not see alice's request
+    const bobPending = (await (await call('/api/handoff-requests?status=pending', {}, regB.memberToken)).json()) as unknown[];
+    expect(bobPending).toHaveLength(0);
+    const alicePending = (await (await call('/api/handoff-requests?status=pending', {}, regA.memberToken)).json()) as {
+      id: number;
+      cwd_override: string;
+    }[];
+    expect(alicePending).toHaveLength(1);
+    expect(alicePending[0]!.cwd_override).toBe('/tmp/clone');
+
+    // bob cannot complete alice's request either
+    expect(
+      (await call(`/api/handoff-requests/${created.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'done' }),
+      }, regB.memberToken)).status,
+    ).toBe(404);
+
+    const completed = (await (await call(`/api/handoff-requests/${created.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'done', outputPath: '/x/rollout.jsonl', targetSessionId: 'tid' }),
+    }, regA.memberToken)).json()) as { status: string };
+    expect(completed.status).toBe('done');
   });
 });

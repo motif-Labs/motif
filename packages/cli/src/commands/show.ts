@@ -27,7 +27,7 @@ export function registerShow(program: Command): void {
       } catch (localErr) {
         const cfg = loadConfig();
         if (!cfg.serverUrl || !cfg.token) throw localErr;
-        const client = new MotifClient({ serverUrl: cfg.serverUrl, token: cfg.token, memberId: cfg.memberId });
+        const client = new MotifClient({ serverUrl: cfg.serverUrl, token: cfg.memberToken ?? cfg.token });
         session = await client.getSession(id.includes(':') ? id : `claude-code:${id}`);
       }
 

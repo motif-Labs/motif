@@ -32,6 +32,10 @@ export interface SessionMeta {
   branchCount: number;
   /** Unparseable or unknown lines skipped by the tolerant parser. */
   parseErrors: number;
+  /** Model that produced the assistant turns, when the source records it. */
+  model?: string;
+  /** Size of the source transcript on disk, in bytes. */
+  sourceBytes?: number;
 }
 
 export interface MotifSession {

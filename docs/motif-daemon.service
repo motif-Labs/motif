@@ -1,0 +1,15 @@
+# Linux systemd user unit: starts the Motif sync daemon at login.
+# Install:  cp docs/motif-daemon.service ~/.config/systemd/user/
+#           systemctl --user enable --now motif-daemon
+# Adjust ExecStart if motif lives elsewhere (`which motif`).
+[Unit]
+Description=Motif session sync daemon
+After=network-online.target
+
+[Service]
+ExecStart=%h/.local/bin/motif sync --watch
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

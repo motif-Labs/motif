@@ -12,6 +12,16 @@ export interface LiveEvents {
   'memory-updated': { entityId: number; kind: string; name: string };
   'member-joined': { memberId: number; name: string };
   'handoff-created': { sessionId: string; memberId: number; target: string };
+  'handoff-requested': { requestId: number; sessionId: string; memberId: number };
+  'handoff-request-updated': {
+    requestId: number;
+    sessionId: string;
+    memberId: number;
+    status: string;
+    outputPath?: string;
+    targetSessionId?: string;
+    error?: string;
+  };
 }
 
 export type LiveEventName = keyof LiveEvents;
