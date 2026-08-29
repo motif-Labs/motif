@@ -110,6 +110,9 @@ export function performCodexHandoff(
   session: MotifSession,
   opts: { cwdOverride?: string; force?: boolean } = {},
 ): HandoffResult {
+  if (session.source === 'codex') {
+    throw new Error(`Already a Codex session — continue it with: codex resume ${session.sourceSessionId}`);
+  }
   if (opts.cwdOverride) session = { ...session, projectPath: path.resolve(opts.cwdOverride) };
 
   const home = codexHome();

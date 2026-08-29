@@ -151,9 +151,23 @@ function SessionRowView({ s }: { s: SessionRow }) {
   );
 }
 
+function dayLabel(iso: string | null): string {
+  if (!iso) return 'Earlier';
+  const d = new Date(iso);
+  const today = new Date();
+  const diffDays = Math.floor((new Date(today.toDateString()).getTime() - new Date(d.toDateString()).getTime()) / 86400000);
+  if (diffDays <= 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return d.toLocaleDateString([], { weekday: 'long' });
+  return d.toLocaleDateString([], { month: 'long', day: 'numeric' });
+}
+
 function SessionsPage() {
   const [sessions, setSessions] = useState<SessionRow[] | null>(null);
-  const reload = () => api<SessionRow[]>('/api/sessions?limit=100').then(setSessions).catch(() => {});
+  const [project, setProject] = useState('');
+  const [member, setMember] = useState('');
+  const [agent, setAgent] = useState('');
+  const reload = () => api<SessionRow[]>('/api/sessions?limit=200').then(setSessions).catch(() => {});
   useEffect(() => {
     reload();
     return openEvents((name) => {
@@ -161,20 +175,78 @@ function SessionsPage() {
     });
   }, []);
   if (!sessions) return <div class="empty">Loading…</div>;
+
+  const projects = [...new Set(sessions.map((s) => projName(s.projectPath)))].sort();
+  const members = [...new Set(sessions.map((s) => s.memberName).filter(Boolean))] as string[];
+  const agents = [...new Set(sessions.map((s) => s.source))];
+  const filtered = sessions.filter(
+    (s) =>
+      (!project || projName(s.projectPath) === project) &&
+      (!member || s.memberName === member) &&
+      (!agent || s.source === agent),
+  );
+
+  // group by day so a long history stays scannable
+  const groups: { label: string; rows: SessionRow[] }[] = [];
+  for (const s of filtered) {
+    const label = dayLabel(s.updatedAt);
+    const last = groups.at(-1);
+    if (last && last.label === label) last.rows.push(s);
+    else groups.push({ label, rows: [s] });
+  }
+
   return (
     <div>
       <h1>Sessions</h1>
+      <div class="filters">
+        <select value={agent} onChange={(e) => setAgent((e.target as HTMLSelectElement).value)}>
+          <option value="">all agents</option>
+          {agents.map((a) => (
+            <option value={a}>{TOOLS[a]?.label ?? a}</option>
+          ))}
+        </select>
+        <select value={member} onChange={(e) => setMember((e.target as HTMLSelectElement).value)}>
+          <option value="">everyone</option>
+          {members.map((m) => (
+            <option value={m}>{m}</option>
+          ))}
+        </select>
+        <select value={project} onChange={(e) => setProject((e.target as HTMLSelectElement).value)}>
+          <option value="">all projects</option>
+          {projects.map((p) => (
+            <option value={p}>{p}</option>
+          ))}
+        </select>
+        {(project || member || agent) && (
+          <a
+            class="nav-item"
+            style="padding:4px 8px"
+            onClick={() => {
+              setProject('');
+              setMember('');
+              setAgent('');
+            }}
+          >
+            clear
+          </a>
+        )}
+      </div>
       {sessions.length === 0 ? (
         <div class="empty">
           No sessions yet. On each dev machine run <code>motif connect</code>, then <code>motif daemon start</code>.
         </div>
       ) : (
-        <div class="table">
-          <TableHead />
-          {sessions.map((s) => (
-            <SessionRowView key={s.id} s={s} />
-          ))}
-        </div>
+        groups.map((g) => (
+          <div key={g.label}>
+            <h2>{g.label}</h2>
+            <div class="table">
+              <TableHead />
+              {g.rows.map((s) => (
+                <SessionRowView key={s.id} s={s} />
+              ))}
+            </div>
+          </div>
+        ))
       )}
     </div>
   );
@@ -249,6 +321,16 @@ function HandoffPanel({ session, me }: { session: SessionDetail; me: Me }) {
     }
   };
 
+  if (session.source === 'codex') {
+    return (
+      <div class="hint">
+        This is already a Codex session — continue it with:
+        <div class="cmd" onClick={() => navigator.clipboard?.writeText(`codex resume ${session.id.split(':')[1]}`)}>
+          codex resume {session.id.split(':')[1]}
+        </div>
+      </div>
+    );
+  }
   if (me.kind !== 'member') {
     return (
       <div>
@@ -357,11 +439,18 @@ function SessionView({ id, me }: { id: string; me: Me }) {
 
 /* ── people ──────────────────────────────────────────── */
 
-function PeoplePage() {
+function PeoplePage({ me }: { me: Me }) {
   const [members, setMembers] = useState<MemberRow[] | null>(null);
+  const reload = () => api<MemberRow[]>('/api/members').then(setMembers).catch(() => {});
   useEffect(() => {
-    api<MemberRow[]>('/api/members').then(setMembers).catch(() => {});
+    reload();
   }, []);
+  const amOwner = me.kind === 'member' && me.member?.role === 'owner';
+  const revoke = async (m: MemberRow) => {
+    if (!confirm(`Revoke ${m.name}'s access? Their devices stop syncing immediately; their sessions stay.`)) return;
+    await api(`/api/members/${m.id}/revoke`, { method: 'POST', body: '{}' }).catch(() => {});
+    reload();
+  };
   if (!members) return <div class="empty">Loading…</div>;
   return (
     <div>
@@ -375,9 +464,20 @@ function PeoplePage() {
             <span class="machine mono">{m.machine ?? ''}</span>
             <span class="chip">{m.role}</span>
             <span class="seen">{ago(m.last_seen_at)}</span>
+            {amOwner && m.id !== me.member?.id && (
+              <button style="width:auto;padding:4px 10px;font-size:11px" onClick={() => revoke(m)}>
+                revoke
+              </button>
+            )}
           </div>
         ))}
       </div>
+      {amOwner && (
+        <div class="hint" style="margin-top:10px">
+          Revoking removes a member's device tokens — they stop syncing instantly. To keep them out for good,
+          also rotate the team token (restart the server with a new MOTIF_TOKEN).
+        </div>
+      )}
     </div>
   );
 }
@@ -487,9 +587,37 @@ function SearchPage() {
 
 function SetupPage({ me }: { me: Me }) {
   const origin = location.origin;
+  const [teamName, setTeamName] = useState('');
+  const [renamed, setRenamed] = useState(false);
+  const amOwner = me.kind === 'member' && me.member?.role === 'owner';
+  const rename = async () => {
+    if (!teamName.trim()) return;
+    await api('/api/team', { method: 'PATCH', body: JSON.stringify({ name: teamName.trim() }) }).catch(() => {});
+    setRenamed(true);
+    setTimeout(() => location.reload(), 600);
+  };
   return (
     <div style="max-width:680px">
       <h1>Setup</h1>
+      {amOwner && (
+        <>
+          <h2>Team</h2>
+          <div class="meta-card">
+            <div class="searchrow" style="margin-bottom:0">
+              <input
+                type="text"
+                placeholder="team name"
+                value={teamName}
+                onInput={(e) => setTeamName((e.target as HTMLInputElement).value)}
+                onKeyDown={(e) => e.key === 'Enter' && rename()}
+              />
+              <button class="primary" onClick={rename}>
+                {renamed ? 'Saved' : 'Rename'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
       <h2>Connect a teammate</h2>
       <div class="meta-card">
         <p style="color:var(--dim);margin-bottom:8px">On their machine, with the team token you share out-of-band:</p>
@@ -610,7 +738,7 @@ function App() {
     view = <MemoryEntityView id={memoryMatch[1]} />;
     crumb = 'Memory';
   } else if (hash.startsWith('/people')) {
-    view = <PeoplePage />;
+    view = <PeoplePage me={me} />;
     crumb = 'People';
   } else if (hash.startsWith('/memory')) {
     view = <MemoryPage />;

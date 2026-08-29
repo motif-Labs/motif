@@ -8,10 +8,14 @@ searchable across tools and teammates, streams them live to a team dashboard, an
 hand a session started in one tool over to another tool **natively** — the target tool
 treats it as its own history, not a summary.
 
-## Features (v0.1)
+## Features (v1)
 
-- **Collect** — a lightweight daemon watches Claude Code sessions on each dev machine and
-  syncs them live to your self-hosted server. Sessions never leave your infrastructure.
+- **Collect** — a lightweight daemon watches **Claude Code, Codex, and Cursor**
+  sessions on each dev machine and syncs them live to your self-hosted server.
+  Sessions never leave your infrastructure. (Agents running open-weight models
+  through OpenCode/Aider-style tools are on the roadmap; open-weight models
+  themselves — Hermes, Qwen, Llama via Ollama/OpenRouter — already work today
+  as the memory engine through the `openai-compatible` provider.)
 - **Native handoff** — convert a Claude Code session into a real Codex rollout file.
   `codex resume` picks it up as its own session; continue exactly where you left off.
 - **Session memory** — the server distills sessions into entity-based notes (files,
@@ -96,9 +100,19 @@ npx motif connect https://motif.internal.yourco.dev --token <team-token> --name 
 motif daemon start        # logs: ~/.motif/daemon.log (auto-rotated)
 ```
 
-The daemon is a single lightweight watcher (fs events + a 60 s sweep); the
-server is one process over one SQLite file — comfortably handles a 10–15
-person team. Health check for your monitoring: `GET /api/health`.
+**Who runs what:** exactly one person runs the server (on a company box or
+their own machine); everyone else only runs `connect` once and keeps the
+daemon on. Nobody's data leaves the team's own infrastructure.
+
+**Footprint** (measured on a real workload — 130 sessions, ~10k messages):
+steady-state RSS ≈ 57 MB for server+daemon combined, SQLite file ≈ 14 MB,
+initial import of a large Cursor history ≈ 9 s. The daemon is fs-event
+driven with a 60 s sweep; idle CPU is effectively zero. Health check for
+monitoring: `GET /api/health`.
+
+**Privacy on shared machines:** connect with `--selected` to start in
+allowlist mode — nothing syncs until you `motif projects include <path>`.
+See [SECURITY.md](SECURITY.md) for the full model.
 
 To start the daemon at login, add a user LaunchAgent (macOS) or systemd user
 unit (Linux) that runs `motif sync --watch`; example units live in `docs/`.

@@ -235,4 +235,32 @@ describe('http api', () => {
     }, regA.memberToken)).json()) as { status: string };
     expect(completed.status).toBe('done');
   });
+
+  it('owner-only team rename and member revocation', async () => {
+    const owner = (await (await call('/api/members/register', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'olive', email: 'o@example.com' }),
+    })).json()) as { memberToken: string; role: string };
+    const guest = (await (await call('/api/members/register', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'gus', email: 'g@example.com' }),
+    })).json()) as { memberToken: string; memberId: number; role: string };
+    expect(owner.role).toBe('owner');
+    expect(guest.role).toBe('member');
+
+    // non-owner cannot rename; owner can
+    expect(
+      (await call('/api/team', { method: 'PATCH', body: JSON.stringify({ name: 'Hijacked' }) }, guest.memberToken)).status,
+    ).toBe(403);
+    const renamed = (await (await call('/api/team', {
+      method: 'PATCH',
+      body: JSON.stringify({ name: 'Olive & Co' }),
+    }, owner.memberToken)).json()) as { name: string };
+    expect(renamed.name).toBe('Olive & Co');
+
+    // owner revokes guest → guest's token dies instantly
+    expect((await call('/api/sessions', {}, guest.memberToken)).status).toBe(200);
+    await call(`/api/members/${guest.memberId}/revoke`, { method: 'POST', body: '{}' }, owner.memberToken);
+    expect((await call('/api/sessions', {}, guest.memberToken)).status).toBe(401);
+  });
 });
