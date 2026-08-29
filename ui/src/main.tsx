@@ -541,29 +541,66 @@ function TokenGate({ onDone }: { onDone: () => void }) {
       onDone();
     } catch {
       clearToken();
-      setError('That token was rejected by the server.');
+      setError('that token was rejected by the server');
     }
   };
+  const cards = [
+    ['#/', 'sessions', 'orn-weave'],
+    ['#/memory', 'memory', 'orn-dots'],
+    ['#/sessions', 'handoff', 'orn-dither'],
+    ['#/search', 'search', 'orn-rings'],
+    ['#/setup', 'setup', 'orn-lattice'],
+  ] as const;
   return (
-    <div class="center">
-      <div class="brand" style="font-size:20px">
-        <span class="mark">m</span> motif
+    <div class="gate">
+      <div class="gate-body">
+        <div class="gate-left">
+          <img class="gate-logo" src="/brand/logo.png" alt="motif" />
+          <div class="gate-tag">
+            Every agent session your team runs leaves a thread.
+            <br />
+            Motif weaves them into <span class="gate-accent">one living pattern</span>.
+          </div>
+          <div class="gate-auth">
+            <input
+              class="gate-input"
+              type="password"
+              placeholder="team or member token"
+              value={value}
+              onInput={(e) => setValue((e.target as HTMLInputElement).value)}
+              onKeyDown={(e) => e.key === 'Enter' && submit()}
+            />
+            <button class="gate-enter" onClick={submit}>
+              enter →
+            </button>
+          </div>
+          {error && <div class="gate-err">{error}</div>}
+          <div class="gate-hint">
+            member token: ~/.motif/config.json — full access · team token: printed when the server starts — read-only
+          </div>
+        </div>
+        <div class="gate-right">
+          <div class="plate">
+            <div class="plate-ticks">+ · + · + · + · + · + · + · + · +</div>
+            <div class="plate-inner">
+              <img src="/brand/plate.png" alt="" />
+            </div>
+            <div class="plate-caption">pl. 01 — every session leaves a thread</div>
+            <div class="plate-ticks">+ · + · + · + · + · + · + · + · +</div>
+          </div>
+        </div>
       </div>
-      <div style="color:var(--dim);line-height:1.6">
-        Sign in with your <b>member token</b> (from <code>~/.motif/config.json</code>, full access) or the shared{' '}
-        <b>team token</b> (read-only).
+      <div class="gate-cards">
+        {cards.map(([href, label, orn]) => (
+          <a key={label} class={`gate-card ${orn}`} href={href}>
+            <span class="orn">
+              <i />
+            </span>
+            <span class="lbl">{label}</span>
+          </a>
+        ))}
       </div>
-      <input
-        type="password"
-        placeholder="token"
-        value={value}
-        onInput={(e) => setValue((e.target as HTMLInputElement).value)}
-        onKeyDown={(e) => e.key === 'Enter' && submit()}
-      />
-      {error && <div class="status-err">{error}</div>}
-      <button class="primary" style="width:auto;padding:8px 22px" onClick={submit}>
-        Sign in
-      </button>
+      <div class="gate-foot">self-hosted · open source · your sessions never leave your infrastructure</div>
     </div>
   );
 }
@@ -629,7 +666,7 @@ function App() {
     <>
       <div class="topbar">
         <a class="brand" href="#/">
-          <span class="mark">m</span> motif
+          <img class="brand-img" src="/brand/logo.png" alt="motif" />
         </a>
         <span class="crumb">/</span>
         <span class="crumb-item">{team}</span>
