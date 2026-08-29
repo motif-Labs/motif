@@ -4,7 +4,7 @@
  * system of record; a MotifSession is a normalized projection of them.
  */
 
-export type Source = 'claude-code'; // later: 'codex' | 'cursor'
+export type Source = 'claude-code' | 'codex' | 'cursor';
 
 export type Role = 'user' | 'assistant' | 'reasoning' | 'tool_call' | 'tool_result';
 

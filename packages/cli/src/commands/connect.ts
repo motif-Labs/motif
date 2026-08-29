@@ -2,6 +2,8 @@ import type { Command } from 'commander';
 import os from 'node:os';
 import { MotifClient } from '../api-client.js';
 import { loadConfig, saveConfig } from '../config.js';
+import { scanLocal } from '../local.js';
+import { shouldSyncProject } from '../daemon/syncer.js';
 
 export function registerConnect(program: Command): void {
   program
@@ -10,7 +12,8 @@ export function registerConnect(program: Command): void {
     .requiredOption('--token <token>', 'team token (shown when the server starts)')
     .requiredOption('--name <name>', 'your name as teammates should see it')
     .option('--email <email>', 'your email (stable identity across machines)')
-    .action(async (serverUrl: string, opts: { token: string; name: string; email?: string }) => {
+    .option('--selected', 'start in allowlist mode: NOTHING syncs until you `motif projects include <path>`')
+    .action(async (serverUrl: string, opts: { token: string; name: string; email?: string; selected?: boolean }) => {
       const client = new MotifClient({ serverUrl, token: opts.token });
       await client.health();
       const { memberId, memberToken, role } = await client.register({
@@ -18,7 +21,7 @@ export function registerConnect(program: Command): void {
         email: opts.email,
         machine: os.hostname(),
       });
-      saveConfig({
+      const cfg = {
         ...loadConfig(),
         serverUrl,
         token: opts.token,
@@ -26,9 +29,24 @@ export function registerConnect(program: Command): void {
         memberId,
         name: opts.name,
         email: opts.email,
-      });
+        ...(opts.selected ? { syncMode: 'selected' as const } : {}),
+      };
+      saveConfig(cfg);
       console.log(`Connected to ${serverUrl} as ${opts.name} (member #${memberId}, ${role}).`);
-      console.log('Your personal member token is stored in ~/.motif/config.json — use it to log in to the dashboard.');
-      console.log('Start syncing with: motif daemon start   (or one-shot: motif sync)');
+      console.log('Your personal member token is in ~/.motif/config.json — use it to log in to the dashboard.\n');
+
+      // show exactly what would leave this machine before any sync happens
+      const { claudeDir } = program.opts<{ claudeDir?: string }>();
+      const projects = [...new Set(scanLocal(claudeDir).sessions.map((s) => s.projectPath).filter(Boolean))];
+      if (projects.length > 0) {
+        console.log('Projects on this machine and whether they will sync:');
+        for (const p of projects) console.log(`  ${shouldSyncProject(p, cfg) ? '✓ syncs' : '✗ local'}  ${p}`);
+        console.log(
+          cfg.syncMode === 'selected'
+            ? '\nAllowlist mode: add company projects with `motif projects include <path>`.'
+            : '\nDoing personal work on this machine too? `motif projects mode selected` syncs only what you include.',
+        );
+      }
+      console.log('\nStart syncing with: motif daemon start   (or one-shot: motif sync)');
     });
 }

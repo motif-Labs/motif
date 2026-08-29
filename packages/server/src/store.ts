@@ -129,13 +129,16 @@ function upsertSessionRow(db: Db, memberId: number, meta: SessionMetaPayload): S
 }
 
 function insertMessages(db: Db, sessionPk: number, startSeq: number, messages: MotifMessage[]): void {
+  // OR IGNORE keeps the protocol idempotent even if a source emits duplicate ids
   const insertMsg = db.prepare(
-    'INSERT INTO messages (session_pk, id, seq, role, content_json, ts) VALUES (?, ?, ?, ?, ?, ?)',
+    'INSERT OR IGNORE INTO messages (session_pk, id, seq, role, content_json, ts) VALUES (?, ?, ?, ?, ?, ?)',
   );
   const insertFts = db.prepare('INSERT INTO messages_fts (text, session_pk) VALUES (?, ?)');
   let seq = startSeq;
   for (const m of messages) {
-    insertMsg.run(sessionPk, m.id, seq++, m.role, JSON.stringify(m), m.timestamp ?? null);
+    const res = insertMsg.run(sessionPk, m.id, seq, m.role, JSON.stringify(m), m.timestamp ?? null);
+    if (res.changes === 0) continue; // duplicate id — first occurrence wins
+    seq++;
     if ((m.role === 'user' || m.role === 'assistant') && m.text) {
       insertFts.run(m.text, sessionPk);
     }

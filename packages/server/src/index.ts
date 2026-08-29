@@ -66,20 +66,43 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     return crypto.timingSafeEqual(ha, hb);
   };
 
+  // Brute-force damper: guessing a 192-bit token is hopeless, but there is no
+  // reason to let anyone try fast. Sliding window of failures per client IP.
+  const authFailures = new Map<string, { count: number; resetAt: number }>();
+  const FAIL_LIMIT = 20;
+  const FAIL_WINDOW_MS = 60_000;
+  const clientKey = (c: { req: { header: (n: string) => string | undefined } }): string =>
+    c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? c.req.header('x-real-ip') ?? 'local';
+  const failuresFor = (key: string) => {
+    const now = Date.now();
+    const entry = authFailures.get(key);
+    if (!entry || entry.resetAt < now) return { count: 0, resetAt: now + FAIL_WINDOW_MS };
+    return entry;
+  };
+
   // Identity comes from the token itself, never from a client-claimed header:
   //  - team token  → read access + member registration (cannot write sessions)
   //  - member token → full access, identity implied by the token
   app.use('/api/*', async (c, next) => {
     if (c.req.path === '/api/health') return next();
+    const key = clientKey(c);
+    const failures = failuresFor(key);
+    if (failures.count >= FAIL_LIMIT) {
+      return c.json({ error: 'too many failed attempts — try again later' }, 429);
+    }
     const header = c.req.header('authorization');
     // EventSource cannot set headers, so ?token= is accepted as an equivalent
     const presented = header?.startsWith('Bearer ') ? header.slice(7) : (c.req.query('token') ?? '');
-    if (!presented) return c.json({ error: 'unauthorized' }, 401);
+    const fail = () => {
+      authFailures.set(key, { count: failures.count + 1, resetAt: failures.resetAt });
+      return c.json({ error: 'unauthorized' }, 401);
+    };
+    if (!presented) return fail();
     if (safeEqual(presented, token)) {
       c.set('authKind' as never, 'team' as never);
     } else {
       const member = resolveMemberByToken(db, presented);
-      if (member === undefined) return c.json({ error: 'unauthorized' }, 401);
+      if (member === undefined) return fail();
       c.set('authKind' as never, 'member' as never);
       c.set('memberId' as never, member as never);
       touchMember(db, member);
@@ -90,6 +113,10 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   const memberId = (c: { get: (k: never) => unknown }): number | undefined =>
     c.get('memberId' as never) as number | undefined;
 
+  const isOwner = (id: number | undefined): boolean =>
+    id !== undefined &&
+    (db.prepare('SELECT role FROM members WHERE id = ?').get(id) as { role?: string } | undefined)?.role === 'owner';
+
   app.get('/api/team', (c) =>
     c.json({
       name: teamName(),
@@ -97,6 +124,27 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       sessions: db.prepare('SELECT COUNT(*) AS n FROM sessions').pluck().get(),
     }),
   );
+
+  app.patch('/api/team', async (c) => {
+    if (!isOwner(memberId(c))) return c.json({ error: 'owner only' }, 403);
+    const body = await c.req.json<{ name?: string }>();
+    if (!body.name?.trim()) return c.json({ error: 'name required' }, 400);
+    db.prepare('INSERT INTO meta(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
+      .run('team_name', body.name.trim().slice(0, 60));
+    return c.json({ ok: true, name: teamName() });
+  });
+
+  // Owner revokes a member's device tokens: their daemon stops writing
+  // immediately; their sessions stay attributed. Re-joining needs the team
+  // token again (rotate MOTIF_TOKEN to truly close the door).
+  app.post('/api/members/:id/revoke', (c) => {
+    const caller = memberId(c);
+    if (!isOwner(caller)) return c.json({ error: 'owner only' }, 403);
+    const target = Number(c.req.param('id'));
+    if (target === caller) return c.json({ error: 'cannot revoke yourself' }, 400);
+    const revoked = db.prepare('DELETE FROM member_tokens WHERE member_id = ?').run(target);
+    return c.json({ ok: true, revokedTokens: revoked.changes });
+  });
 
   app.get('/api/me', (c) => {
     const id = memberId(c);

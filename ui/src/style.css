@@ -91,6 +91,11 @@ h2 {
   font-family: ui-monospace, 'SF Mono', Menlo, monospace;
 }
 .empty { color: var(--dim); padding: 32px 0; }
+.filters { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.filters select {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 7px;
+  color: var(--dim); font: inherit; font-size: 12px; padding: 5px 8px;
+}
 
 /* ── avatars & chips ─────────────────────────────────── */
 .avatar {
