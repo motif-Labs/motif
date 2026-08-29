@@ -2,6 +2,7 @@ import type { Command } from 'commander';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import Database from 'better-sqlite3';
 import {
   serializeRollout,
@@ -93,10 +94,11 @@ export function registerHandoff(program: Command): void {
     .description('Continue a session in another tool, natively (Claude Code → Codex)')
     .option('--to <tool>', 'target tool', 'codex')
     .option('--cwd <path>', "map the session onto your local clone (a teammate's project path differs from yours)")
+    .option('--open', 'launch Codex right into the handed-off session')
     .option('--dry-run', 'show what would be written without writing')
     .option('--force', 'write even if Codex does not appear to be installed')
     .option('--json', 'machine-readable output')
-    .action(async (id: string, opts: { to: string; cwd?: string; dryRun?: boolean; force?: boolean; json?: boolean }) => {
+    .action(async (id: string, opts: { to: string; cwd?: string; open?: boolean; dryRun?: boolean; force?: boolean; json?: boolean }) => {
       if (opts.to !== 'codex') throw new Error(`Unsupported handoff target "${opts.to}" (v0.1 supports: codex)`);
       const { claudeDir } = program.opts<{ claudeDir?: string }>();
       const cfg = loadConfig();
@@ -166,6 +168,17 @@ export function registerHandoff(program: Command): void {
       console.log(`Handed off ${session.messages.length} messages → ${target}`);
       if (result.droppedReasoning) console.log(`(${result.droppedReasoning} reasoning blocks dropped — not portable across providers)`);
       console.log(registered ? 'Registered in Codex state DB.' : 'Codex will pick the session up from disk.');
+
+      if (opts.open) {
+        const cwd = fs.existsSync(session.projectPath) ? session.projectPath : process.cwd();
+        console.log(`\nOpening Codex in ${cwd}…\n`);
+        // hand the terminal over to the Codex TUI, resumed into the session
+        const direct = spawnSync('codex', ['resume', result.threadId], { cwd, stdio: 'inherit' });
+        if (direct.error && (direct.error as NodeJS.ErrnoException).code === 'ENOENT') {
+          spawnSync('npx', ['-y', '@openai/codex', 'resume', result.threadId], { cwd, stdio: 'inherit' });
+        }
+        return;
+      }
       console.log(`\nContinue with:  codex resume ${result.threadId}`);
     });
 }
