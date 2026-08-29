@@ -6,7 +6,7 @@
   --text: #1a1d23;
   --dim: #7a8089;
   --faint: #a7adb5;
-  --accent: #4f46e5;
+  --accent: #2438ff;
   --green: #16a34a;
   --red: #dc2626;
   --amber: #d97706;
@@ -51,8 +51,11 @@ code, .mono { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size:
   position: sticky; top: 0; z-index: 10;
 }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; letter-spacing: -0.2px; }
+/* the mark IS the motif: scattered pixels resolving into a pattern */
 .brand .mark {
-  width: 22px; height: 22px; border-radius: 6px; background: var(--text); color: var(--panel);
+  width: 22px; height: 22px; border-radius: 5px; background: var(--accent); color: #fff;
+  background-image: repeating-conic-gradient(rgba(255, 255, 255, 0.18) 0 25%, transparent 0 50%);
+  background-size: 5px 5px;
   display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800;
 }
 .crumb { color: var(--faint); }
@@ -72,16 +75,21 @@ code, .mono { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size:
   cursor: pointer; font-weight: 500;
 }
 .nav-item:hover { background: var(--hover); color: var(--text); }
-.nav-item.active { background: var(--hover); color: var(--text); }
+.nav-item.active { background: var(--hover); color: var(--text); box-shadow: inset 2px 0 0 var(--accent); }
 .side-heading {
-  margin: 18px 10px 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.6px;
+  margin: 18px 10px 6px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.8px;
   text-transform: uppercase; color: var(--faint);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
 }
 .side-member { display: flex; align-items: center; gap: 8px; padding: 5px 10px; color: var(--dim); }
 .side-member .role { margin-left: auto; font-size: 11px; color: var(--faint); }
 .main { flex: 1; min-width: 0; padding: 24px 28px; }
 h1 { font-size: 17px; font-weight: 650; letter-spacing: -0.2px; margin-bottom: 16px; }
-h2 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; color: var(--faint); margin: 20px 0 8px; }
+h2 {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px;
+  color: var(--faint); margin: 20px 0 8px;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+}
 .empty { color: var(--dim); padding: 32px 0; }
 
 /* ── avatars & chips ─────────────────────────────────── */
@@ -101,6 +109,19 @@ h2 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacin
 
 /* ── session table ───────────────────────────────────── */
 .table { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.thead {
+  display: flex; gap: 14px; padding: 8px 16px; border-bottom: 1px solid var(--border);
+  background: var(--chip-bg);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase; color: var(--faint);
+}
+.thead .time { width: 62px; flex-shrink: 0; }
+.thead .title { flex: 1; }
+.thead .who { width: 150px; flex-shrink: 0; }
+.thead .tool { width: 120px; flex-shrink: 0; }
+.thead .vis { width: 60px; flex-shrink: 0; }
+.thead .ago { width: 82px; flex-shrink: 0; text-align: right; }
+@media (max-width: 900px) { .thead .vis, .thead .tool { display: none; } }
 .row {
   display: flex; align-items: center; gap: 14px; padding: 11px 16px;
   border-bottom: 1px solid var(--border); cursor: pointer;
@@ -142,7 +163,11 @@ h2 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacin
 .meta-panel { width: 280px; flex-shrink: 0; position: sticky; top: 76px; }
 .meta-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
 .meta-row { display: flex; gap: 12px; padding: 6px 0; font-size: 12.5px; }
-.meta-row .k { width: 84px; flex-shrink: 0; color: var(--faint); }
+.meta-row .k {
+  width: 84px; flex-shrink: 0; color: var(--faint);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 10.5px;
+  text-transform: uppercase; letter-spacing: 0.5px; padding-top: 2px;
+}
 .meta-row .v { color: var(--text); min-width: 0; word-break: break-word; }
 .meta-sep { border-top: 1px solid var(--border); margin: 10px -16px; }
 .session-id { color: var(--faint); font-size: 10.5px; word-break: break-all; line-height: 1.5; }

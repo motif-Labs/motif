@@ -29,6 +29,8 @@ import {
 export interface ServerConfig {
   dbPath?: string;
   token?: string;
+  /** Shown in the dashboard breadcrumb; persisted on first set (env: MOTIF_TEAM_NAME). */
+  teamName?: string;
 }
 
 export interface MotifServer {
@@ -47,6 +49,14 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   const token = ensureTeamToken(db, config.token ?? process.env.MOTIF_TOKEN);
   const bus = new LiveBus();
   const app = new Hono();
+
+  const explicitTeamName = config.teamName ?? process.env.MOTIF_TEAM_NAME;
+  if (explicitTeamName) {
+    db.prepare('INSERT INTO meta(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
+      .run('team_name', explicitTeamName);
+  }
+  const teamName = (): string =>
+    (db.prepare('SELECT value FROM meta WHERE key = ?').get('team_name') as { value: string } | undefined)?.value ?? 'Team';
 
   app.get('/api/health', (c) => c.json({ ok: true, name: 'motif' }));
 
@@ -79,6 +89,14 @@ export function createServer(config: ServerConfig = {}): MotifServer {
 
   const memberId = (c: { get: (k: never) => unknown }): number | undefined =>
     c.get('memberId' as never) as number | undefined;
+
+  app.get('/api/team', (c) =>
+    c.json({
+      name: teamName(),
+      members: db.prepare('SELECT COUNT(*) AS n FROM members').pluck().get(),
+      sessions: db.prepare('SELECT COUNT(*) AS n FROM sessions').pluck().get(),
+    }),
+  );
 
   app.get('/api/me', (c) => {
     const id = memberId(c);
@@ -157,6 +175,20 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       meta: JSON.parse(row.meta_json),
       messages: getSessionMessages(db, row.pk),
     });
+  });
+
+  // Members can withdraw their OWN sessions (e.g. a project excluded after the fact)
+  app.delete('/api/sessions/:id', (c) => {
+    const member = memberId(c);
+    if (member === undefined) return c.json({ error: 'member token required' }, 403);
+    const row = getSessionRow(db, c.req.param('id'));
+    if (!row) return c.json({ error: 'not found' }, 404);
+    if (row.member_id !== member) return c.json({ error: 'you can only delete your own sessions' }, 403);
+    db.transaction(() => {
+      db.prepare('DELETE FROM messages_fts WHERE session_pk = ?').run(row.pk);
+      db.prepare('DELETE FROM sessions WHERE pk = ?').run(row.pk);
+    })();
+    return c.json({ ok: true, deleted: row.id });
   });
 
   app.put('/api/sessions/:id', async (c) => {
@@ -330,7 +362,7 @@ export function startServer(
   });
 }
 
-export { openDb } from './db/database.js';
+export { dedupeMembers, openDb } from './db/database.js';
 export * from './store.js';
 export { LiveBus } from './live/bus.js';
 export { createProvider, type LLMProvider } from './memory/providers.js';

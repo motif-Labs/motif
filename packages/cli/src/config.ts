@@ -11,8 +11,16 @@ export interface MotifConfig {
   memberId?: number;
   name?: string;
   email?: string;
+  /**
+   * 'all' (default): every project syncs except `exclude` matches.
+   * 'selected': ONLY `include` matches sync — for machines that also do
+   * personal / non-company work.
+   */
+  syncMode?: 'all' | 'selected';
   /** Project paths (supports `*` and `**` globs) the daemon must never sync. */
   exclude?: string[];
+  /** In 'selected' mode: the allowlist of project paths/globs that sync. */
+  include?: string[];
   /** Regexes applied to message text before anything leaves this machine. */
   redactPatterns?: string[];
 }
