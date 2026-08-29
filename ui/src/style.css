@@ -50,6 +50,12 @@ code, .mono { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size:
   background: var(--panel); border-bottom: 1px solid var(--border);
   position: sticky; top: 0; z-index: 10;
 }
+/* the signature stitch under the header */
+.topbar::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
+  background: repeating-linear-gradient(90deg, var(--accent) 0 6px, transparent 6px 13px);
+  opacity: 0.3;
+}
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; letter-spacing: -0.2px; }
 /* the mark IS the motif: scattered pixels resolving into a pattern */
 .brand .mark {
@@ -84,7 +90,11 @@ code, .mono { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size:
 .side-member { display: flex; align-items: center; gap: 8px; padding: 5px 10px; color: var(--dim); }
 .side-member .role { margin-left: auto; font-size: 11px; color: var(--faint); }
 .main { flex: 1; min-width: 0; padding: 24px 28px; }
-h1 { font-size: 17px; font-weight: 650; letter-spacing: -0.2px; margin-bottom: 16px; }
+/* serif display + mono detail: the same pairing as the wordmark */
+h1 {
+  font-family: 'Iowan Old Style', 'Palatino Nova', Palatino, Georgia, serif;
+  font-size: 24px; font-weight: 600; letter-spacing: 0.1px; margin-bottom: 16px;
+}
 h2 {
   font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px;
   color: var(--faint); margin: 20px 0 8px;
@@ -111,6 +121,60 @@ h2 {
 .chip .dot { width: 7px; height: 7px; border-radius: 50%; }
 .chip.live { color: var(--green); border-color: color-mix(in srgb, var(--green) 40%, var(--border)); }
 .chip.conflict { color: var(--red); border-color: color-mix(in srgb, var(--red) 40%, var(--border)); }
+
+/* ── "now working" strip ─────────────────────────────── */
+.now-strip { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+.now-chip {
+  display: flex; align-items: center; gap: 8px; padding: 7px 14px 7px 9px;
+  background: var(--panel); border: 1px solid color-mix(in srgb, var(--green) 35%, var(--border));
+  border-radius: 999px; font-size: 12.5px;
+}
+.now-chip .pulse {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--green);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 45%, transparent); }
+  55% { box-shadow: 0 0 0 6px transparent; }
+}
+.now-chip .x { color: var(--faint); }
+
+/* ── the thread: sessions as knots on a stitched line ── */
+.thread { position: relative; padding-left: 30px; max-width: 900px; }
+.thread::before {
+  content: ''; position: absolute; left: 9px; top: 6px; bottom: 6px; width: 2px;
+  background: repeating-linear-gradient(180deg, var(--border) 0 7px, transparent 7px 13px);
+}
+.day-label {
+  position: relative;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.9px; text-transform: uppercase;
+  color: var(--faint); margin: 22px 0 10px;
+}
+.day-label::before {
+  content: ''; position: absolute; left: -25px; top: 3px; width: 8px; height: 8px;
+  background: var(--bg); border: 2px solid var(--faint); transform: rotate(45deg);
+}
+.thread > .day-label:first-child { margin-top: 0; }
+.snode { position: relative; margin-bottom: 10px; }
+.snode::before {
+  content: ''; position: absolute; left: -24.5px; top: 20px; width: 7px; height: 7px;
+  border-radius: 50%; background: var(--panel); border: 2px solid var(--faint);
+}
+.snode.live::before { background: var(--green); border-color: var(--green); animation: pulse 1.6s ease-in-out infinite; }
+.scard {
+  display: block; background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  padding: 11px 16px; transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+}
+.scard:hover { transform: translateX(2px); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); box-shadow: 0 4px 16px rgba(25, 35, 65, 0.06); }
+.scard .top { display: flex; align-items: baseline; gap: 10px; }
+.scard .title { font-weight: 600; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+.scard .ago { color: var(--faint); font-size: 12px; white-space: nowrap; }
+.scard .meta { display: flex; align-items: center; gap: 14px; margin-top: 6px; color: var(--dim); font-size: 12px; flex-wrap: wrap; }
+.scard .meta .who { display: flex; align-items: center; gap: 6px; }
+.agent-tag { display: inline-flex; align-items: center; gap: 6px; color: var(--dim); }
+.agent-tag svg { display: block; }
+.scard .proj { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; color: var(--faint); }
 
 /* ── session table ───────────────────────────────────── */
 .table { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
@@ -182,7 +246,7 @@ button {
   color: var(--text); padding: 7px 14px; font-weight: 600; font-size: 12.5px; cursor: pointer; width: 100%;
 }
 button:hover { background: var(--hover); }
-button.primary { background: var(--text); color: var(--panel); border-color: var(--text); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
 button.primary:hover { opacity: 0.88; }
 button:disabled { opacity: 0.5; cursor: default; }
 .hint { font-size: 11.5px; color: var(--faint); margin-top: 8px; line-height: 1.5; }
