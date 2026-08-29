@@ -342,6 +342,52 @@ describe('http api', () => {
     expect(kaiAfter.map((s) => s.id)).toContain(secret.id);
   });
 
+  it('comments pin onto sessions without touching the transcript; mentions resolve; scope respected', async () => {
+    const eda = (await (await call('/api/members/register', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'eda', email: 'eda@example.com' }),
+    })).json()) as { memberToken: string; memberId: number };
+    const can = (await (await call('/api/members/register', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'can', email: 'can@example.com' }),
+    })).json()) as { memberToken: string; memberId: number };
+
+    const session = makeSession('cmt1', [msg('u1', 'user', 'review this refactor')]);
+    await call(`/api/sessions/${encodeURIComponent(session.id)}`, { method: 'PUT', body: JSON.stringify(session) }, eda.memberToken);
+
+    // can pins a note on a specific message, mentioning eda
+    const posted = (await (await call(`/api/sessions/${encodeURIComponent(session.id)}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ body: '@eda bu retry mantığını bir konuşalım', messageId: 'u1' }),
+    }, can.memberToken)).json()) as { id: number; mentions: number[]; message_id: string };
+    expect(posted.mentions).toContain(eda.memberId);
+    expect(posted.message_id).toBe('u1');
+
+    // transcript untouched; comment listed with author
+    const detail = (await (await call(`/api/sessions/${encodeURIComponent(session.id)}`, {}, eda.memberToken)).json()) as {
+      messages: unknown[];
+    };
+    expect(detail.messages).toHaveLength(1);
+    const list = (await (await call(`/api/sessions/${encodeURIComponent(session.id)}/comments`, {}, eda.memberToken)).json()) as {
+      author_name: string;
+    }[];
+    expect(list).toHaveLength(1);
+    expect(list[0]!.author_name).toBe('can');
+
+    // only the author deletes; team token can read but not write
+    expect(
+      (await call(`/api/sessions/${encodeURIComponent(session.id)}/comments/${posted.id}`, { method: 'DELETE' }, eda.memberToken)).status,
+    ).toBe(404);
+    expect(
+      (await call(`/api/sessions/${encodeURIComponent(session.id)}/comments`, { method: 'POST', body: JSON.stringify({ body: 'x' }) })).status,
+    ).toBe(403);
+
+    // comments on a personal session are as invisible as the session itself
+    const priv = { ...makeSession('cmt2', [msg('u1', 'user', 'secret')]), visibility: 'personal' as const };
+    await call(`/api/sessions/${encodeURIComponent(priv.id)}`, { method: 'PUT', body: JSON.stringify(priv) }, eda.memberToken);
+    expect((await call(`/api/sessions/${encodeURIComponent(priv.id)}/comments`, {}, can.memberToken)).status).toBe(404);
+  });
+
   it('owner prunes old sessions; recent ones and memory notes survive', async () => {
     const owner = (await (await call('/api/members/register', {
       method: 'POST',

@@ -10,8 +10,11 @@ import type { MotifMessage, MotifSession } from '@motif/core';
 import { ensureTeamToken, openDb, type Db } from './db/database.js';
 import { LiveBus } from './live/bus.js';
 import {
+  addComment,
   appendMessages,
   canView,
+  deleteComment,
+  listComments,
   completeHandoffRequest,
   createHandoffRequest,
   exportSession,
@@ -258,6 +261,42 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       meta: JSON.parse(row.meta_json),
       messages: getSessionMessages(db, row.pk),
     });
+  });
+
+  // Comments: an annotation layer pinned onto a session. The transcript is
+  // never touched — this is where humans discuss what the agent did.
+  app.get('/api/sessions/:id/comments', (c) => {
+    const row = getSessionRow(db, c.req.param('id'));
+    if (!row || !canView(row, memberId(c))) return c.json({ error: 'not found' }, 404);
+    return c.json(listComments(db, row.pk));
+  });
+
+  app.post('/api/sessions/:id/comments', async (c) => {
+    const member = memberId(c);
+    if (member === undefined) return c.json({ error: 'member token required' }, 403);
+    const row = getSessionRow(db, c.req.param('id'));
+    if (!row || !canView(row, member)) return c.json({ error: 'not found' }, 404);
+    const body = await c.req.json<{ body?: string; messageId?: string }>();
+    const text = body.body?.trim();
+    if (!text) return c.json({ error: 'body required' }, 400);
+    if (text.length > 4000) return c.json({ error: 'comment too long' }, 400);
+    const comment = addComment(db, member, row.pk, body.messageId ?? null, text);
+    bus.publish('comment-added', {
+      sessionId: row.id,
+      commentId: comment.id,
+      authorId: member,
+      authorName: comment.author_name,
+      mentionIds: comment.mentions,
+      messageId: comment.message_id,
+    });
+    return c.json(comment);
+  });
+
+  app.delete('/api/sessions/:id/comments/:commentId', (c) => {
+    const member = memberId(c);
+    if (member === undefined) return c.json({ error: 'member token required' }, 403);
+    const ok = deleteComment(db, member, Number(c.req.param('commentId')));
+    return ok ? c.json({ ok: true }) : c.json({ error: 'not found or not yours' }, 404);
   });
 
   // Owner of a session moves it between the personal drawer and the team

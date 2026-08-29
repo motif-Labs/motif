@@ -56,6 +56,14 @@ export class MotifClient {
     return this.request('POST', '/api/admin/prune', { olderThanDays });
   }
 
+  addComment(sessionId: string, body: string, messageId?: string): Promise<{ id: number }> {
+    return this.request('POST', `/api/sessions/${encodeURIComponent(sessionId)}/comments`, { body, messageId });
+  }
+
+  listComments(sessionId: string): Promise<{ id: number; author_name: string | null; body: string; created_at: string }[]> {
+    return this.request('GET', `/api/sessions/${encodeURIComponent(sessionId)}/comments`);
+  }
+
   createHandoffRequest(input: { sessionId: string; cwd?: string; assignee?: string; target?: string }): Promise<{
     id: number;
     assignee_id: number | null;

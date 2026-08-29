@@ -354,3 +354,32 @@ input:focus { outline: 2px solid color-mix(in srgb, var(--accent) 35%, transpare
 .scope-pills { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-right: 10px; }
 .scope-pills button { border: 0; border-radius: 0; width: auto; padding: 5px 14px; font-size: 12px; background: var(--panel); color: var(--dim); }
 .scope-pills button.on { background: var(--accent); color: #fff; }
+
+/* ── pinned notes (comments on the thread) ───────────── */
+.pins { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; max-width: 76%; }
+.turn.user .pins { align-self: flex-end; }
+.pin {
+  display: flex; gap: 8px; align-items: flex-start;
+  border: 1px dashed color-mix(in srgb, var(--amber) 50%, var(--border));
+  background: color-mix(in srgb, var(--amber) 5%, var(--panel));
+  border-radius: 10px; padding: 7px 11px; font-size: 12.5px; line-height: 1.5;
+}
+.pin .who { font-weight: 600; margin-right: 2px; }
+.pin .when { color: var(--faint); font-size: 10.5px; margin-left: auto; white-space: nowrap; padding-left: 8px; }
+.pin .del { color: var(--faint); cursor: pointer; padding: 0 2px; }
+.pin .del:hover { color: var(--red); }
+.pin-btn {
+  opacity: 0; border: 1px dashed var(--border); background: var(--panel); color: var(--faint);
+  width: 24px; height: 24px; border-radius: 50%; padding: 0; font-size: 13px; line-height: 1;
+  flex-shrink: 0; align-self: center; transition: opacity 0.12s ease;
+}
+.turn:hover .pin-btn { opacity: 1; }
+.pin-btn:hover { color: var(--amber); border-color: var(--amber); background: var(--panel); }
+.pin-composer { display: flex; gap: 6px; margin-top: 6px; max-width: 76%; }
+.turn.user .pin-composer { align-self: flex-end; }
+.pin-composer input { flex: 1; max-width: none; font-size: 12.5px; padding: 6px 10px; }
+.pin-composer button { width: auto; padding: 6px 12px; }
+.bubble-col { display: flex; flex-direction: column; min-width: 0; max-width: 76%; }
+.bubble-col .bubble { max-width: none; }
+.turn.user .bubble-col { align-items: flex-end; }
+.notes-box { margin-top: 28px; max-width: 800px; }

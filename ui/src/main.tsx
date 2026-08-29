@@ -7,6 +7,7 @@ import {
   getToken,
   openEvents,
   setToken,
+  type Comment,
   type HandoffRequest,
   type Me,
   type MemberRow,
@@ -280,7 +281,30 @@ function SessionsPage({ me }: { me: Me }) {
 
 /* ── session detail ──────────────────────────────────── */
 
-function ChatTurn({ m, memberName, source }: { m: Message; memberName: string | null; source: string }) {
+function ChatTurn({
+  m,
+  memberName,
+  source,
+  pins,
+  canPin,
+  composerOpen,
+  onOpenComposer,
+  onPost,
+  onDelete,
+  myName,
+}: {
+  m: Message;
+  memberName: string | null;
+  source: string;
+  pins: Comment[];
+  canPin: boolean;
+  composerOpen: boolean;
+  onOpenComposer: () => void;
+  onPost: (body: string) => void;
+  onDelete: (id: number) => void;
+  myName?: string;
+}) {
+  const [draft, setDraft] = useState('');
   if (m.role === 'reasoning') return null;
   if (m.role === 'tool_call' || m.role === 'tool_result') {
     // tool activity reads like a system event between bubbles
@@ -310,7 +334,56 @@ function ChatTurn({ m, memberName, source }: { m: Message; memberName: string | 
           </span>
         )}
       </span>
-      <div class="bubble">{text.length > 6000 ? `${text.slice(0, 6000)}…` : text}</div>
+      <div class="bubble-col">
+        <div class="bubble">{text.length > 6000 ? `${text.slice(0, 6000)}…` : text}</div>
+        {pins.length > 0 && (
+          <div class="pins">
+            {pins.map((c) => (
+              <div class="pin" key={c.id}>
+                <Avatar name={c.author_name} size={16} />
+                <span>
+                  <span class="who">{c.author_name}</span>
+                  {c.body}
+                </span>
+                <span class="when">{ago(c.created_at)}</span>
+                {myName && c.author_name === myName && (
+                  <span class="del" title="Delete note" onClick={() => onDelete(c.id)}>×</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        {composerOpen && (
+          <div class="pin-composer">
+            <input
+              type="text"
+              placeholder="Pin a note… (@Name notifies them)"
+              value={draft}
+              onInput={(e) => setDraft((e.target as HTMLInputElement).value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && draft.trim()) {
+                  onPost(draft.trim());
+                  setDraft('');
+                }
+              }}
+            />
+            <button
+              class="primary"
+              onClick={() => {
+                if (draft.trim()) {
+                  onPost(draft.trim());
+                  setDraft('');
+                }
+              }}
+            >
+              Pin
+            </button>
+          </div>
+        )}
+      </div>
+      {canPin && !composerOpen && (
+        <button class="pin-btn" title="Pin a note here" onClick={onOpenComposer}>﹢</button>
+      )}
     </div>
   );
 }
@@ -448,17 +521,56 @@ function HandoffPanel({ session, me }: { session: SessionDetail; me: Me }) {
   );
 }
 
+function SessionNoteComposer({ onPost }: { onPost: (body: string) => void }) {
+  const [draft, setDraft] = useState('');
+  const send = () => {
+    if (!draft.trim()) return;
+    onPost(draft.trim());
+    setDraft('');
+  };
+  return (
+    <div class="pin-composer" style="max-width:none">
+      <input
+        type="text"
+        placeholder="Pin a note onto this session… (@Name notifies them)"
+        value={draft}
+        onInput={(e) => setDraft((e.target as HTMLInputElement).value)}
+        onKeyDown={(e) => e.key === 'Enter' && send()}
+      />
+      <button class="primary" onClick={send}>Pin</button>
+    </div>
+  );
+}
+
 function SessionView({ id, me }: { id: string; me: Me }) {
   const [session, setSession] = useState<SessionDetail | null>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [composerFor, setComposerFor] = useState<string | null>(null);
   const [error, setError] = useState('');
   const reload = () =>
     api<SessionDetail>(`/api/sessions/${encodeURIComponent(id)}`).then(setSession).catch((e) => setError(String(e.message)));
+  const loadComments = () =>
+    api<Comment[]>(`/api/sessions/${encodeURIComponent(id)}/comments`).then(setComments).catch(() => {});
   useEffect(() => {
     reload();
+    loadComments();
     return openEvents((name, data) => {
       if (name === 'session-upserted' && (data as { id?: string }).id === id) reload();
+      if (name === 'comment-added' && (data as { sessionId?: string }).sessionId === id) loadComments();
     });
   }, [id]);
+  const postComment = async (messageId: string | null, body: string) => {
+    setComposerFor(null);
+    await api(`/api/sessions/${encodeURIComponent(id)}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ body, messageId: messageId ?? undefined }),
+    }).catch(() => {});
+    loadComments();
+  };
+  const removeComment = async (commentId: number) => {
+    await api(`/api/sessions/${encodeURIComponent(id)}/comments/${commentId}`, { method: 'DELETE' }).catch(() => {});
+    loadComments();
+  };
   if (error) return <div class="empty">{error}</div>;
   if (!session) return <div class="empty">Loading…</div>;
 
@@ -479,8 +591,36 @@ function SessionView({ id, me }: { id: string; me: Me }) {
       <div class="transcript chat">
         <h1>{session.title ?? '(untitled)'}</h1>
         {session.messages.map((m) => (
-          <ChatTurn key={m.id} m={m} memberName={session.memberName} source={session.source} />
+          <ChatTurn
+            key={m.id}
+            m={m}
+            memberName={session.memberName}
+            source={session.source}
+            pins={comments.filter((c) => c.message_id === m.id)}
+            canPin={me.kind === 'member'}
+            composerOpen={composerFor === m.id}
+            onOpenComposer={() => setComposerFor(m.id)}
+            onPost={(body) => postComment(m.id, body)}
+            onDelete={removeComment}
+            myName={me.member?.name}
+          />
         ))}
+        <div class="notes-box">
+          <h2>Notes on this session</h2>
+          {comments.filter((c) => c.message_id === null).map((c) => (
+            <div class="pin" key={c.id} style="max-width:none;margin-bottom:6px">
+              <Avatar name={c.author_name} size={16} />
+              <span><span class="who">{c.author_name}</span>{c.body}</span>
+              <span class="when">{ago(c.created_at)}</span>
+              {me.kind === 'member' && c.author_name === me.member?.name && (
+                <span class="del" onClick={() => removeComment(c.id)}>×</span>
+              )}
+            </div>
+          ))}
+          {me.kind === 'member' && (
+            <SessionNoteComposer onPost={(body) => postComment(null, body)} />
+          )}
+        </div>
       </div>
       <div class="meta-panel">
         <div class="spec">
