@@ -13,8 +13,9 @@
   --chip-bg: #fafafa;
   font-family: -apple-system, 'SF Pro Text', 'Segoe UI', Inter, Roboto, sans-serif;
 }
+/* dark palette applies when the system prefers it (unless light is forced)… */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --bg: #101216;
     --panel: #16181d;
     --hover: #1d2026;
@@ -24,6 +25,17 @@
     --faint: #5c626b;
     --chip-bg: #1a1d22;
   }
+}
+/* …or when the user explicitly picks dark from the topbar toggle */
+:root[data-theme='dark'] {
+  --bg: #101216;
+  --panel: #16181d;
+  --hover: #1d2026;
+  --border: #262a31;
+  --text: #e6e8eb;
+  --dim: #8b919a;
+  --faint: #5c626b;
+  --chip-bg: #1a1d22;
 }
 * { box-sizing: border-box; margin: 0; }
 html, body { height: 100%; }
@@ -47,6 +59,7 @@ code, .mono { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size:
 .crumb-item { color: var(--dim); font-weight: 500; }
 .topbar .spacer { flex: 1; }
 .whoami { display: flex; align-items: center; gap: 8px; color: var(--dim); font-weight: 500; }
+.theme-toggle { font-size: 15px; padding: 4px 9px; line-height: 1; user-select: none; }
 
 /* ── layout ──────────────────────────────────────────── */
 .shell { display: flex; flex: 1; min-height: 0; }

@@ -18,6 +18,35 @@ import {
 
 /* ── helpers ─────────────────────────────────────────── */
 
+type Theme = 'system' | 'light' | 'dark';
+const THEME_KEY = 'motif-theme';
+
+function applyTheme(theme: Theme): void {
+  if (theme === 'system') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = theme;
+}
+
+function useTheme(): [Theme, () => void] {
+  const [theme, setTheme] = useState<Theme>(() => {
+    try {
+      return (localStorage.getItem(THEME_KEY) as Theme) || 'system';
+    } catch {
+      return 'system';
+    }
+  });
+  useEffect(() => applyTheme(theme), [theme]);
+  const cycle = () => {
+    const next: Theme = theme === 'system' ? 'light' : theme === 'light' ? 'dark' : 'system';
+    try {
+      localStorage.setItem(THEME_KEY, next);
+    } catch {
+      /* session-only preference */
+    }
+    setTheme(next);
+  };
+  return [theme, cycle];
+}
+
 function useHash(): string {
   const [hash, setHash] = useState(location.hash.slice(1) || '/');
   useEffect(() => {
@@ -520,8 +549,11 @@ function TokenGate({ onDone }: { onDone: () => void }) {
 
 /* ── app shell ───────────────────────────────────────── */
 
+const THEME_ICONS: Record<Theme, string> = { system: '◐', light: '☀', dark: '☾' };
+
 function App() {
   const hash = useHash();
+  const [theme, cycleTheme] = useTheme();
   const [authed, setAuthed] = useState(!!getToken());
   const [me, setMe] = useState<Me>({ kind: 'team' });
   const [members, setMembers] = useState<MemberRow[]>([]);
@@ -579,6 +611,9 @@ function App() {
         <span class="crumb">/</span>
         <span class="crumb-item">{crumb}</span>
         <span class="spacer" />
+        <a class="nav-item theme-toggle" title={`Theme: ${theme}`} onClick={cycleTheme}>
+          {THEME_ICONS[theme]}
+        </a>
         <span class="whoami">
           {me.kind === 'member' ? (
             <>
