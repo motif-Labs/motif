@@ -18,9 +18,15 @@ Two credentials, two levels:
 - Tokens are 192-bit random values; only SHA-256 hashes are stored
   server-side; comparisons are constant-time; repeated failures are
   rate-limited per client (20/min → 429).
-- Everyone with a valid token can **read** all synced sessions — that is
-  the product. Keeping something out of that pool happens on the source
-  machine (below).
+- Every synced session carries a scope, and **joining a team never
+  auto-shares your history**: a freshly connected machine uploads
+  everything as `personal` — stored on the server but visible to *you
+  alone* (lists, search, detail, export all filter it) — until you mark
+  projects team-visible (`motif projects team <path>`) or promote
+  individual sessions from the dashboard. Handing a personal session to
+  a teammate promotes it (handing it over *is* sharing it), and only
+  team-visible sessions feed the shared memory. Keeping something off
+  the server entirely still happens on the source machine (below).
 - Dashboard-initiated handoffs execute only on the requester's own
   machine via their own daemon; requests are invisible to other members.
 - The owner (first member) can rename the team and revoke any member's
