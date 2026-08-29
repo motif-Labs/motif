@@ -5,11 +5,20 @@
  * state DB; the server never touches ~/.codex — only this machine does.
  */
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
-import { serializeRollout, toRolloutLines, uuidv7, type MotifSession } from '@motif/core';
+import {
+  defaultClaudeDir,
+  serializeClaudeSession,
+  serializeRollout,
+  toClaudeSessionLines,
+  toRolloutLines,
+  uuidv7,
+  type MotifSession,
+} from '@motif/core';
 
 export function codexHome(): string {
   return process.env.CODEX_HOME ?? path.join(os.homedir(), '.codex');
@@ -110,8 +119,10 @@ export function performCodexHandoff(
   session: MotifSession,
   opts: { cwdOverride?: string; force?: boolean; digest?: { keepLast: number } } = {},
 ): HandoffResult {
-  if (session.source === 'codex') {
-    throw new Error(`Already a Codex session — continue it with: codex resume ${session.sourceSessionId}`);
+  // A codex session whose rollout already lives on THIS machine needs no
+  // conversion; one synced from a teammate's machine does.
+  if (session.source === 'codex' && session.sourcePath && fs.existsSync(session.sourcePath)) {
+    throw new Error(`Already a Codex session on this machine — continue it with: codex resume ${session.sourceSessionId}`);
   }
   if (opts.cwdOverride) session = { ...session, projectPath: path.resolve(opts.cwdOverride) };
 
@@ -148,4 +159,79 @@ export function performCodexHandoff(
     messageCount: session.messages.length,
     projectPath: session.projectPath,
   };
+}
+
+/**
+ * The reverse direction: materialize any session as a native Claude Code
+ * transcript, so `claude --resume <id>` continues it. Used when Codex limits
+ * run out mid-task, or when a teammate's Codex work is handed to a Claude
+ * Code user.
+ */
+export function performClaudeHandoff(
+  session: MotifSession,
+  opts: { cwdOverride?: string; force?: boolean; claudeDir?: string } = {},
+): HandoffResult {
+  if (session.source === 'claude-code' && session.sourcePath && fs.existsSync(session.sourcePath)) {
+    throw new Error(
+      `Already a Claude Code session on this machine — continue it with: claude --resume ${session.sourceSessionId}`,
+    );
+  }
+  if (opts.cwdOverride) session = { ...session, projectPath: path.resolve(opts.cwdOverride) };
+
+  const home = opts.claudeDir ?? defaultClaudeDir();
+  if (!fs.existsSync(home) && !opts.force) {
+    throw new Error(`${home} not found — is Claude Code installed? (--force to write anyway)`);
+  }
+
+  // mirror the locally installed version string when a real transcript is around to copy it from
+  let toolVersion: string | undefined;
+  try {
+    const projects = path.join(home, 'projects');
+    outer: for (const dir of fs.readdirSync(projects)) {
+      for (const f of fs.readdirSync(path.join(projects, dir))) {
+        if (!f.endsWith('.jsonl')) continue;
+        const head = fs.readFileSync(path.join(projects, dir, f), 'utf8').slice(0, 4000);
+        const m = head.match(/"version":"([\d.]+)"/);
+        if (m) {
+          toolVersion = m[1];
+          break outer;
+        }
+      }
+    }
+  } catch {
+    /* fresh install — default applies */
+  }
+
+  const result = toClaudeSessionLines(session, {
+    sessionId: crypto.randomUUID(),
+    now: new Date(),
+    toolVersion,
+  });
+  const target = path.join(home, result.relativePath);
+  if (fs.existsSync(target)) throw new Error(`Refusing to overwrite existing session: ${target}`);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, serializeClaudeSession(result.lines));
+
+  return {
+    target,
+    threadId: result.sessionId,
+    registered: true, // Claude Code discovers transcripts from disk; no DB needed
+    droppedReasoning: result.droppedReasoning,
+    messageCount: session.messages.length,
+    projectPath: session.projectPath,
+  };
+}
+
+export type HandoffTarget = 'codex' | 'claude-code';
+
+export function performHandoff(
+  target: HandoffTarget,
+  session: MotifSession,
+  opts: { cwdOverride?: string; force?: boolean; digest?: { keepLast: number } } = {},
+): HandoffResult {
+  return target === 'claude-code' ? performClaudeHandoff(session, opts) : performCodexHandoff(session, opts);
+}
+
+export function resumeCommandFor(target: HandoffTarget, threadId: string): string {
+  return target === 'claude-code' ? `claude --resume ${threadId}` : `codex resume ${threadId}`;
 }

@@ -7,7 +7,7 @@
  */
 
 import { MotifClient } from '../api-client.js';
-import { performCodexHandoff } from '../handoff/perform.js';
+import { performHandoff, resumeCommandFor, type HandoffTarget } from '../handoff/perform.js';
 
 export async function fulfillPendingHandoffs(
   client: MotifClient,
@@ -22,8 +22,9 @@ export async function fulfillPendingHandoffs(
   let done = 0;
   for (const req of requests) {
     try {
+      const target = (req.target === 'claude-code' ? 'claude-code' : 'codex') as HandoffTarget;
       const session = await client.exportSession(req.session_id);
-      const result = performCodexHandoff(session, { cwdOverride: req.cwd_override ?? undefined });
+      const result = performHandoff(target, session, { cwdOverride: req.cwd_override ?? undefined });
       await client.completeHandoffRequest(req.id, {
         status: 'done',
         outputPath: result.target,
@@ -32,7 +33,7 @@ export async function fulfillPendingHandoffs(
       const fromTeammate = req.assignee_id !== null && req.requester_name;
       log(
         fromTeammate
-          ? `📥 @${req.requester_name} handed you a session — continue with: codex resume ${result.threadId}`
+          ? `📥 @${req.requester_name} handed you a session — continue with: ${resumeCommandFor(target, result.threadId)}`
           : `handoff #${req.id}: ${req.session_id} → ${result.target}`,
       );
       done++;

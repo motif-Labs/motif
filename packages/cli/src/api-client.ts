@@ -56,7 +56,7 @@ export class MotifClient {
     return this.request('POST', '/api/admin/prune', { olderThanDays });
   }
 
-  createHandoffRequest(input: { sessionId: string; cwd?: string; assignee?: string }): Promise<{
+  createHandoffRequest(input: { sessionId: string; cwd?: string; assignee?: string; target?: string }): Promise<{
     id: number;
     assignee_id: number | null;
   }> {
@@ -69,6 +69,7 @@ export class MotifClient {
       session_id: string;
       cwd_override: string | null;
       status: string;
+      target: string;
       requested_by: number;
       assignee_id: number | null;
       requester_name: string | null;
