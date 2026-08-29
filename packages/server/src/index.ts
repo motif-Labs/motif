@@ -314,16 +314,24 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     if (member === undefined) {
       return c.json({ error: 'handoff runs on your machine via your daemon — log in with your member token' }, 403);
     }
-    const body = await c.req.json<{ sessionId?: string; cwd?: string; assignee?: string }>();
+    const body = await c.req.json<{ sessionId?: string; cwd?: string; assignee?: string; target?: string }>();
     if (!body.sessionId) return c.json({ error: 'sessionId required' }, 400);
     if (!getSessionRow(db, body.sessionId)) return c.json({ error: 'session not found' }, 404);
+    if (body.target && body.target !== 'codex' && body.target !== 'claude-code') {
+      return c.json({ error: 'target must be codex or claude-code' }, 400);
+    }
     let assigneeId: number | undefined;
     if (body.assignee) {
       const assignee = resolveMember(db, body.assignee);
       if (!assignee) return c.json({ error: `no unique member matches "${body.assignee}"` }, 404);
       if (assignee.id !== member) assigneeId = assignee.id;
     }
-    const request = createHandoffRequest(db, member, { sessionId: body.sessionId, cwd: body.cwd, assigneeId });
+    const request = createHandoffRequest(db, member, {
+      sessionId: body.sessionId,
+      cwd: body.cwd,
+      assigneeId,
+      target: body.target,
+    });
     // wake the EXECUTOR's daemon — the assignee when handing to a teammate
     bus.publish('handoff-requested', {
       requestId: request.id,

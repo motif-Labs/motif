@@ -2,17 +2,17 @@ import type { Command } from 'commander';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { toRolloutLines, uuidv7, type MotifSession } from '@motif/core';
+import { discoverCodexSessions, readCodexSession, toRolloutLines, uuidv7, type MotifSession } from '@motif/core';
 import { resolveSession, scanLocal } from '../local.js';
 import { loadConfig } from '../config.js';
 import { MotifClient } from '../api-client.js';
-import { codexHome, performCodexHandoff } from '../handoff/perform.js';
+import { codexHome, performHandoff, resumeCommandFor, type HandoffTarget } from '../handoff/perform.js';
 
 export function registerHandoff(program: Command): void {
   program
     .command('handoff <id>')
-    .description('Continue a session in another tool, natively (Claude Code → Codex)')
-    .option('--to <tool>', 'target tool', 'codex')
+    .description('Continue a session in another tool, natively (Claude Code ⇄ Codex, Cursor → both)')
+    .option('--to <tool>', 'target tool: codex | claude-code', 'codex')
     .option('--cwd <path>', "map the session onto your local clone (a teammate's project path differs from yours)")
     .option('--open', 'launch Codex right into the handed-off session')
     .option('--digest [n]', 'compress all but the last n messages into a summary (default n: 60)')
@@ -21,7 +21,10 @@ export function registerHandoff(program: Command): void {
     .option('--force', 'write even if Codex does not appear to be installed')
     .option('--json', 'machine-readable output')
     .action(async (id: string, opts: { to: string; cwd?: string; open?: boolean; digest?: string | boolean; toMember?: string; dryRun?: boolean; force?: boolean; json?: boolean }) => {
-      if (opts.to !== 'codex') throw new Error(`Unsupported handoff target "${opts.to}" (v0.1 supports: codex)`);
+      if (opts.to !== 'codex' && opts.to !== 'claude-code') {
+        throw new Error(`Unsupported handoff target "${opts.to}" (supported: codex, claude-code)`);
+      }
+      const target = opts.to as HandoffTarget;
       const { claudeDir } = program.opts<{ claudeDir?: string }>();
       const cfg = loadConfig();
 
@@ -41,18 +44,25 @@ export function registerHandoff(program: Command): void {
           await client.putSession(local);
           resolved = local.id;
         }
-        const req = await client.createHandoffRequest({ sessionId: resolved, cwd: opts.cwd, assignee: opts.toMember });
-        console.log(`Handed ${resolved} to ${opts.toMember} (request #${req.id}).`);
-        console.log('Their daemon will materialize it in their Codex; they get a ready-to-run resume command.');
+        const req = await client.createHandoffRequest({ sessionId: resolved, cwd: opts.cwd, assignee: opts.toMember, target });
+        console.log(`Handed ${resolved} to ${opts.toMember} (request #${req.id}, target: ${target}).`);
+        console.log('Their daemon will materialize it on their machine; they get a ready-to-run resume command.');
         return;
       }
 
-      // local parse is freshest; fall back to the team server for teammates' sessions
-      let session: MotifSession;
+      // local parse is freshest; then local codex rollouts; then the team server
+      let session: MotifSession | undefined;
       try {
         session = resolveSession(scanLocal(claudeDir).sessions, id);
-      } catch (localErr) {
-        if (!cfg.serverUrl || !cfg.token) throw localErr;
+      } catch {
+        const bare = id.includes(':') ? id.split(':')[1]! : id;
+        const codexLocal = discoverCodexSessions().filter((f) => f.sessionId.startsWith(bare));
+        if (codexLocal.length === 1) session = readCodexSession(codexLocal[0]!.path);
+      }
+      if (!session) {
+        if (!cfg.serverUrl || !cfg.token) {
+          throw new Error(`No local session matches "${id}" and no server is configured.`);
+        }
         const client = new MotifClient({ serverUrl: cfg.serverUrl, token: cfg.memberToken ?? cfg.token });
         session = await client.exportSession(id.includes(':') ? id : `claude-code:${id}`);
       }
@@ -67,16 +77,16 @@ export function registerHandoff(program: Command): void {
         );
       }
 
-      if (opts.dryRun) {
+      if (opts.dryRun && target === 'codex') {
         const preview = toRolloutLines(
           opts.cwd ? { ...session, projectPath: path.resolve(opts.cwd) } : session,
           { threadId: uuidv7(new Date()), now: new Date(), digest },
         );
-        const target = path.join(codexHome(), preview.relativePath);
+        const targetPath = path.join(codexHome(), preview.relativePath);
         if (opts.json) {
-          console.log(JSON.stringify({ target, lines: preview.lines.length, droppedReasoning: preview.droppedReasoning }, null, 2));
+          console.log(JSON.stringify({ target: targetPath, lines: preview.lines.length, droppedReasoning: preview.droppedReasoning }, null, 2));
         } else {
-          console.log(`Would write ${preview.lines.length} lines to:\n  ${target}`);
+          console.log(`Would write ${preview.lines.length} lines to:\n  ${targetPath}`);
           if (preview.droppedReasoning) console.log(`(${preview.droppedReasoning} reasoning blocks dropped — not portable across providers)`);
           for (const l of [...preview.lines.slice(0, 2), ...preview.lines.slice(-1)]) {
             console.log(`  ${JSON.stringify(l).slice(0, 140)}…`);
@@ -85,12 +95,12 @@ export function registerHandoff(program: Command): void {
         return;
       }
 
-      const result = performCodexHandoff(session, { cwdOverride: opts.cwd, force: opts.force, digest });
+      const result = performHandoff(target, session, { cwdOverride: opts.cwd, force: opts.force, digest });
 
       if (cfg.serverUrl && cfg.memberToken) {
         const client = new MotifClient({ serverUrl: cfg.serverUrl, token: cfg.memberToken });
         await client
-          .postHandoff({ sessionId: session.id, target: 'codex', outputPath: result.target, targetSessionId: result.threadId })
+          .postHandoff({ sessionId: session.id, target, outputPath: result.target, targetSessionId: result.threadId })
           .catch(() => {}); // team feed is best-effort
       }
 
@@ -100,20 +110,26 @@ export function registerHandoff(program: Command): void {
       }
       console.log(`Handed off ${result.messageCount} messages → ${result.target}`);
       if (result.droppedReasoning) console.log(`(${result.droppedReasoning} reasoning blocks dropped — not portable across providers)`);
-      console.log(result.registered ? 'Registered in Codex state DB.' : 'Codex will pick the session up from disk.');
+      if (target === 'codex') {
+        console.log(result.registered ? 'Registered in Codex state DB.' : 'Codex will pick the session up from disk.');
+      }
 
       if (opts.open) {
         const cwd = fs.existsSync(result.projectPath) ? result.projectPath : process.cwd();
-        console.log(`\nOpening Codex in ${cwd}…\n`);
-        // hand the terminal over to the Codex TUI, resumed into the session
-        // (shell on Windows so codex.cmd / npx.cmd shims resolve)
+        console.log(`\nOpening ${target === 'claude-code' ? 'Claude Code' : 'Codex'} in ${cwd}…\n`);
+        // hand the terminal over to the target TUI, resumed into the session
+        // (shell on Windows so .cmd shims resolve)
         const shell = process.platform === 'win32';
-        const direct = spawnSync('codex', ['resume', result.threadId], { cwd, stdio: 'inherit', shell });
-        if (direct.error && (direct.error as NodeJS.ErrnoException).code === 'ENOENT') {
-          spawnSync('npx', ['-y', '@openai/codex', 'resume', result.threadId], { cwd, stdio: 'inherit', shell });
+        if (target === 'claude-code') {
+          spawnSync('claude', ['--resume', result.threadId], { cwd, stdio: 'inherit', shell });
+        } else {
+          const direct = spawnSync('codex', ['resume', result.threadId], { cwd, stdio: 'inherit', shell });
+          if (direct.error && (direct.error as NodeJS.ErrnoException).code === 'ENOENT') {
+            spawnSync('npx', ['-y', '@openai/codex', 'resume', result.threadId], { cwd, stdio: 'inherit', shell });
+          }
         }
         return;
       }
-      console.log(`\nContinue with:  codex resume ${result.threadId}`);
+      console.log(`\nContinue with:  ${resumeCommandFor(target, result.threadId)}`);
     });
 }

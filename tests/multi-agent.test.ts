@@ -6,9 +6,12 @@ import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
 import {
   isDormantHandoff,
+  mangleProjectPath,
   readClaudeSession,
   readCodexSession,
+  serializeClaudeSession,
   serializeRollout,
+  toClaudeSessionLines,
   toRolloutLines,
   uuidv7,
 } from '@motif/core';
@@ -71,9 +74,59 @@ describe('codex reader', () => {
     expect(isDormantHandoff(file)).toBe(false);
   });
 
-  it('refuses codex → codex handoff with a helpful hint', () => {
+  it('refuses codex → codex handoff only when the rollout is already local', () => {
     const s = readCodexSession(path.join(root, 'fixtures', 'codex', 'rollout-captured-0.150.1.jsonl'));
-    expect(() => performCodexHandoff(s)).toThrow(/codex resume/);
+    const prevHome = process.env.CODEX_HOME;
+    process.env.CODEX_HOME = path.join(tmp, 'codex-home'); // never touch the real ~/.codex
+    try {
+      expect(() => performCodexHandoff(s)).toThrow(/codex resume/); // fixture exists on disk
+      // the same session synced from a teammate's machine (path not present here) converts fine
+      const remote = { ...s, sourcePath: '/somebody/elses/machine/rollout.jsonl' };
+      const result = performCodexHandoff(remote, { force: true });
+      expect(fs.existsSync(result.target)).toBe(true);
+      expect(result.target.startsWith(process.env.CODEX_HOME!)).toBe(true);
+    } finally {
+      if (prevHome === undefined) delete process.env.CODEX_HOME;
+      else process.env.CODEX_HOME = prevHome;
+    }
+  });
+});
+
+describe('claude-code writer (reverse handoff)', () => {
+  it('round-trips a Codex session into a Claude Code transcript our own reader accepts', () => {
+    const codex = readCodexSession(path.join(root, 'fixtures', 'codex', 'rollout-captured-0.150.1.jsonl'));
+    const result = toClaudeSessionLines(codex, {
+      sessionId: '11111111-2222-4333-8444-555555555555',
+      now: new Date('2026-08-29T12:00:00.000Z'),
+      toolVersion: '2.1.250',
+    });
+    expect(result.relativePath).toBe(
+      `projects/${mangleProjectPath(codex.projectPath)}/11111111-2222-4333-8444-555555555555.jsonl`,
+    );
+
+    const dir = path.join(tmp, 'projects', mangleProjectPath(codex.projectPath));
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, `${result.sessionId}.jsonl`);
+    fs.writeFileSync(file, serializeClaudeSession(result.lines));
+
+    const back = readClaudeSession(file);
+    expect(back.projectPath).toBe(codex.projectPath);
+    expect(back.title).toBe(codex.title);
+    expect(back.messages.some((m) => m.text?.includes('Handed off from codex session'))).toBe(true);
+    expect(back.messages.some((m) => m.text === 'say hello and nothing else')).toBe(true);
+    expect(back.meta.parseErrors).toBe(0);
+    // conversation chain is linear and complete (no dropped links)
+    expect(back.messages.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('renders tool activity as readable text, batched into single turns', () => {
+    const claude = readClaudeSession(path.join(root, 'fixtures', 'claude-code', 'tools.jsonl'));
+    const result = toClaudeSessionLines(claude, { sessionId: 'aaaa1111-0000-4000-8000-000000000000', now: new Date() });
+    const all = serializeClaudeSession(result.lines);
+    expect(all).toContain('[ran Edit]');
+    expect(all).toContain('has been updated');
+    expect(all).not.toContain('SECRET_ANTHROPIC_SIG'); // reasoning never crosses
+    expect(result.droppedReasoning).toBe(1);
   });
 });
 
