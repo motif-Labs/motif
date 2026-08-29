@@ -495,6 +495,60 @@ export function searchSessions(db: Db, q: string, limit = 30, viewerId?: number)
   }));
 }
 
+export interface CommentRow {
+  id: number;
+  session_pk: number;
+  message_id: string | null;
+  author_id: number;
+  author_name: string | null;
+  body: string;
+  mentions: number[];
+  created_at: string;
+}
+
+/** Finds @mentions in a comment body against the member roster (longest names first). */
+export function parseMentions(db: Db, body: string): number[] {
+  if (!body.includes('@')) return [];
+  const members = db.prepare('SELECT id, name FROM members').all() as { id: number; name: string }[];
+  const lower = body.toLowerCase();
+  return members
+    .sort((a, b) => b.name.length - a.name.length)
+    .filter((m) => lower.includes(`@${m.name.toLowerCase()}`))
+    .map((m) => m.id);
+}
+
+export function addComment(
+  db: Db,
+  authorId: number,
+  sessionPk: number,
+  messageId: string | null,
+  body: string,
+): CommentRow {
+  const mentions = parseMentions(db, body);
+  const res = db
+    .prepare(
+      'INSERT INTO session_comments (session_pk, message_id, author_id, body, mentions, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+    )
+    .run(sessionPk, messageId, authorId, body, JSON.stringify(mentions), new Date().toISOString());
+  return listComments(db, sessionPk).find((c) => c.id === Number(res.lastInsertRowid))!;
+}
+
+export function listComments(db: Db, sessionPk: number): CommentRow[] {
+  const rows = db
+    .prepare(
+      `SELECT c.*, m.name AS author_name FROM session_comments c
+       LEFT JOIN members m ON m.id = c.author_id
+       WHERE c.session_pk = ? ORDER BY c.id`,
+    )
+    .all(sessionPk) as (Omit<CommentRow, 'mentions'> & { mentions: string })[];
+  return rows.map((r) => ({ ...r, mentions: JSON.parse(r.mentions) as number[] }));
+}
+
+/** Authors delete their own comments; nobody else's. */
+export function deleteComment(db: Db, authorId: number, commentId: number): boolean {
+  return db.prepare('DELETE FROM session_comments WHERE id = ? AND author_id = ?').run(commentId, authorId).changes > 0;
+}
+
 /** Owner-only scope change; the server owns visibility after insert. */
 export function setSessionVisibility(
   db: Db,

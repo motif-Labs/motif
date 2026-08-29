@@ -12,6 +12,7 @@ import { registerHandoff } from './commands/handoff.js';
 import { registerProjects } from './commands/projects.js';
 import { registerPrune } from './commands/prune.js';
 import { registerOps } from './commands/ops.js';
+import { registerComment } from './commands/comment.js';
 
 const program = new Command();
 
@@ -34,6 +35,7 @@ registerHandoff(program);
 registerProjects(program);
 registerPrune(program);
 registerOps(program);
+registerComment(program);
 
 program.parseAsync().catch((err: unknown) => {
   console.error(err instanceof Error ? err.message : String(err));

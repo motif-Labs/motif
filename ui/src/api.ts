@@ -57,6 +57,15 @@ export interface MemoryNote {
   created_at: string;
 }
 
+export interface Comment {
+  id: number;
+  message_id: string | null;
+  author_id: number;
+  author_name: string | null;
+  body: string;
+  created_at: string;
+}
+
 export interface Me {
   kind: 'team' | 'member';
   member?: { id: number; name: string; email: string | null; role: string };
@@ -128,6 +137,7 @@ export function openEvents(onEvent: (name: string, data: unknown) => void): () =
     'handoff-created',
     'handoff-requested',
     'handoff-request-updated',
+    'comment-added',
   ];
   for (const name of names) {
     src.addEventListener(name, (e) => {

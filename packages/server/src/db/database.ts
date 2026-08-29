@@ -172,6 +172,19 @@ const MIGRATIONS: string[] = [
   ALTER TABLE sessions ADD COLUMN visibility TEXT NOT NULL DEFAULT 'team'
     CHECK (visibility IN ('team','personal'));
   `,
+  // v6 — comments pinned onto sessions (annotation layer; transcripts stay immutable)
+  `
+  CREATE TABLE session_comments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_pk INTEGER NOT NULL REFERENCES sessions(pk) ON DELETE CASCADE,
+    message_id TEXT,
+    author_id INTEGER NOT NULL REFERENCES members(id),
+    body TEXT NOT NULL,
+    mentions TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_comments_session ON session_comments(session_pk, id);
+  `,
 ];
 
 export function openDb(dbPath: string): Db {
