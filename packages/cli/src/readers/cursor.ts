@@ -12,6 +12,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
 import { motifSessionId, type MotifMessage, type MotifSession } from '@motif/core';
 
@@ -50,6 +51,50 @@ export interface CursorConversationInfo {
 
 function openRo(dbPath: string): Database.Database {
   return new Database(dbPath, { readonly: true, fileMustExist: true });
+}
+
+/**
+ * Maps composerId → project path. Cursor keeps the workspace link one level
+ * away: User/workspaceStorage/<hash>/workspace.json names the folder, and
+ * that workspace's own state.vscdb lists its composers under the
+ * 'composer.composerData' ItemTable key. Best-effort — an unmapped
+ * conversation simply stays project-less.
+ */
+export function loadCursorProjectMap(dbPath = defaultCursorDb()): Map<string, string> {
+  const map = new Map<string, string>();
+  if (!dbPath) return map;
+  const storageRoot = path.join(path.dirname(path.dirname(dbPath)), 'workspaceStorage');
+  let entries: string[];
+  try {
+    entries = fs.readdirSync(storageRoot);
+  } catch {
+    return map;
+  }
+  for (const hash of entries) {
+    try {
+      const meta = JSON.parse(fs.readFileSync(path.join(storageRoot, hash, 'workspace.json'), 'utf8')) as {
+        folder?: string;
+      };
+      if (!meta.folder?.startsWith('file://')) continue;
+      const folder = fileURLToPath(meta.folder);
+      const wsDb = openRo(path.join(storageRoot, hash, 'state.vscdb'));
+      try {
+        const row = wsDb.prepare('SELECT value FROM ItemTable WHERE key = ?').get('composer.composerData') as
+          | { value: string | Buffer }
+          | undefined;
+        if (!row) continue;
+        const data = JSON.parse(String(row.value)) as { allComposers?: { composerId?: string }[] };
+        for (const c of data.allComposers ?? []) {
+          if (c.composerId) map.set(c.composerId, folder);
+        }
+      } finally {
+        wsDb.close();
+      }
+    } catch {
+      // one broken workspace must not hide the rest
+    }
+  }
+  return map;
 }
 
 export function discoverCursorConversations(dbPath = defaultCursorDb()): CursorConversationInfo[] {
@@ -103,7 +148,11 @@ function bubbleText(b: Record<string, unknown>): string {
   return '';
 }
 
-export function readCursorSession(composerId: string, dbPath = defaultCursorDb()): MotifSession {
+export function readCursorSession(
+  composerId: string,
+  dbPath = defaultCursorDb(),
+  projectPath = '',
+): MotifSession {
   if (!dbPath) throw new Error('Cursor data directory not found');
   const db = openRo(dbPath);
   try {
@@ -154,7 +203,7 @@ export function readCursorSession(composerId: string, dbPath = defaultCursorDb()
       source: 'cursor',
       sourceSessionId: composerId,
       sourcePath: dbPath,
-      projectPath: '', // Cursor keeps the workspace link elsewhere; not reliably recoverable
+      projectPath,
       title,
       createdAt: iso(data.createdAt),
       updatedAt: iso(data.lastUpdatedAt ?? data.createdAt),

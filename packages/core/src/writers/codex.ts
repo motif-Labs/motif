@@ -16,6 +16,7 @@
  */
 
 import type { MotifMessage, MotifSession } from '../schema.js';
+import { buildDigest } from '../digest.js';
 import { translateToolCall } from './codex-tools.js';
 
 export interface RolloutLine {
@@ -31,6 +32,12 @@ export interface ConvertOptions {
   cliVersion?: string;
   /** Extra provenance note; defaults to a handoff marker with the source id. */
   provenance?: string;
+  /**
+   * For very long sessions: keep only the last `keepLast` messages verbatim
+   * and compress everything earlier into one condensed-history user message,
+   * so the target tool's context isn't flooded on resume.
+   */
+  digest?: { keepLast: number };
 }
 
 export interface ConvertResult {
@@ -101,7 +108,25 @@ export function toRolloutLines(session: MotifSession, opts: ConvertOptions): Con
   let droppedReasoning = 0;
   let firstUserMessage = '';
 
-  for (const m of session.messages) {
+  let toConvert = session.messages;
+  if (opts.digest && session.messages.length > opts.digest.keepLast) {
+    const earlier = session.messages.slice(0, -opts.digest.keepLast);
+    toConvert = session.messages.slice(-opts.digest.keepLast);
+    droppedReasoning += earlier.filter((m) => m.role === 'reasoning').length;
+    firstUserMessage = earlier.find((m) => m.role === 'user')?.text ?? '';
+    push('response_item', {
+      type: 'message',
+      role: 'user',
+      content: [
+        {
+          type: 'input_text',
+          text: `[Condensed history — the first ${earlier.length} messages of this session, summarized]\n${buildDigest(earlier, { maxChars: 24_000 })}`,
+        },
+      ],
+    });
+  }
+
+  for (const m of toConvert) {
     switch (m.role) {
       case 'user': {
         const text = m.text ?? '';

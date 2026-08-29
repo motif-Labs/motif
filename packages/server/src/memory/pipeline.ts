@@ -116,7 +116,26 @@ export interface MemoryPipelineOptions {
   idleMs?: number;
   intervalMs?: number;
   maxDigestChars?: number;
+  /** Rough daily token ceiling for extraction (env: MOTIF_LLM_DAILY_BUDGET). Default 1M. */
+  dailyTokenBudget?: number;
   log?: (msg: string) => void;
+}
+
+const approxTokens = (text: string): number => Math.ceil(text.length / 4);
+
+function spendKey(): string {
+  return `llm_spend_${new Date().toISOString().slice(0, 10)}`;
+}
+
+function getSpend(db: Db): number {
+  const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(spendKey()) as { value: string } | undefined;
+  return row ? Number(row.value) : 0;
+}
+
+function addSpend(db: Db, tokens: number): void {
+  db.prepare(
+    'INSERT INTO meta(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = CAST(CAST(value AS INTEGER) + ? AS TEXT)',
+  ).run(spendKey(), String(tokens), tokens);
 }
 
 export async function runMemoryTick(
@@ -126,6 +145,11 @@ export async function runMemoryTick(
   opts: MemoryPipelineOptions = {},
 ): Promise<number> {
   const idleMs = opts.idleMs ?? 10 * 60 * 1000;
+  const budget = opts.dailyTokenBudget ?? Number(process.env.MOTIF_LLM_DAILY_BUDGET ?? 1_000_000);
+  if (getSpend(db) >= budget) {
+    opts.log?.(`memory: daily token budget (${budget}) reached — extraction paused until tomorrow`);
+    return 0;
+  }
   const cutoff = new Date(Date.now() - idleMs).toISOString();
   const candidates = db
     .prepare(
@@ -159,6 +183,7 @@ export async function runMemoryTick(
 
     const digest = buildDigest(newMessages, { maxChars: opts.maxDigestChars });
     const user = `Project: ${s.project_path}\n\nCurrent memory notes for this project:\n${currentNotesForProject(db, s.project_path)}\n\nNew session activity (digest):\n${digest}`;
+    addSpend(db, approxTokens(SYSTEM_PROMPT + user) + 2048); // count before calling; failures still cost
 
     let raw: unknown;
     try {

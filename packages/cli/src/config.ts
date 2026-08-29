@@ -23,6 +23,8 @@ export interface MotifConfig {
   include?: string[];
   /** Regexes applied to message text before anything leaves this machine. */
   redactPatterns?: string[];
+  /** Built-in secret patterns (API keys, JWTs, private keys) are ON by default; false disables them. */
+  redactDefaults?: boolean;
 }
 
 export function motifHome(): string {

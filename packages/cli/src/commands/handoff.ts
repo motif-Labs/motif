@@ -15,10 +15,11 @@ export function registerHandoff(program: Command): void {
     .option('--to <tool>', 'target tool', 'codex')
     .option('--cwd <path>', "map the session onto your local clone (a teammate's project path differs from yours)")
     .option('--open', 'launch Codex right into the handed-off session')
+    .option('--digest [n]', 'compress all but the last n messages into a summary (default n: 60)')
     .option('--dry-run', 'show what would be written without writing')
     .option('--force', 'write even if Codex does not appear to be installed')
     .option('--json', 'machine-readable output')
-    .action(async (id: string, opts: { to: string; cwd?: string; open?: boolean; dryRun?: boolean; force?: boolean; json?: boolean }) => {
+    .action(async (id: string, opts: { to: string; cwd?: string; open?: boolean; digest?: string | boolean; dryRun?: boolean; force?: boolean; json?: boolean }) => {
       if (opts.to !== 'codex') throw new Error(`Unsupported handoff target "${opts.to}" (v0.1 supports: codex)`);
       const { claudeDir } = program.opts<{ claudeDir?: string }>();
       const cfg = loadConfig();
@@ -33,10 +34,20 @@ export function registerHandoff(program: Command): void {
         session = await client.exportSession(id.includes(':') ? id : `claude-code:${id}`);
       }
 
+      const digest =
+        opts.digest !== undefined && opts.digest !== false
+          ? { keepLast: typeof opts.digest === 'string' ? Number(opts.digest) || 60 : 60 }
+          : undefined;
+      if (!digest && session.messages.length > 300 && !opts.json) {
+        console.log(
+          `(note: ${session.messages.length} messages — consider --digest to keep the resume light in the target tool)`,
+        );
+      }
+
       if (opts.dryRun) {
         const preview = toRolloutLines(
           opts.cwd ? { ...session, projectPath: path.resolve(opts.cwd) } : session,
-          { threadId: uuidv7(new Date()), now: new Date() },
+          { threadId: uuidv7(new Date()), now: new Date(), digest },
         );
         const target = path.join(codexHome(), preview.relativePath);
         if (opts.json) {
@@ -51,7 +62,7 @@ export function registerHandoff(program: Command): void {
         return;
       }
 
-      const result = performCodexHandoff(session, { cwdOverride: opts.cwd, force: opts.force });
+      const result = performCodexHandoff(session, { cwdOverride: opts.cwd, force: opts.force, digest });
 
       if (cfg.serverUrl && cfg.memberToken) {
         const client = new MotifClient({ serverUrl: cfg.serverUrl, token: cfg.memberToken });
@@ -72,9 +83,11 @@ export function registerHandoff(program: Command): void {
         const cwd = fs.existsSync(result.projectPath) ? result.projectPath : process.cwd();
         console.log(`\nOpening Codex in ${cwd}…\n`);
         // hand the terminal over to the Codex TUI, resumed into the session
-        const direct = spawnSync('codex', ['resume', result.threadId], { cwd, stdio: 'inherit' });
+        // (shell on Windows so codex.cmd / npx.cmd shims resolve)
+        const shell = process.platform === 'win32';
+        const direct = spawnSync('codex', ['resume', result.threadId], { cwd, stdio: 'inherit', shell });
         if (direct.error && (direct.error as NodeJS.ErrnoException).code === 'ENOENT') {
-          spawnSync('npx', ['-y', '@openai/codex', 'resume', result.threadId], { cwd, stdio: 'inherit' });
+          spawnSync('npx', ['-y', '@openai/codex', 'resume', result.threadId], { cwd, stdio: 'inherit', shell });
         }
         return;
       }

@@ -1,0 +1,31 @@
+# Publishes the `motif` package to npm with a provenance attestation —
+# the ONLY sanctioned publish path (see SECURITY.md). Trigger by pushing
+# a v* tag. Requires the NPM_TOKEN repo secret (automation token, 2FA org).
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  id-token: write # provenance (Sigstore) needs OIDC
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npx tsc -b packages/core packages/cli packages/server
+      - run: npx vitest run
+      - run: npm run build -w @motif/ui
+      - run: npm run build -w motif
+      - run: npm publish -w motif --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

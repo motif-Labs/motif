@@ -134,6 +134,31 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     return c.json({ ok: true, name: teamName() });
   });
 
+  // Retention: owner prunes sessions older than N days. Memory notes and
+  // handoff records survive (their session link is nulled) — distilled
+  // knowledge is the point of keeping less raw history around.
+  app.post('/api/admin/prune', async (c) => {
+    if (!isOwner(memberId(c))) return c.json({ error: 'owner only' }, 403);
+    const body = await c.req.json<{ olderThanDays?: number }>();
+    const days = Number(body.olderThanDays);
+    if (!Number.isFinite(days) || days < 7) return c.json({ error: 'olderThanDays must be >= 7' }, 400);
+    const cutoff = new Date(Date.now() - days * 86400000).toISOString();
+    const result = db.transaction(() => {
+      const doomed = db.prepare('SELECT pk FROM sessions WHERE updated_at < ?').all(cutoff) as { pk: number }[];
+      const pks = doomed.map((r) => r.pk);
+      let messages = 0;
+      for (const pk of pks) {
+        db.prepare('UPDATE memory_notes SET source_session_pk = NULL WHERE source_session_pk = ?').run(pk);
+        db.prepare('UPDATE handoffs SET session_pk = NULL WHERE session_pk = ?').run(pk);
+        db.prepare('DELETE FROM messages_fts WHERE session_pk = ?').run(pk);
+        messages += db.prepare('DELETE FROM messages WHERE session_pk = ?').run(pk).changes;
+        db.prepare('DELETE FROM sessions WHERE pk = ?').run(pk);
+      }
+      return { sessions: pks.length, messages };
+    })();
+    return c.json({ ok: true, ...result, cutoff });
+  });
+
   // Owner revokes a member's device tokens: their daemon stops writing
   // immediately; their sessions stay attributed. Re-joining needs the team
   // token again (rotate MOTIF_TOKEN to truly close the door).

@@ -100,6 +100,33 @@ describe('codex writer', () => {
     expect(events).toContain('agent_message');
   });
 
+  it('digest mode condenses long histories into one summary message + verbatim tail', () => {
+    const session = readClaudeSession(path.join(root, 'fixtures', 'claude-code', 'tools.jsonl'));
+    const many = {
+      ...session,
+      messages: [
+        ...Array.from({ length: 50 }, (_, i) => ({
+          id: `filler-${i}`,
+          role: 'user' as const,
+          timestamp: '2026-08-01T09:00:00.000Z',
+          text: `filler message ${i}`,
+        })),
+        ...session.messages,
+      ],
+    };
+    const result = toRolloutLines(many, { threadId: FIXED_ID, now: FIXED_NOW, digest: { keepLast: 5 } });
+    const serialized = serializeRollout(result.lines);
+    expect(serialized).toContain('Condensed history');
+    expect(serialized).toContain('filler message 0'); // inside the digest
+    // early fillers are not emitted as standalone messages
+    const standalone = result.lines.filter(
+      (l) => l.type === 'response_item' && JSON.stringify(l.payload).includes('"filler message 3"'),
+    );
+    expect(standalone.filter((l) => !JSON.stringify(l.payload).includes('Condensed'))).toHaveLength(0);
+    // tail survives verbatim
+    expect(serialized).toContain('Fixed.');
+  });
+
   it('tool translation table covers the core vocabulary', () => {
     expect(JSON.parse(translateToolCall('Bash', { command: 'ls -la' }).arguments)).toEqual({
       command: ['bash', '-lc', 'ls -la'],

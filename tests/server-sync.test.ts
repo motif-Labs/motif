@@ -263,4 +263,35 @@ describe('http api', () => {
     await call(`/api/members/${guest.memberId}/revoke`, { method: 'POST', body: '{}' }, owner.memberToken);
     expect((await call('/api/sessions', {}, guest.memberToken)).status).toBe(401);
   });
+
+  it('owner prunes old sessions; recent ones and memory notes survive', async () => {
+    const owner = (await (await call('/api/members/register', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'root', email: 'root@example.com' }),
+    })).json()) as { memberToken: string };
+
+    const old = makeSession('old1', [msg('u1', 'user', 'ancient work')]);
+    old.updatedAt = '2020-01-01T00:00:00.000Z';
+    const fresh = makeSession('new1', [msg('u1', 'user', 'recent work')]);
+    fresh.updatedAt = new Date().toISOString();
+    for (const s of [old, fresh]) {
+      await call(`/api/sessions/${encodeURIComponent(s.id)}`, { method: 'PUT', body: JSON.stringify(s) }, owner.memberToken);
+    }
+
+    // non-owner blocked, bad threshold blocked
+    expect((await call('/api/admin/prune', { method: 'POST', body: JSON.stringify({ olderThanDays: 30 }) })).status).toBe(403);
+    expect(
+      (await call('/api/admin/prune', { method: 'POST', body: JSON.stringify({ olderThanDays: 1 }) }, owner.memberToken)).status,
+    ).toBe(400);
+
+    const pruned = (await (await call('/api/admin/prune', {
+      method: 'POST',
+      body: JSON.stringify({ olderThanDays: 30 }),
+    }, owner.memberToken)).json()) as { sessions: number };
+    expect(pruned.sessions).toBeGreaterThanOrEqual(1);
+
+    const remaining = (await (await call('/api/sessions')).json()) as { id: string }[];
+    expect(remaining.map((s) => s.id)).toContain(fresh.id);
+    expect(remaining.map((s) => s.id)).not.toContain(old.id);
+  });
 });
