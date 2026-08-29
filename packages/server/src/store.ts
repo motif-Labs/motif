@@ -218,11 +218,22 @@ export function listSessions(
   }));
 }
 
-/** Most recently updated row wins if two members somehow share a session id. */
+/**
+ * Accepts a full motif id, a source uuid, or a unique uuid prefix (like the
+ * CLI's local resolution). Most recently updated row wins on ties.
+ */
 export function getSessionRow(db: Db, id: string): SessionRow | undefined {
-  return db
+  const exact = db
     .prepare('SELECT * FROM sessions WHERE id = ? OR source_session_id = ? ORDER BY updated_at DESC LIMIT 1')
     .get(id, id) as SessionRow | undefined;
+  if (exact) return exact;
+  const prefix = id.includes(':') ? id.split(':')[1]! : id;
+  if (prefix.length < 4) return undefined; // too short to be a meaningful prefix
+  return db
+    .prepare(
+      "SELECT * FROM sessions WHERE source_session_id LIKE ? || '%' ESCAPE '\\' ORDER BY updated_at DESC LIMIT 1",
+    )
+    .get(prefix.replace(/[%_\\]/g, '\\$&')) as SessionRow | undefined;
 }
 
 export function getSessionMessages(db: Db, sessionPk: number): MotifMessage[] {

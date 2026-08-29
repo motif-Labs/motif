@@ -92,10 +92,11 @@ export function registerHandoff(program: Command): void {
     .command('handoff <id>')
     .description('Continue a session in another tool, natively (Claude Code → Codex)')
     .option('--to <tool>', 'target tool', 'codex')
+    .option('--cwd <path>', "map the session onto your local clone (a teammate's project path differs from yours)")
     .option('--dry-run', 'show what would be written without writing')
     .option('--force', 'write even if Codex does not appear to be installed')
     .option('--json', 'machine-readable output')
-    .action(async (id: string, opts: { to: string; dryRun?: boolean; force?: boolean; json?: boolean }) => {
+    .action(async (id: string, opts: { to: string; cwd?: string; dryRun?: boolean; force?: boolean; json?: boolean }) => {
       if (opts.to !== 'codex') throw new Error(`Unsupported handoff target "${opts.to}" (v0.1 supports: codex)`);
       const { claudeDir } = program.opts<{ claudeDir?: string }>();
       const cfg = loadConfig();
@@ -109,6 +110,8 @@ export function registerHandoff(program: Command): void {
         const client = new MotifClient({ serverUrl: cfg.serverUrl, token: cfg.token, memberId: cfg.memberId });
         session = await client.exportSession(id.includes(':') ? id : `claude-code:${id}`);
       }
+
+      if (opts.cwd) session = { ...session, projectPath: path.resolve(opts.cwd) };
 
       const home = codexHome();
       if (!fs.existsSync(home) && !opts.force) {
