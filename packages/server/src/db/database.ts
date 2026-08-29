@@ -5,6 +5,49 @@ import crypto from 'node:crypto';
 
 export type Db = Database.Database;
 
+/**
+ * Collapses members that are really the same person (same name/email/machine)
+ * into the earliest row, re-pointing everything they own. Sessions that were
+ * synced under several duplicate identities keep only the freshest copy.
+ */
+const DEDUPE_MEMBERS_SQL = `
+  CREATE TEMP TABLE dup_keepers AS
+    SELECT m.id AS id,
+           (SELECT MIN(m2.id) FROM members m2
+             WHERE m2.name = m.name
+               AND COALESCE(m2.email, '') = COALESCE(m.email, '')
+               AND COALESCE(m2.machine, '') = COALESCE(m.machine, '')) AS keeper
+    FROM members m;
+
+  CREATE TEMP TABLE doomed_sessions AS
+    SELECT s.pk FROM sessions s
+    JOIN dup_keepers k ON k.id = s.member_id
+    WHERE EXISTS (
+      SELECT 1 FROM sessions s2 JOIN dup_keepers k2 ON k2.id = s2.member_id
+      WHERE k2.keeper = k.keeper
+        AND s2.source = s.source AND s2.source_session_id = s.source_session_id
+        AND (s2.updated_at > s.updated_at OR (s2.updated_at = s.updated_at AND s2.pk < s.pk))
+    );
+
+  DELETE FROM messages_fts WHERE session_pk IN (SELECT pk FROM doomed_sessions);
+  DELETE FROM sessions WHERE pk IN (SELECT pk FROM doomed_sessions);
+  UPDATE sessions SET member_id = (SELECT keeper FROM dup_keepers WHERE dup_keepers.id = sessions.member_id);
+  UPDATE member_tokens SET member_id = (SELECT keeper FROM dup_keepers WHERE dup_keepers.id = member_tokens.member_id);
+  UPDATE memory_notes SET member_id = (SELECT keeper FROM dup_keepers WHERE dup_keepers.id = memory_notes.member_id)
+    WHERE member_id IS NOT NULL;
+  UPDATE handoffs SET member_id = (SELECT keeper FROM dup_keepers WHERE dup_keepers.id = handoffs.member_id)
+    WHERE member_id IS NOT NULL;
+  UPDATE handoff_requests SET requested_by = (SELECT keeper FROM dup_keepers WHERE dup_keepers.id = handoff_requests.requested_by);
+  DELETE FROM members WHERE id IN (SELECT id FROM dup_keepers WHERE id <> keeper);
+  DROP TABLE doomed_sessions;
+  DROP TABLE dup_keepers;
+`;
+
+/** Exposed for register-time reuse and tests; migration v3 runs the same SQL once. */
+export function dedupeMembers(db: Db): void {
+  db.exec(DEDUPE_MEMBERS_SQL);
+}
+
 const MIGRATIONS: string[] = [
   // v1 — initial schema
   `
@@ -118,6 +161,8 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_handoff_requests_member ON handoff_requests(requested_by, status);
   `,
+  // v3 — merge duplicate members created before identity dedup existed
+  DEDUPE_MEMBERS_SQL,
 ];
 
 export function openDb(dbPath: string): Db {

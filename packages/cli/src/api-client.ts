@@ -48,6 +48,10 @@ export class MotifClient {
     return this.request('GET', '/api/me');
   }
 
+  deleteSession(id: string): Promise<{ ok: boolean; deleted: string }> {
+    return this.request('DELETE', `/api/sessions/${encodeURIComponent(id)}`);
+  }
+
   createHandoffRequest(input: { sessionId: string; cwd?: string }): Promise<{ id: number }> {
     return this.request('POST', '/api/handoff-requests', input);
   }

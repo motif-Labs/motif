@@ -115,6 +115,19 @@ function ToolChip({ source }: { source: string }) {
 
 /* ── sessions ────────────────────────────────────────── */
 
+function TableHead() {
+  return (
+    <div class="thead">
+      <span class="time">Time</span>
+      <span class="title">Session</span>
+      <span class="who">Owner</span>
+      <span class="tool">Agent</span>
+      <span class="vis">Scope</span>
+      <span class="ago">Updated</span>
+    </div>
+  );
+}
+
 function SessionRowView({ s }: { s: SessionRow }) {
   return (
     <a class="row" href={`#/sessions/${encodeURIComponent(s.id)}`}>
@@ -157,6 +170,7 @@ function SessionsPage() {
         </div>
       ) : (
         <div class="table">
+          <TableHead />
           {sessions.map((s) => (
             <SessionRowView key={s.id} s={s} />
           ))}
@@ -459,6 +473,7 @@ function SearchPage() {
       {rows && rows.length === 0 && <div class="empty">No matches.</div>}
       {rows && rows.length > 0 && (
         <div class="table">
+          <TableHead />
           {rows.map((s) => (
             <SessionRowView key={s.id} s={s} />
           ))}
@@ -499,9 +514,15 @@ function SetupPage({ me }: { me: Me }) {
       <h2>Privacy</h2>
       <div class="meta-card">
         <p style="color:var(--dim); line-height:1.6">
-          Sessions stay on this server — nothing leaves your infrastructure. Per-machine <code>exclude</code> globs and{' '}
-          <code>redactPatterns</code> in <code>~/.motif/config.json</code> are applied by the daemon <i>before</i> upload.
-          Put TLS in front with a reverse proxy for teams outside a trusted network.
+          Sessions stay on this server — nothing leaves your infrastructure. Doing personal work on the same machine?
+          Switch that machine to allowlist mode so <b>only</b> company projects sync:
+        </p>
+        <div class="cmd">motif projects mode selected</div>
+        <div class="cmd">motif projects include ~/work/company-repo</div>
+        <p style="color:var(--dim); line-height:1.6; margin-top:8px">
+          Or stay in default mode and block specific projects with <code>motif projects exclude &lt;path&gt; --purge</code>{' '}
+          (purge also withdraws already-synced sessions). <code>redactPatterns</code> in <code>~/.motif/config.json</code>{' '}
+          scrub secrets before upload. Put TLS in front with a reverse proxy for teams outside a trusted network.
         </p>
       </div>
     </div>
@@ -557,10 +578,12 @@ function App() {
   const [authed, setAuthed] = useState(!!getToken());
   const [me, setMe] = useState<Me>({ kind: 'team' });
   const [members, setMembers] = useState<MemberRow[]>([]);
+  const [team, setTeam] = useState('Team');
 
   useEffect(() => {
     if (!authed) return;
     api<Me>('/api/me').then(setMe).catch(() => {});
+    api<{ name: string }>('/api/team').then((t) => setTeam(t.name)).catch(() => {});
     const loadMembers = () => api<MemberRow[]>('/api/members').then(setMembers).catch(() => {});
     loadMembers();
     return openEvents((name) => {
@@ -608,6 +631,8 @@ function App() {
         <a class="brand" href="#/">
           <span class="mark">m</span> motif
         </a>
+        <span class="crumb">/</span>
+        <span class="crumb-item">{team}</span>
         <span class="crumb">/</span>
         <span class="crumb-item">{crumb}</span>
         <span class="spacer" />
