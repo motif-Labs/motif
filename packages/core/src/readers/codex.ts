@@ -145,7 +145,10 @@ export function readCodexSession(filePath: string): MotifSession {
             if (!text) break;
             if (p.role === 'user') {
               if (isSyntheticUserText(text)) break;
-              if (!firstPrompt) firstPrompt = text;
+              // provenance markers from prior handoffs make poor titles
+              if (!firstPrompt && !text.startsWith('[Handed off') && !text.startsWith('[Condensed history')) {
+                firstPrompt = text;
+              }
               messages.push({ id, role: 'user', timestamp: ts, text });
             } else if (p.role === 'assistant') {
               messages.push({ id, role: 'assistant', timestamp: ts, text });
