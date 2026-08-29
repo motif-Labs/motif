@@ -167,6 +167,11 @@ const MIGRATIONS: string[] = [
   `
   ALTER TABLE handoff_requests ADD COLUMN assignee_id INTEGER REFERENCES members(id);
   `,
+  // v5 — team vs personal scope; existing rows were knowingly shared → team
+  `
+  ALTER TABLE sessions ADD COLUMN visibility TEXT NOT NULL DEFAULT 'team'
+    CHECK (visibility IN ('team','personal'));
+  `,
 ];
 
 export function openDb(dbPath: string): Db {

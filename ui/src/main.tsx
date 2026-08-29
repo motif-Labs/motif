@@ -169,18 +169,23 @@ function dayLabel(iso: string | null): string {
   return d.toLocaleDateString([], { month: 'long', day: 'numeric' });
 }
 
-function SessionsPage() {
+function SessionsPage({ me }: { me: Me }) {
   const [sessions, setSessions] = useState<SessionRow[] | null>(null);
+  const [scope, setScope] = useState<'team' | 'personal'>('team');
   const [project, setProject] = useState('');
   const [member, setMember] = useState('');
   const [agent, setAgent] = useState('');
-  const reload = () => api<SessionRow[]>('/api/sessions?limit=200').then(setSessions).catch(() => setSessions([]));
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
+  const reload = () =>
+    api<SessionRow[]>(`/api/sessions?limit=200&scope=${scopeRef.current}`).then(setSessions).catch(() => setSessions([]));
   useEffect(() => {
+    setSessions(null);
     reload();
     return openEvents((name) => {
       if (name === 'session-upserted') reload();
     });
-  }, []);
+  }, [scope]);
   if (!sessions) return <div class="empty">Loading…</div>;
 
   const projects = [...new Set(sessions.map((s) => projName(s.projectPath)))].sort();
@@ -206,6 +211,16 @@ function SessionsPage() {
     <div>
       <h1>Sessions</h1>
       <div class="filters">
+        {me.kind === 'member' && (
+          <span class="scope-pills">
+            <button class={scope === 'team' ? 'on' : ''} onClick={() => setScope('team')}>
+              Team
+            </button>
+            <button class={scope === 'personal' ? 'on' : ''} onClick={() => setScope('personal')}>
+              Personal
+            </button>
+          </span>
+        )}
         <select value={agent} onChange={(e) => setAgent((e.target as HTMLSelectElement).value)}>
           <option value="">all agents</option>
           {agents.map((a) => (
@@ -241,7 +256,11 @@ function SessionsPage() {
       <NowWorking sessions={sessions} />
       {sessions.length === 0 ? (
         <div class="empty">
-          No sessions yet. On each dev machine run <code>motif connect</code>, then <code>motif daemon start</code>.
+          {scope === 'personal' ? (
+            <>Your personal drawer is empty — sessions of projects not marked with <code>motif projects team</code> land here, visible only to you.</>
+          ) : (
+            <>Nothing team-visible yet. Mark company projects with <code>motif projects team &lt;path&gt;</code>, or promote a personal session from its page.</>
+          )}
         </div>
       ) : (
         <div class="thread">
@@ -261,14 +280,15 @@ function SessionsPage() {
 
 /* ── session detail ──────────────────────────────────── */
 
-function MessageView({ m }: { m: Message }) {
+function ChatTurn({ m, memberName, source }: { m: Message; memberName: string | null; source: string }) {
   if (m.role === 'reasoning') return null;
   if (m.role === 'tool_call' || m.role === 'tool_result') {
-    const label = m.role === 'tool_call' ? `${m.toolName ?? 'tool'} call` : 'result';
+    // tool activity reads like a system event between bubbles
+    const label = m.role === 'tool_call' ? `⚙ ${m.toolName ?? 'tool'}` : '↳ result';
     const body = m.role === 'tool_call' ? JSON.stringify(m.toolInput ?? {}, null, 2) : (m.text ?? '');
     if (!body || body === '{}') return null;
     return (
-      <div class="msg tool">
+      <div class="activity">
         <details>
           <summary>{label}</summary>
           <pre>{body.length > 4000 ? `${body.slice(0, 4000)}…` : body}</pre>
@@ -278,10 +298,19 @@ function MessageView({ m }: { m: Message }) {
   }
   const text = (m.text ?? '').trim();
   if (!text) return null;
+  const isUser = m.role === 'user';
   return (
-    <div class={`msg ${m.role}`}>
-      <div class="head">{m.role === 'user' ? 'User' : 'Assistant'}</div>
-      <div class="body">{text.length > 6000 ? `${text.slice(0, 6000)}…` : text}</div>
+    <div class={`turn ${isUser ? 'user' : 'agent'}`}>
+      <span class="av">
+        {isUser ? (
+          <Avatar name={memberName} size={30} />
+        ) : (
+          <span class="agent-av">
+            <AgentMark source={source} size={17} />
+          </span>
+        )}
+      </span>
+      <div class="bubble">{text.length > 6000 ? `${text.slice(0, 6000)}…` : text}</div>
     </div>
   );
 }
@@ -320,14 +349,16 @@ function HandoffPanel({ session, me }: { session: SessionDetail; me: Me }) {
     };
   }, [state]);
 
-  const request = async (assignee?: string) => {
+  const [target, setTarget] = useState('');
+  const request = async (assignee: string | undefined, chosenTarget: string) => {
     setState('working');
     setSlow(false);
     setSentTo(assignee ?? '');
+    setTarget(chosenTarget);
     try {
       const r = await api<HandoffRequest>('/api/handoff-requests', {
         method: 'POST',
-        body: JSON.stringify({ sessionId: session.id, ...(assignee ? { assignee } : {}) }),
+        body: JSON.stringify({ sessionId: session.id, target: chosenTarget, ...(assignee ? { assignee } : {}) }),
       });
       reqId.current = r.id;
     } catch (err) {
@@ -335,21 +366,13 @@ function HandoffPanel({ session, me }: { session: SessionDetail; me: Me }) {
       setResult({ error: String((err as Error).message) });
     }
   };
+  const targets = (['claude-code', 'codex'] as const).filter((t) => t !== session.source);
+  const resumeCmd = (id?: string) => (target === 'claude-code' ? `claude --resume ${id}` : `codex resume ${id}`);
 
-  if (session.source === 'codex') {
-    return (
-      <div class="hint">
-        This is already a Codex session — continue it with:
-        <div class="cmd" onClick={() => navigator.clipboard?.writeText(`codex resume ${session.id.split(':')[1]}`)}>
-          codex resume {session.id.split(':')[1]}
-        </div>
-      </div>
-    );
-  }
   if (me.kind !== 'member') {
     return (
       <div>
-        <button disabled>Continue in Codex</button>
+        <button disabled>Continue in…</button>
         <div class="hint">Handoff runs on your machine via your daemon. Sign in with your member token (see ~/.motif/config.json) to enable it.</div>
       </div>
     );
@@ -357,9 +380,15 @@ function HandoffPanel({ session, me }: { session: SessionDetail; me: Me }) {
   const teammates = members.filter((m) => m.id !== me.member?.id);
   return (
     <div>
-      <button class="primary" onClick={() => request()} disabled={state === 'working'}>
-        {state === 'working' && !sentTo ? 'Handing off…' : 'Continue in Codex'}
-      </button>
+      <div class="cont-label">Continue in</div>
+      <div class="cont-row" style="margin-top:6px">
+        {targets.map((t) => (
+          <button class="primary" onClick={() => request(undefined, t)} disabled={state === 'working'}>
+            <AgentMark source={t} size={15} />
+            {AGENT_LABELS[t]}
+          </button>
+        ))}
+      </div>
       {teammates.length > 0 && (
         <div class="searchrow" style="margin:8px 0 0;max-width:none">
           <select
@@ -372,7 +401,7 @@ function HandoffPanel({ session, me }: { session: SessionDetail; me: Me }) {
               <option value={m.name}>{m.name}</option>
             ))}
           </select>
-          <button style="width:auto" disabled={!teammate || state === 'working'} onClick={() => request(teammate)}>
+          <button style="width:auto" disabled={!teammate || state === 'working'} onClick={() => request(teammate, targets[0]!)}>
             Send
           </button>
         </div>
@@ -381,7 +410,7 @@ function HandoffPanel({ session, me }: { session: SessionDetail; me: Me }) {
         <div class="hint status-wait">
           {sentTo
             ? `Waiting for ${sentTo}'s daemon to materialize the session on their machine…`
-            : 'Waiting for your daemon to write the Codex session…'}
+            : 'Waiting for your daemon to materialize the session…'}
           {slow && !sentTo && (
             <>
               <br />
@@ -406,9 +435,9 @@ function HandoffPanel({ session, me }: { session: SessionDetail; me: Me }) {
               <div
                 class="cmd"
                 title="Click to copy"
-                onClick={() => navigator.clipboard?.writeText(`codex resume ${result.threadId}`)}
+                onClick={() => navigator.clipboard?.writeText(resumeCmd(result.threadId))}
               >
-                codex resume {result.threadId}
+                {resumeCmd(result.threadId)}
               </div>
             </>
           )}
@@ -433,51 +462,69 @@ function SessionView({ id, me }: { id: string; me: Me }) {
   if (error) return <div class="empty">{error}</div>;
   if (!session) return <div class="empty">Loading…</div>;
 
+  const mine = me.kind === 'member' && me.member?.id !== undefined && session.memberName === me.member.name;
+  const toggleVisibility = async () => {
+    const next = session.visibility === 'personal' ? 'team' : 'personal';
+    const verb = next === 'team' ? 'Share this session with the whole team?' : 'Move this session back to your personal drawer?';
+    if (!confirm(verb)) return;
+    await api(`/api/sessions/${encodeURIComponent(session.id)}/visibility`, {
+      method: 'PATCH',
+      body: JSON.stringify({ visibility: next }),
+    }).catch(() => {});
+    reload();
+  };
+
   return (
     <div class="detail">
-      <div class="transcript">
+      <div class="transcript chat">
         <h1>{session.title ?? '(untitled)'}</h1>
         {session.messages.map((m) => (
-          <MessageView key={m.id} m={m} />
+          <ChatTurn key={m.id} m={m} memberName={session.memberName} source={session.source} />
         ))}
       </div>
       <div class="meta-panel">
-        <div class="meta-card">
-          <div class="meta-row"><span class="k">Agent</span><span class="v"><ToolChip source={session.source} /></span></div>
-          <div class="meta-row"><span class="k">Model</span><span class="v">{session.meta?.model ?? 'Unknown model'}</span></div>
-          <div class="meta-row"><span class="k">Project</span><span class="v mono">{session.projectPath || '—'}</span></div>
-          <div class="meta-row">
-            <span class="k">Owner</span>
-            <span class="v" style="display:flex;align-items:center;gap:6px">
-              <Avatar name={session.memberName} size={18} />@{session.memberName ?? 'unknown'}
+        <div class="spec">
+          <div class="spec-head">
+            <span class="agent-av">
+              <AgentMark source={session.source} size={24} />
             </span>
+            <div class="agent-name">{AGENT_LABELS[session.source] ?? session.source}</div>
+            <div class="model">{session.meta?.model ?? 'model unknown'}</div>
           </div>
-          <div class="meta-row"><span class="k">Visibility</span><span class="v">Team</span></div>
-          <div class="meta-row"><span class="k">Started</span><span class="v">{fullDate(session.createdAt)}</span></div>
-          <div class="meta-row"><span class="k">Updated</span><span class="v">{fullDate(session.updatedAt)}</span></div>
-          <div class="meta-row"><span class="k">Messages</span><span class="v">{session.messages.length}</span></div>
-          <div class="meta-row"><span class="k">Size</span><span class="v">{kb(session.meta?.sourceBytes)}</span></div>
-          {session.gitBranch && session.gitBranch !== 'HEAD' && (
-            <div class="meta-row"><span class="k">Branch</span><span class="v mono">{session.gitBranch}</span></div>
-          )}
-          <div class="meta-sep" />
-          <div class="meta-row" style="display:block">
-            <div class="k" style="margin-bottom:4px">Session ID</div>
-            <div class="session-id mono">{session.id}</div>
+          <div class="spec-stitch" />
+          <div class="spec-grid">
+            <div class="spec-cell"><div class="k">Messages</div><div class="v">{session.messages.length}</div></div>
+            <div class="spec-cell"><div class="k">Size</div><div class="v">{kb(session.meta?.sourceBytes)}</div></div>
+            <div class="spec-cell"><div class="k">Started</div><div class="v">{fullDate(session.createdAt)}</div></div>
+            <div class="spec-cell"><div class="k">Updated</div><div class="v">{fullDate(session.updatedAt)}</div></div>
           </div>
-          <div class="meta-sep" />
-          <button onClick={() => navigator.clipboard?.writeText(location.href)}>Copy link</button>
-          <div style="height:8px" />
-          <HandoffPanel session={session} me={me} />
-          {session.sourcePath && (
-            <>
-              <div class="meta-sep" />
-              <div class="meta-row" style="display:block">
-                <div class="k" style="margin-bottom:4px">Local path</div>
-                <div class="session-id mono">{session.sourcePath}</div>
-              </div>
-            </>
-          )}
+          <div class="spec-row">
+            <span class="chip" style="gap:6px">
+              <Avatar name={session.memberName} size={16} />@{session.memberName ?? 'unknown'}
+            </span>
+            <span
+              class={`chip vis-chip ${session.visibility === 'personal' ? 'personal' : ''}`}
+              title={mine ? 'Click to change' : undefined}
+              onClick={mine ? toggleVisibility : undefined}
+            >
+              {session.visibility === 'personal' ? '◐ Personal' : '✓ Team'}
+              {mine && ' ▾'}
+            </span>
+            <span class="chip mono" style="font-size:10.5px">{projName(session.projectPath)}</span>
+          </div>
+          <div class="spec-stitch" />
+          <div class="spec-actions" style="margin-top:12px">
+            <HandoffPanel session={session} me={me} />
+            <button onClick={() => navigator.clipboard?.writeText(location.href)}>Copy link</button>
+          </div>
+          <div class="spec-foot">
+            <details>
+              <summary>Details</summary>
+              <div class="session-id mono">{session.id}</div>
+              {session.sourcePath && <div class="session-id mono" style="margin-top:6px">{session.sourcePath}</div>}
+              <div class="session-id mono" style="margin-top:6px">{session.projectPath}</div>
+            </details>
+          </div>
         </div>
       </div>
     </div>
@@ -781,7 +828,7 @@ function App() {
     ['#/setup', 'Setup', /^\/setup/],
   ] as const;
 
-  let view = <SessionsPage />;
+  let view = <SessionsPage me={me} />;
   let crumb = 'Sessions';
   const sessionMatch = hash.match(/^\/sessions\/(.+)$/);
   const memoryMatch = hash.match(/^\/memory\/(\d+)$/);

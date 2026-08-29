@@ -30,6 +30,9 @@ export function registerConnect(program: Command): void {
         name: opts.name,
         email: opts.email,
         ...(opts.selected ? { syncMode: 'selected' as const } : {}),
+        // joining a team never auto-shares history: nothing is team-visible
+        // until this machine marks projects with `motif projects team <path>`
+        teamProjects: loadConfig().teamProjects ?? [],
       };
       saveConfig(cfg);
       console.log(`Connected to ${serverUrl} as ${opts.name} (member #${memberId}, ${role}).`);
