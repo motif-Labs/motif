@@ -21,6 +21,12 @@ export interface MotifConfig {
   exclude?: string[];
   /** In 'selected' mode: the allowlist of project paths/globs that sync. */
   include?: string[];
+  /**
+   * Projects whose sessions are TEAM-visible. Everything else uploads as
+   * 'personal' (only you see it; promotable from the dashboard).
+   * Undefined = legacy behavior: everything is team.
+   */
+  teamProjects?: string[];
   /** Regexes applied to message text before anything leaves this machine. */
   redactPatterns?: string[];
   /** Built-in secret patterns (API keys, JWTs, private keys) are ON by default; false disables them. */

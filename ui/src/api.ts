@@ -8,6 +8,7 @@ export interface SessionRow {
   updatedAt: string | null;
   createdAt?: string | null;
   messageCount: number;
+  visibility?: 'team' | 'personal';
   snippet?: string;
 }
 
@@ -22,6 +23,7 @@ export interface Message {
 
 export interface SessionDetail extends SessionRow {
   sourcePath: string | null;
+  visibility: 'team' | 'personal';
   filesTouched: string[];
   toolVersion: string | null;
   meta: { subagentCount: number; branchCount: number; parseErrors: number; model?: string; sourceBytes?: number };

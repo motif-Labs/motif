@@ -308,6 +308,40 @@ describe('http api', () => {
     expect((await call('/api/sessions', {}, guest.memberToken)).status).toBe(401);
   });
 
+  it('personal sessions are invisible to everyone but their owner', async () => {
+    const zoe = (await (await call('/api/members/register', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'zoe', email: 'zoe@example.com' }),
+    })).json()) as { memberToken: string };
+    const kai = (await (await call('/api/members/register', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'kai', email: 'kai@example.com' }),
+    })).json()) as { memberToken: string };
+
+    const secret = { ...makeSession('priv1', [msg('u1', 'user', 'my side project idea')]), visibility: 'personal' as const };
+    await call(`/api/sessions/${encodeURIComponent(secret.id)}`, { method: 'PUT', body: JSON.stringify(secret) }, zoe.memberToken);
+
+    // owner sees it in the personal drawer; teammate and team-token viewers never do
+    const zoePersonal = (await (await call('/api/sessions?scope=personal', {}, zoe.memberToken)).json()) as { id: string }[];
+    expect(zoePersonal.map((s) => s.id)).toContain(secret.id);
+    const kaiAll = (await (await call('/api/sessions', {}, kai.memberToken)).json()) as { id: string }[];
+    expect(kaiAll.map((s) => s.id)).not.toContain(secret.id);
+    expect((await call(`/api/sessions/${encodeURIComponent(secret.id)}`, {}, kai.memberToken)).status).toBe(404);
+    expect((await call(`/api/sessions/${encodeURIComponent(secret.id)}/export`, {})).status).toBe(404);
+    // search never leaks it to others either
+    const kaiSearch = (await (await call('/api/search?q=side+project', {}, kai.memberToken)).json()) as unknown[];
+    expect(kaiSearch).toHaveLength(0);
+
+    // owner promotes it → team can see it; a daemon re-sync must NOT demote it
+    await call(`/api/sessions/${encodeURIComponent(secret.id)}/visibility`, {
+      method: 'PATCH',
+      body: JSON.stringify({ visibility: 'team' }),
+    }, zoe.memberToken);
+    await call(`/api/sessions/${encodeURIComponent(secret.id)}`, { method: 'PUT', body: JSON.stringify(secret) }, zoe.memberToken);
+    const kaiAfter = (await (await call('/api/sessions', {}, kai.memberToken)).json()) as { id: string }[];
+    expect(kaiAfter.map((s) => s.id)).toContain(secret.id);
+  });
+
   it('owner prunes old sessions; recent ones and memory notes survive', async () => {
     const owner = (await (await call('/api/members/register', {
       method: 'POST',

@@ -156,7 +156,7 @@ export async function runMemoryTick(
       `SELECT s.pk, s.id, s.project_path, s.member_id, s.last_extracted_seq,
               (SELECT MAX(seq) FROM messages WHERE session_pk = s.pk) AS max_seq
        FROM sessions s
-       WHERE s.updated_at < ?
+       WHERE s.visibility = 'team' AND s.updated_at < ?
          AND (SELECT MAX(seq) FROM messages WHERE session_pk = s.pk) > s.last_extracted_seq - 1
          AND EXISTS (SELECT 1 FROM messages WHERE session_pk = s.pk AND seq >= s.last_extracted_seq)
        ORDER BY s.updated_at ASC

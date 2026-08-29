@@ -53,6 +53,11 @@ export interface MotifSession {
   updatedAt: string;
   /** Version of the source tool that wrote the session, when known. */
   toolVersion?: string;
+  /**
+   * 'team' — visible to every member; 'personal' — visible only to its
+   * owner. Decided on the source machine per project; promotable later.
+   */
+  visibility?: 'team' | 'personal';
   messages: MotifMessage[];
   /** Files changed via edit/write tools on the active path, deduped, in first-touch order. */
   filesTouched: string[];

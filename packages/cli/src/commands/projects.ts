@@ -2,7 +2,7 @@ import type { Command } from 'commander';
 import path from 'node:path';
 import { loadConfig, requireConnection, saveConfig } from '../config.js';
 import { scanLocal } from '../local.js';
-import { shouldSyncProject } from '../daemon/syncer.js';
+import { computeVisibility, shouldSyncProject } from '../daemon/syncer.js';
 import { isExcluded } from '../daemon/syncer.js';
 import { MotifClient } from '../api-client.js';
 
@@ -43,10 +43,32 @@ export function registerProjects(program: Command): void {
         if (!s.projectPath || seen.has(s.projectPath)) continue;
         seen.add(s.projectPath);
         const syncs = shouldSyncProject(s.projectPath, cfg);
-        console.log(`${syncs ? '✓ syncs ' : '✗ local '} ${s.projectPath}`);
+        const scope = !syncs ? '✗ local   ' : computeVisibility(s.projectPath, cfg) === 'team' ? '✓ team    ' : '◐ personal';
+        console.log(`${scope}  ${s.projectPath}`);
       }
       if (mode === 'selected') console.log(`\nIncluded: ${(cfg.include ?? []).join(', ') || '(none)'}`);
       if ((cfg.exclude ?? []).length) console.log(`Excluded: ${cfg.exclude!.join(', ')}`);
+    });
+
+  projects
+    .command('team <pathOrGlob>')
+    .description('Mark a project TEAM-visible — its sessions appear to the whole team (others stay personal)')
+    .action((glob: string) => {
+      const cfg = loadConfig();
+      const value = glob.includes('*') ? glob : path.resolve(glob);
+      saveConfig({ ...cfg, teamProjects: [...new Set([...(cfg.teamProjects ?? []), value])] });
+      console.log(`Team-visible from now on: ${value}`);
+      console.log('(already-synced sessions keep their scope — promote them from the dashboard)');
+    });
+
+  projects
+    .command('personal <pathOrGlob>')
+    .description('Stop marking a project team-visible (future sessions upload as personal)')
+    .action((glob: string) => {
+      const cfg = loadConfig();
+      const value = glob.includes('*') ? glob : path.resolve(glob);
+      saveConfig({ ...cfg, teamProjects: (cfg.teamProjects ?? []).filter((g) => g !== value) });
+      console.log(`Personal from now on: ${value}`);
     });
 
   projects

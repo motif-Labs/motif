@@ -11,11 +11,13 @@ import { ensureTeamToken, openDb, type Db } from './db/database.js';
 import { LiveBus } from './live/bus.js';
 import {
   appendMessages,
+  canView,
   completeHandoffRequest,
   createHandoffRequest,
   exportSession,
   handoffExecutor,
   resolveMember,
+  setSessionVisibility,
   fullReplaceSession,
   getSessionMessages,
   getSessionRow,
@@ -205,13 +207,17 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   });
 
   app.get('/api/sessions', (c) => {
+    const viewer = memberId(c);
     const q = c.req.query('q');
-    if (q) return c.json(searchSessions(db, q, Number(c.req.query('limit') ?? 30)));
+    if (q) return c.json(searchSessions(db, q, Number(c.req.query('limit') ?? 30), viewer));
+    const scope = c.req.query('scope');
     return c.json(
       listSessions(db, {
         project: c.req.query('project'),
         memberId: c.req.query('member') ? Number(c.req.query('member')) : undefined,
         limit: Number(c.req.query('limit') ?? 50),
+        viewerId: viewer,
+        scope: scope === 'personal' ? 'personal' : scope === 'team' ? 'team' : undefined,
       }),
     );
   });
@@ -219,18 +225,19 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   app.get('/api/search', (c) => {
     const q = c.req.query('q');
     if (!q) return c.json({ error: 'q required' }, 400);
-    return c.json(searchSessions(db, q, Number(c.req.query('limit') ?? 30)));
+    return c.json(searchSessions(db, q, Number(c.req.query('limit') ?? 30), memberId(c)));
   });
 
   app.get('/api/sessions/:id/export', (c) => {
+    const row = getSessionRow(db, c.req.param('id'));
+    if (!row || !canView(row, memberId(c))) return c.json({ error: 'not found' }, 404);
     const session = exportSession(db, c.req.param('id'));
-    if (!session) return c.json({ error: 'not found' }, 404);
     return c.json(session);
   });
 
   app.get('/api/sessions/:id', (c) => {
     const row = getSessionRow(db, c.req.param('id'));
-    if (!row) return c.json({ error: 'not found' }, 404);
+    if (!row || !canView(row, memberId(c))) return c.json({ error: 'not found' }, 404);
     const member = db.prepare('SELECT name FROM members WHERE id = ?').get(row.member_id) as
       | { name: string }
       | undefined;
@@ -239,6 +246,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       source: row.source,
       memberId: row.member_id,
       memberName: member?.name ?? null,
+      visibility: row.visibility,
       sourcePath: row.source_path,
       projectPath: row.project_path,
       gitBranch: row.git_branch,
@@ -250,6 +258,27 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       meta: JSON.parse(row.meta_json),
       messages: getSessionMessages(db, row.pk),
     });
+  });
+
+  // Owner of a session moves it between the personal drawer and the team
+  app.patch('/api/sessions/:id/visibility', async (c) => {
+    const member = memberId(c);
+    if (member === undefined) return c.json({ error: 'member token required' }, 403);
+    const body = await c.req.json<{ visibility?: string }>();
+    if (body.visibility !== 'team' && body.visibility !== 'personal') {
+      return c.json({ error: "visibility must be 'team' or 'personal'" }, 400);
+    }
+    const updated = setSessionVisibility(db, member, c.req.param('id'), body.visibility);
+    if (!updated) return c.json({ error: 'not found or not yours' }, 404);
+    bus.publish('session-upserted', {
+      id: updated.id,
+      memberId: member,
+      title: updated.title ?? undefined,
+      projectPath: updated.project_path,
+      updatedAt: updated.updated_at ?? undefined,
+      messageCount: 0,
+    });
+    return c.json({ ok: true, visibility: updated.visibility });
   });
 
   // Members can withdraw their OWN sessions (e.g. a project excluded after the fact)
@@ -325,6 +354,12 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       const assignee = resolveMember(db, body.assignee);
       if (!assignee) return c.json({ error: `no unique member matches "${body.assignee}"` }, 404);
       if (assignee.id !== member) assigneeId = assignee.id;
+    }
+    const row = getSessionRow(db, body.sessionId)!;
+    if (!canView(row, member)) return c.json({ error: 'session not found' }, 404);
+    if (assigneeId !== undefined && row.visibility === 'personal') {
+      if (row.member_id !== member) return c.json({ error: 'session not found' }, 404);
+      setSessionVisibility(db, member, body.sessionId, 'team'); // handing it over IS sharing it
     }
     const request = createHandoffRequest(db, member, {
       sessionId: body.sessionId,

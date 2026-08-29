@@ -20,6 +20,12 @@ export interface SessionRow {
   files_touched: string;
   meta_json: string;
   last_extracted_seq: number;
+  visibility: 'team' | 'personal';
+}
+
+/** May this viewer see this session at all? */
+export function canView(row: Pick<SessionRow, 'visibility' | 'member_id'>, viewerId: number | undefined): boolean {
+  return row.visibility === 'team' || (viewerId !== undefined && row.member_id === viewerId);
 }
 
 export function prefixHash(ids: string[]): string {
@@ -97,11 +103,13 @@ export function touchMember(db: Db, memberId: number): void {
 }
 
 function upsertSessionRow(db: Db, memberId: number, meta: SessionMetaPayload): SessionRow {
+  // visibility is set at INSERT and then owned by the server: a daemon
+  // re-sync must never undo a promotion made in the dashboard
   db.prepare(
     `INSERT INTO sessions (id, source, source_session_id, member_id, source_path, project_path,
-       git_branch, title, created_at, updated_at, tool_version, files_touched, meta_json)
+       git_branch, title, created_at, updated_at, tool_version, files_touched, meta_json, visibility)
      VALUES (@id, @source, @sourceSessionId, @memberId, @sourcePath, @projectPath,
-       @gitBranch, @title, @createdAt, @updatedAt, @toolVersion, @filesTouched, @metaJson)
+       @gitBranch, @title, @createdAt, @updatedAt, @toolVersion, @filesTouched, @metaJson, @visibility)
      ON CONFLICT(source, source_session_id, member_id) DO UPDATE SET
        source_path = excluded.source_path, project_path = excluded.project_path,
        git_branch = excluded.git_branch, title = excluded.title,
@@ -122,6 +130,7 @@ function upsertSessionRow(db: Db, memberId: number, meta: SessionMetaPayload): S
     toolVersion: meta.toolVersion ?? null,
     filesTouched: JSON.stringify(meta.filesTouched ?? []),
     metaJson: JSON.stringify(meta.meta ?? {}),
+    visibility: meta.visibility === 'personal' ? 'personal' : 'team',
   });
   return db
     .prepare('SELECT * FROM sessions WHERE source = ? AND source_session_id = ? AND member_id = ?')
@@ -210,14 +219,25 @@ export interface SessionListItem {
   createdAt: string | null;
   updatedAt: string | null;
   messageCount: number;
+  visibility: 'team' | 'personal';
 }
 
 export function listSessions(
   db: Db,
-  opts: { project?: string; memberId?: number; limit?: number } = {},
+  opts: { project?: string; memberId?: number; limit?: number; viewerId?: number; scope?: 'team' | 'personal' } = {},
 ): SessionListItem[] {
   const where: string[] = [];
   const params: unknown[] = [];
+  if (opts.scope === 'personal') {
+    // personal scope is strictly the viewer's own drawer
+    where.push("s.visibility = 'personal' AND s.member_id = ?");
+    params.push(opts.viewerId ?? -1);
+  } else if (opts.scope === 'team') {
+    where.push("s.visibility = 'team'");
+  } else {
+    where.push("(s.visibility = 'team' OR s.member_id = ?)");
+    params.push(opts.viewerId ?? -1);
+  }
   if (opts.project) {
     where.push('s.project_path = ?');
     params.push(opts.project);
@@ -229,10 +249,10 @@ export function listSessions(
   const rows = db
     .prepare(
       `SELECT s.id, s.source, s.member_id, m.name AS member_name, s.project_path, s.git_branch,
-              s.title, s.created_at, s.updated_at,
+              s.title, s.created_at, s.updated_at, s.visibility,
               (SELECT COUNT(*) FROM messages WHERE session_pk = s.pk) AS message_count
        FROM sessions s LEFT JOIN members m ON m.id = s.member_id
-       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+       WHERE ${where.join(' AND ')}
        ORDER BY s.updated_at DESC
        LIMIT ?`,
     )
@@ -247,6 +267,7 @@ export function listSessions(
     created_at: string | null;
     updated_at: string | null;
     message_count: number;
+    visibility: 'team' | 'personal';
   }[];
   return rows.map((r) => ({
     id: r.id,
@@ -259,6 +280,7 @@ export function listSessions(
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     messageCount: r.message_count,
+    visibility: r.visibility,
   }));
 }
 
@@ -301,6 +323,7 @@ export function exportSession(db: Db, id: string): MotifSession | undefined {
     createdAt: row.created_at ?? '',
     updatedAt: row.updated_at ?? '',
     toolVersion: row.tool_version ?? undefined,
+    visibility: row.visibility,
     messages: getSessionMessages(db, row.pk),
     filesTouched: JSON.parse(row.files_touched) as string[],
     meta: JSON.parse(row.meta_json) as MotifSession['meta'],
@@ -423,7 +446,7 @@ export function resolveMember(db: Db, ref: string): { id: number; name: string }
   return prefix.length === 1 ? prefix[0] : undefined;
 }
 
-export function searchSessions(db: Db, q: string, limit = 30): (SessionListItem & { snippet: string })[] {
+export function searchSessions(db: Db, q: string, limit = 30, viewerId?: number): (SessionListItem & { snippet: string })[] {
   const rows = db
     .prepare(
       `WITH f AS MATERIALIZED (
@@ -433,15 +456,16 @@ export function searchSessions(db: Db, q: string, limit = 30): (SessionListItem 
        SELECT s.id, s.source, s.member_id, m.name AS member_name, s.project_path, s.git_branch,
               s.title, s.created_at, s.updated_at,
               (SELECT COUNT(*) FROM messages WHERE session_pk = s.pk) AS message_count,
-              f.snip, MIN(f.rank) AS best_rank
+              s.visibility, f.snip, MIN(f.rank) AS best_rank
        FROM f
        JOIN sessions s ON s.pk = f.session_pk
        LEFT JOIN members m ON m.id = s.member_id
+       WHERE (s.visibility = 'team' OR s.member_id = ?)
        GROUP BY s.pk
        ORDER BY best_rank
        LIMIT ?`,
     )
-    .all(ftsQuery(q), limit) as ({
+    .all(ftsQuery(q), viewerId ?? -1, limit) as ({
     id: string;
     source: string;
     member_id: number;
@@ -452,6 +476,7 @@ export function searchSessions(db: Db, q: string, limit = 30): (SessionListItem 
     created_at: string | null;
     updated_at: string | null;
     message_count: number;
+    visibility: 'team' | 'personal';
     snip: string;
   })[];
   return rows.map((r) => ({
@@ -465,6 +490,20 @@ export function searchSessions(db: Db, q: string, limit = 30): (SessionListItem 
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     messageCount: r.message_count,
+    visibility: r.visibility,
     snippet: r.snip,
   }));
+}
+
+/** Owner-only scope change; the server owns visibility after insert. */
+export function setSessionVisibility(
+  db: Db,
+  viewerId: number,
+  id: string,
+  visibility: 'team' | 'personal',
+): SessionRow | undefined {
+  const row = getSessionRow(db, id);
+  if (!row || row.member_id !== viewerId) return undefined;
+  db.prepare('UPDATE sessions SET visibility = ? WHERE pk = ?').run(visibility, row.pk);
+  return { ...row, visibility };
 }
