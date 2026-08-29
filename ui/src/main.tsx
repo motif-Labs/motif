@@ -174,7 +174,7 @@ function SessionsPage() {
   const [project, setProject] = useState('');
   const [member, setMember] = useState('');
   const [agent, setAgent] = useState('');
-  const reload = () => api<SessionRow[]>('/api/sessions?limit=200').then(setSessions).catch(() => {});
+  const reload = () => api<SessionRow[]>('/api/sessions?limit=200').then(setSessions).catch(() => setSessions([]));
   useEffect(() => {
     reload();
     return openEvents((name) => {
@@ -296,7 +296,7 @@ function HandoffPanel({ session, me }: { session: SessionDetail; me: Me }) {
   const reqId = useRef<number | undefined>(undefined);
 
   useEffect(() => {
-    if (me.kind === 'member') api<MemberRow[]>('/api/members').then(setMembers).catch(() => {});
+    if (me.kind === 'member') api<MemberRow[]>('/api/members').then(setMembers).catch(() => setMembers([]));
   }, [me.kind]);
 
   useEffect(() => {
@@ -488,7 +488,7 @@ function SessionView({ id, me }: { id: string; me: Me }) {
 
 function PeoplePage({ me }: { me: Me }) {
   const [members, setMembers] = useState<MemberRow[] | null>(null);
-  const reload = () => api<MemberRow[]>('/api/members').then(setMembers).catch(() => {});
+  const reload = () => api<MemberRow[]>('/api/members').then(setMembers).catch(() => setMembers([]));
   useEffect(() => {
     reload();
   }, []);
@@ -533,7 +533,7 @@ function PeoplePage({ me }: { me: Me }) {
 
 function MemoryPage() {
   const [entities, setEntities] = useState<MemoryEntity[] | null>(null);
-  const reload = () => api<MemoryEntity[]>('/api/memory/entities').then(setEntities).catch(() => {});
+  const reload = () => api<MemoryEntity[]>('/api/memory/entities').then(setEntities).catch(() => setEntities([]));
   useEffect(() => {
     reload();
     return openEvents((name) => {
@@ -754,9 +754,17 @@ function App() {
 
   useEffect(() => {
     if (!authed) return;
-    api<Me>('/api/me').then(setMe).catch(() => {});
+    // a stale/revoked token must bounce to the gate, not strand the app on silent 401s
+    api<Me>('/api/me')
+      .then(setMe)
+      .catch((e: Error) => {
+        if (e.message === 'unauthorized') {
+          clearToken();
+          setAuthed(false);
+        }
+      });
     api<{ name: string }>('/api/team').then((t) => setTeam(t.name)).catch(() => {});
-    const loadMembers = () => api<MemberRow[]>('/api/members').then(setMembers).catch(() => {});
+    const loadMembers = () => api<MemberRow[]>('/api/members').then(setMembers).catch(() => setMembers([]));
     loadMembers();
     return openEvents((name) => {
       if (name === 'member-joined') loadMembers();
