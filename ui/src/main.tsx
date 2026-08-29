@@ -1,5 +1,6 @@
 import { render } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { AgentMark, AGENT_LABELS } from './logos.js';
 import {
   api,
   clearToken,
@@ -98,56 +99,62 @@ function Avatar({ name, size = 22 }: { name: string | null; size?: number }) {
   );
 }
 
-const TOOLS: Record<string, { label: string; color: string }> = {
-  'claude-code': { label: 'Claude Code', color: '#d97757' },
-  codex: { label: 'Codex', color: '#1a7f64' },
-  cursor: { label: 'Cursor', color: '#3b82f6' },
-};
 function ToolChip({ source }: { source: string }) {
-  const t = TOOLS[source] ?? { label: source, color: '#9ca3af' };
   return (
-    <span class="chip">
-      <span class="dot" style={`background:${t.color}`} />
-      {t.label}
+    <span class="agent-tag">
+      <AgentMark source={source} />
+      {AGENT_LABELS[source] ?? source}
     </span>
   );
 }
 
 /* ── sessions ────────────────────────────────────────── */
 
-function TableHead() {
+function SessionCard({ s }: { s: SessionRow }) {
   return (
-    <div class="thead">
-      <span class="time">Time</span>
-      <span class="title">Session</span>
-      <span class="who">Owner</span>
-      <span class="tool">Agent</span>
-      <span class="vis">Scope</span>
-      <span class="ago">Updated</span>
+    <div class={`snode ${isActive(s.updatedAt) ? 'live' : ''}`}>
+      <a class="scard" href={`#/sessions/${encodeURIComponent(s.id)}`}>
+        <div class="top">
+          <span class="title">{s.title ?? '(untitled)'}</span>
+          <span class="ago">{isActive(s.updatedAt) ? 'live now' : ago(s.updatedAt)}</span>
+        </div>
+        <div class="meta">
+          <span class="who">
+            <Avatar name={s.memberName} size={18} />@{s.memberName ?? 'unknown'}
+          </span>
+          <ToolChip source={s.source} />
+          <span class="proj">{projName(s.projectPath)}</span>
+          {s.snippet && <span>…{s.snippet}…</span>}
+        </div>
+      </a>
     </div>
   );
 }
 
-function SessionRowView({ s }: { s: SessionRow }) {
+function NowWorking({ sessions }: { sessions: SessionRow[] }) {
+  const seen = new Set<string>();
+  const live = sessions.filter((s) => {
+    if (!isActive(s.updatedAt)) return false;
+    const key = `${s.memberName}:${s.source}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  if (live.length === 0) return null;
   return (
-    <a class="row" href={`#/sessions/${encodeURIComponent(s.id)}`}>
-      <span class="time">{clock(s.updatedAt)}</span>
-      <span class="title">
-        {isActive(s.updatedAt) && <span class="chip live" style="margin-right:8px">● live</span>}
-        {s.title ?? '(untitled)'}
-      </span>
-      <span class="who">
-        <Avatar name={s.memberName} />
-        <span>@{s.memberName ?? 'unknown'}</span>
-      </span>
-      <span class="tool">
-        <ToolChip source={s.source} />
-      </span>
-      <span class="vis">
-        <span class="chip">Team</span>
-      </span>
-      <span class="ago">{ago(s.updatedAt)}</span>
-    </a>
+    <div class="now-strip">
+      {live.map((s) => (
+        <a class="now-chip" href={`#/sessions/${encodeURIComponent(s.id)}`}>
+          <span class="pulse" />
+          <Avatar name={s.memberName} size={18} />
+          <b>{s.memberName}</b>
+          <span class="x">×</span>
+          <ToolChip source={s.source} />
+          <span class="x">@</span>
+          <span class="proj mono">{projName(s.projectPath)}</span>
+        </a>
+      ))}
+    </div>
   );
 }
 
@@ -202,7 +209,7 @@ function SessionsPage() {
         <select value={agent} onChange={(e) => setAgent((e.target as HTMLSelectElement).value)}>
           <option value="">all agents</option>
           {agents.map((a) => (
-            <option value={a}>{TOOLS[a]?.label ?? a}</option>
+            <option value={a}>{AGENT_LABELS[a] ?? a}</option>
           ))}
         </select>
         <select value={member} onChange={(e) => setMember((e.target as HTMLSelectElement).value)}>
@@ -231,22 +238,22 @@ function SessionsPage() {
           </a>
         )}
       </div>
+      <NowWorking sessions={sessions} />
       {sessions.length === 0 ? (
         <div class="empty">
           No sessions yet. On each dev machine run <code>motif connect</code>, then <code>motif daemon start</code>.
         </div>
       ) : (
-        groups.map((g) => (
-          <div key={g.label}>
-            <h2>{g.label}</h2>
-            <div class="table">
-              <TableHead />
+        <div class="thread">
+          {groups.map((g) => (
+            <div key={g.label}>
+              <div class="day-label">{g.label}</div>
               {g.rows.map((s) => (
-                <SessionRowView key={s.id} s={s} />
+                <SessionCard key={s.id} s={s} />
               ))}
             </div>
-          </div>
-        ))
+          ))}
+        </div>
       )}
     </div>
   );
@@ -612,10 +619,9 @@ function SearchPage() {
       </div>
       {rows && rows.length === 0 && <div class="empty">No matches.</div>}
       {rows && rows.length > 0 && (
-        <div class="table">
-          <TableHead />
+        <div class="thread">
           {rows.map((s) => (
-            <SessionRowView key={s.id} s={s} />
+            <SessionCard key={s.id} s={s} />
           ))}
         </div>
       )}
