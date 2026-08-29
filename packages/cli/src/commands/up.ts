@@ -37,6 +37,7 @@ export function registerUp(program: Command): void {
       });
 
       console.log(`Motif up at ${serverUrl} (member: ${name})`);
+      console.log(`Team token (dashboard login): ${server.token}`);
       console.log('Sessions on this machine are syncing live. Ctrl+C to stop.');
       await new Promise(() => {}); // run until killed
     });
