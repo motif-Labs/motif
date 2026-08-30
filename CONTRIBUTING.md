@@ -43,9 +43,8 @@ Signed-off-by: Your Name <you@example.com>
 
 This certifies the [DCO](https://developercertificate.org/): you wrote the
 change or have the right to submit it under the project license. Commits
-without a sign-off can't be merged. It also keeps the project able to offer
-commercial licensing for future `ee/` components without relicensing anyone's
-work without their consent.
+without a sign-off can't be merged, and it keeps the project's licensing
+options open without ever relicensing anyone's work without their consent.
 
 ## What a good pull request looks like
 

@@ -46,7 +46,6 @@ packages/core     session schema, readers (Claude Code, Codex), writers (handoff
 packages/cli      the `motif` binary, the sync daemon, the MCP server, Cursor reader
 packages/server   Hono API + better-sqlite3 store, retrieval, memory distillation
 ui/               Preact dashboard (no framework beyond Preact; hand-rolled CSS)
-ee/               empty; organisation features, separately licensed (see ee/README.md)
 bench/            retrieval benchmark — `npm run bench`
 scripts/demo.sh   two-member team with invented sessions, for trying it out
 ```
