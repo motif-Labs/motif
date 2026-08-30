@@ -24,7 +24,10 @@ export interface SessionRow {
 }
 
 /** May this viewer see this session at all? */
-export function canView(row: Pick<SessionRow, 'visibility' | 'member_id'>, viewerId: number | undefined): boolean {
+export function canView(
+  row: Pick<SessionRow, 'visibility' | 'member_id'>,
+  viewerId: number | undefined,
+): boolean {
   return row.visibility === 'team' || (viewerId !== undefined && row.member_id === viewerId);
 }
 
@@ -49,8 +52,7 @@ export function registerMember(
   let existing: { id: number; role: string } | undefined;
   if (input.email) {
     existing = db.prepare('SELECT id, role FROM members WHERE email = ?').get(input.email) as
-      | { id: number; role: string }
-      | undefined;
+      { id: number; role: string } | undefined;
   }
   if (!existing) {
     // no email: same person reconnecting from the same machine keeps one identity
@@ -75,7 +77,9 @@ export function registerMember(
     const isFirst = (db.prepare('SELECT COUNT(*) AS n FROM members').get() as { n: number }).n === 0;
     role = isFirst ? 'owner' : 'member';
     const res = db
-      .prepare('INSERT INTO members(name, email, machine, role, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .prepare(
+        'INSERT INTO members(name, email, machine, role, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?)',
+      )
       .run(input.name, input.email ?? null, input.machine ?? null, role, now, now);
     memberId = Number(res.lastInsertRowid);
     created = true;
@@ -224,7 +228,13 @@ export interface SessionListItem {
 
 export function listSessions(
   db: Db,
-  opts: { project?: string; memberId?: number; limit?: number; viewerId?: number; scope?: 'team' | 'personal' } = {},
+  opts: {
+    project?: string;
+    memberId?: number;
+    limit?: number;
+    viewerId?: number;
+    scope?: 'team' | 'personal';
+  } = {},
 ): SessionListItem[] {
   const where: string[] = [];
   const params: unknown[] = [];
@@ -382,7 +392,9 @@ export function createHandoffRequest(
       input.cwd ?? null,
       new Date().toISOString(),
     );
-  return db.prepare('SELECT * FROM handoff_requests WHERE id = ?').get(res.lastInsertRowid) as HandoffRequestRow;
+  return db
+    .prepare('SELECT * FROM handoff_requests WHERE id = ?')
+    .get(res.lastInsertRowid) as HandoffRequestRow;
 }
 
 /** The member id whose daemon must execute a request. */
@@ -399,7 +411,9 @@ export function listHandoffRequests(
                 LEFT JOIN members m ON m.id = h.requested_by
                 WHERE COALESCE(h.assignee_id, h.requested_by) = ?`;
   if (opts.status) {
-    return db.prepare(`${base} AND h.status = ? ORDER BY h.id`).all(memberId, opts.status) as HandoffRequestRow[];
+    return db
+      .prepare(`${base} AND h.status = ? ORDER BY h.id`)
+      .all(memberId, opts.status) as HandoffRequestRow[];
   }
   return db.prepare(`${base} ORDER BY h.id DESC LIMIT 50`).all(memberId) as HandoffRequestRow[];
 }
@@ -444,8 +458,7 @@ export function resolveMember(db: Db, ref: string): { id: number; name: string }
   const clean = ref.replace(/^@/, '').trim();
   if (/^\d+$/.test(clean)) {
     return db.prepare('SELECT id, name FROM members WHERE id = ?').get(Number(clean)) as
-      | { id: number; name: string }
-      | undefined;
+      { id: number; name: string } | undefined;
   }
   const exact = db
     .prepare('SELECT id, name FROM members WHERE LOWER(name) = LOWER(?) OR LOWER(email) = LOWER(?)')
@@ -457,7 +470,12 @@ export function resolveMember(db: Db, ref: string): { id: number; name: string }
   return prefix.length === 1 ? prefix[0] : undefined;
 }
 
-export function searchSessions(db: Db, q: string, limit = 30, viewerId?: number): (SessionListItem & { snippet: string })[] {
+export function searchSessions(
+  db: Db,
+  q: string,
+  limit = 30,
+  viewerId?: number,
+): (SessionListItem & { snippet: string })[] {
   const rows = db
     .prepare(
       `WITH f AS MATERIALIZED (
@@ -476,7 +494,7 @@ export function searchSessions(db: Db, q: string, limit = 30, viewerId?: number)
        ORDER BY best_rank
        LIMIT ?`,
     )
-    .all(ftsQuery(q), viewerId ?? -1, limit) as ({
+    .all(ftsQuery(q), viewerId ?? -1, limit) as {
     id: string;
     source: string;
     member_id: number;
@@ -489,7 +507,7 @@ export function searchSessions(db: Db, q: string, limit = 30, viewerId?: number)
     message_count: number;
     visibility: 'team' | 'personal';
     snip: string;
-  })[];
+  }[];
   return rows.map((r) => ({
     id: r.id,
     source: r.source,
@@ -557,7 +575,10 @@ export function listComments(db: Db, sessionPk: number): CommentRow[] {
 
 /** Authors delete their own comments; nobody else's. */
 export function deleteComment(db: Db, authorId: number, commentId: number): boolean {
-  return db.prepare('DELETE FROM session_comments WHERE id = ? AND author_id = ?').run(commentId, authorId).changes > 0;
+  return (
+    db.prepare('DELETE FROM session_comments WHERE id = ? AND author_id = ?').run(commentId, authorId)
+      .changes > 0
+  );
 }
 
 export interface AskRequestRow {
@@ -641,7 +662,14 @@ export function completeAskRequest(
       `UPDATE ask_requests SET status = ?, answer = ?, error = ?, completed_at = ?
        WHERE id = ? AND executor_id = ? AND status = 'pending'`,
     )
-    .run(result.status, result.answer ?? null, result.error ?? null, new Date().toISOString(), id, executorId);
+    .run(
+      result.status,
+      result.answer ?? null,
+      result.error ?? null,
+      new Date().toISOString(),
+      id,
+      executorId,
+    );
   return changed.changes === 0 ? undefined : getAskRequest(db, id);
 }
 

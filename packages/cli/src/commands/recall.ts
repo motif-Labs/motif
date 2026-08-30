@@ -7,7 +7,7 @@ import { MotifClient } from '../api-client.js';
 export function registerRecall(program: Command): void {
   program
     .command('recall <query...>')
-    .description("What does the team already know about this? (the same bundle agents get over MCP)")
+    .description('What does the team already know about this? (the same bundle agents get over MCP)')
     .option('--project <path>', 'scope to one project')
     .option('--budget <tokens>', 'approximate token ceiling', '1500')
     .option('--json', 'machine-readable output (used by the benchmark)')

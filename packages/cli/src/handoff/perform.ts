@@ -41,8 +41,7 @@ function findStateDb(home: string): string | undefined {
 function detectCliVersion(db: Database.Database): string {
   try {
     const row = db.prepare('SELECT cli_version FROM threads ORDER BY updated_at DESC LIMIT 1').get() as
-      | { cli_version: string }
-      | undefined;
+      { cli_version: string } | undefined;
     if (row?.cli_version) return row.cli_version;
   } catch {
     /* fall through */
@@ -122,7 +121,9 @@ export function performCodexHandoff(
   // A codex session whose rollout already lives on THIS machine needs no
   // conversion; one synced from a teammate's machine does.
   if (session.source === 'codex' && session.sourcePath && fs.existsSync(session.sourcePath)) {
-    throw new Error(`Already a Codex session on this machine — continue it with: codex resume ${session.sourceSessionId}`);
+    throw new Error(
+      `Already a Codex session on this machine — continue it with: codex resume ${session.sourceSessionId}`,
+    );
   }
   if (opts.cwdOverride) session = { ...session, projectPath: path.resolve(opts.cwdOverride) };
 

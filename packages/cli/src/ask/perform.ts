@@ -15,7 +15,7 @@ import type { MotifSession } from '@motif/core';
 
 const READ_ONLY_PREAMBLE = [
   'READ-ONLY QUESTION relayed by Motif from a teammate.',
-  'Answer strictly from this session\'s own context. Do not edit files, do not run',
+  "Answer strictly from this session's own context. Do not edit files, do not run",
   'commands that change anything, do not start new work. Be concise and concrete.',
   'If the answer is not in this session, say so plainly.',
   '',
@@ -36,10 +36,17 @@ function cleanCodexOutput(out: string): string {
  * A CLI that prints "you are out of credits" and exits 0 has not answered the
  * question — surfacing that text as the session's answer would be a lie.
  */
-const REFUSALS = [/out of usage credits/i, /usage limit/i, /rate limit/i, /not authenticated/i, /please (log ?in|run .*login)/i];
+const REFUSALS = [
+  /out of usage credits/i,
+  /usage limit/i,
+  /rate limit/i,
+  /not authenticated/i,
+  /please (log ?in|run .*login)/i,
+];
 
 function assertUsable(agent: string, status: number | null, answer: string, stderr: string): void {
-  if (status !== 0) throw new Error(`${agent} exited ${status ?? 'null'}: ${(stderr || answer).slice(0, 300)}`);
+  if (status !== 0)
+    throw new Error(`${agent} exited ${status ?? 'null'}: ${(stderr || answer).slice(0, 300)}`);
   if (!answer) throw new Error(`${agent} returned nothing: ${stderr.slice(0, 300)}`);
   if (answer.length < 400 && REFUSALS.some((r) => r.test(answer))) {
     throw new Error(`${agent} could not answer: ${answer.slice(0, 200)}`);

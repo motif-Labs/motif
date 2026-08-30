@@ -25,7 +25,9 @@ async function gatherStatus(claudeDir?: string) {
   const pid = daemonPid();
   let stateAgeSec: number | undefined;
   try {
-    stateAgeSec = Math.round((Date.now() - fs.statSync(path.join(motifHome(), 'daemon-state.json')).mtimeMs) / 1000);
+    stateAgeSec = Math.round(
+      (Date.now() - fs.statSync(path.join(motifHome(), 'daemon-state.json')).mtimeMs) / 1000,
+    );
   } catch {
     /* never synced */
   }
@@ -128,14 +130,42 @@ export function registerOps(program: Command): void {
       const { claudeDir } = program.opts<{ claudeDir?: string }>();
       const s = await gatherStatus(claudeDir);
       const checks: { name: string; ok: boolean; fix?: string }[] = [
-        { name: 'connected to a server', ok: !!s.serverUrl, fix: 'motif connect <url> --token <team-token> --name <you>   (or solo: motif up)' },
-        { name: 'server reachable', ok: !s.serverUrl || s.server.reachable, fix: 'is the server up? check the URL in ~/.motif/config.json' },
-        { name: 'member identity (writes enabled)', ok: s.server.identity?.includes('member') ?? false, fix: 're-run motif connect to mint a member token' },
-        { name: 'daemon running', ok: s.daemon.running, fix: 'motif daemon start   (auto-start: motif daemon install)' },
+        {
+          name: 'connected to a server',
+          ok: !!s.serverUrl,
+          fix: 'motif connect <url> --token <team-token> --name <you>   (or solo: motif up)',
+        },
+        {
+          name: 'server reachable',
+          ok: !s.serverUrl || s.server.reachable,
+          fix: 'is the server up? check the URL in ~/.motif/config.json',
+        },
+        {
+          name: 'member identity (writes enabled)',
+          ok: s.server.identity?.includes('member') ?? false,
+          fix: 're-run motif connect to mint a member token',
+        },
+        {
+          name: 'daemon running',
+          ok: s.daemon.running,
+          fix: 'motif daemon start   (auto-start: motif daemon install)',
+        },
         { name: 'sync not paused', ok: !s.daemon.paused, fix: 'motif daemon resume' },
-        { name: 'agent sessions detected', ok: Object.values(s.sources).some((n) => n > 0), fix: 'no Claude Code / Codex / Cursor sessions found on this machine yet' },
-        { name: 'codex installed (handoff target)', ok: fs.existsSync(defaultCodexDir()), fix: 'npm i -g @openai/codex — handoff still works elsewhere without it' },
-        { name: 'claude data dir present', ok: fs.existsSync(claudeDir ?? defaultClaudeDir()), fix: 'expected for Claude Code capture; fine if you only use other agents' },
+        {
+          name: 'agent sessions detected',
+          ok: Object.values(s.sources).some((n) => n > 0),
+          fix: 'no Claude Code / Codex / Cursor sessions found on this machine yet',
+        },
+        {
+          name: 'codex installed (handoff target)',
+          ok: fs.existsSync(defaultCodexDir()),
+          fix: 'npm i -g @openai/codex — handoff still works elsewhere without it',
+        },
+        {
+          name: 'claude data dir present',
+          ok: fs.existsSync(claudeDir ?? defaultClaudeDir()),
+          fix: 'expected for Claude Code capture; fine if you only use other agents',
+        },
       ];
       const ok = checks.every((c) => c.ok);
       if (opts.json) {
@@ -155,13 +185,18 @@ export function registerOps(program: Command): void {
     .option('--check', 'only check (default behavior)')
     .action(async () => {
       try {
-        const res = await fetch('https://registry.npmjs.org/motifhq/latest');
+        const res = await fetch('https://registry.npmjs.org/getmotif/latest');
         if (!res.ok) throw new Error(String(res.status));
         const latest = ((await res.json()) as { version: string }).version;
         if (latest === CLI_VERSION) console.log(`motif ${CLI_VERSION} is up to date.`);
-        else console.log(`motif ${latest} is available (you have ${CLI_VERSION}).\nUpdate with: npm i -g motifhq@latest`);
+        else
+          console.log(
+            `motif ${latest} is available (you have ${CLI_VERSION}).\nUpdate with: npm i -g getmotif@latest`,
+          );
       } catch {
-        console.log(`Could not reach the npm registry (or motif isn't published yet). You have ${CLI_VERSION}.`);
+        console.log(
+          `Could not reach the npm registry (or motif isn't published yet). You have ${CLI_VERSION}.`,
+        );
       }
     });
 
@@ -216,6 +251,8 @@ export function registerOps(program: Command): void {
         console.log(`Kept ${motifHome()} (config + tokens) — delete it yourself or re-run with --purge.`);
       }
       console.log('Your Claude Code / Codex / Cursor sessions were never moved and remain untouched.');
-      console.log('Server-side team data (if any) stays on the server. Uninstall the package with: npm rm -g motifhq');
+      console.log(
+        'Server-side team data (if any) stays on the server. Uninstall the package with: npm rm -g getmotif',
+      );
     });
 }

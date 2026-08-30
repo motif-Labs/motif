@@ -35,9 +35,7 @@ async function purge(glob: string): Promise<void> {
 }
 
 export function registerProjects(program: Command): void {
-  const projects = program
-    .command('projects')
-    .description('Control which projects sync to the team server');
+  const projects = program.command('projects').description('Control which projects sync to the team server');
 
   projects
     .command('list', { isDefault: true })
@@ -46,13 +44,19 @@ export function registerProjects(program: Command): void {
       const { claudeDir } = program.opts<{ claudeDir?: string }>();
       const cfg = loadConfig();
       const mode = cfg.syncMode ?? 'all';
-      console.log(`Mode: ${mode}${mode === 'selected' ? '  (only included projects sync)' : '  (everything syncs unless excluded)'}\n`);
+      console.log(
+        `Mode: ${mode}${mode === 'selected' ? '  (only included projects sync)' : '  (everything syncs unless excluded)'}\n`,
+      );
       const seen = new Set<string>();
       for (const s of scanLocal(claudeDir).sessions) {
         if (!s.projectPath || seen.has(s.projectPath)) continue;
         seen.add(s.projectPath);
         const syncs = shouldSyncProject(s.projectPath, cfg);
-        const scope = !syncs ? '✗ local   ' : computeVisibility(s.projectPath, cfg) === 'team' ? '✓ team    ' : '◐ personal';
+        const scope = !syncs
+          ? '✗ local   '
+          : computeVisibility(s.projectPath, cfg) === 'team'
+            ? '✓ team    '
+            : '◐ personal';
         console.log(`${scope}  ${s.projectPath}`);
       }
       if (mode === 'selected') console.log(`\nIncluded: ${(cfg.include ?? []).join(', ') || '(none)'}`);
@@ -88,7 +92,7 @@ export function registerProjects(program: Command): void {
       saveConfig({ ...loadConfig(), syncMode: mode });
       console.log(
         mode === 'selected'
-          ? "Selected mode: nothing syncs until you run `motif projects include <path>` — personal work stays personal."
+          ? 'Selected mode: nothing syncs until you run `motif projects include <path>` — personal work stays personal.'
           : 'All mode: every project syncs unless excluded.',
       );
     });
@@ -102,7 +106,9 @@ export function registerProjects(program: Command): void {
       saveConfig({ ...cfg, include: [...new Set([...(cfg.include ?? []), value])] });
       console.log(`Included: ${value}`);
       if ((cfg.syncMode ?? 'all') !== 'selected') {
-        console.log("(note: the allowlist only takes effect in 'selected' mode — motif projects mode selected)");
+        console.log(
+          "(note: the allowlist only takes effect in 'selected' mode — motif projects mode selected)",
+        );
       }
     });
 

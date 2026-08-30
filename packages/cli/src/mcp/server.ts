@@ -23,7 +23,7 @@ export const TOOLS = [
   {
     name: 'recall',
     description:
-      "Recall what this team already learned about a topic, from every past AI coding session (Claude Code, Codex, Cursor). Returns distilled decisions, human notes and cited transcript excerpts within a small token budget. USE THIS FIRST — before grepping files or asking the user to re-explain — whenever you touch unfamiliar code, wonder why something is the way it is, or start a task in a project you have not seen this session.",
+      'Recall what this team already learned about a topic, from every past AI coding session (Claude Code, Codex, Cursor). Returns distilled decisions, human notes and cited transcript excerpts within a small token budget. USE THIS FIRST — before grepping files or asking the user to re-explain — whenever you touch unfamiliar code, wonder why something is the way it is, or start a task in a project you have not seen this session.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -37,7 +37,7 @@ export const TOOLS = [
   {
     name: 'search_sessions',
     description:
-      'Full-text search across every teammate\'s agent sessions. Returns session ids with snippets — use recall for answers, this for finding the session itself.',
+      "Full-text search across every teammate's agent sessions. Returns session ids with snippets — use recall for answers, this for finding the session itself.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -90,13 +90,23 @@ export const TOOLS = [
 async function callTool(backend: Backend, name: string, args: Record<string, unknown>): Promise<string> {
   switch (name) {
     case 'recall':
-      return backend.recall(String(args.query ?? ''), args.project ? String(args.project) : undefined, args.budget ? Number(args.budget) : undefined);
+      return backend.recall(
+        String(args.query ?? ''),
+        args.project ? String(args.project) : undefined,
+        args.budget ? Number(args.budget) : undefined,
+      );
     case 'search_sessions':
       return backend.search(String(args.query ?? ''), args.limit ? Number(args.limit) : 10);
     case 'list_sessions':
-      return backend.listSessions(args.project ? String(args.project) : undefined, args.limit ? Number(args.limit) : 15);
+      return backend.listSessions(
+        args.project ? String(args.project) : undefined,
+        args.limit ? Number(args.limit) : 15,
+      );
     case 'get_session':
-      return backend.getSession(String(args.sessionId ?? ''), args.tail === undefined ? 40 : Number(args.tail));
+      return backend.getSession(
+        String(args.sessionId ?? ''),
+        args.tail === undefined ? 40 : Number(args.tail),
+      );
     case 'ask_session':
       return backend.ask(
         String(args.sessionId ?? ''),
@@ -125,7 +135,7 @@ export async function handleRpc(
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: 'motif', version: CLI_VERSION },
         instructions:
-          'Motif exposes this team\'s past AI coding sessions. Call recall before exploring unfamiliar code; cite session ids in your answer.',
+          "Motif exposes this team's past AI coding sessions. Call recall before exploring unfamiliar code; cite session ids in your answer.",
       });
     case 'notifications/initialized':
     case 'notifications/cancelled':
@@ -146,7 +156,10 @@ export async function handleRpc(
         return ok({ content: [{ type: 'text', text }], isError: false });
       } catch (err) {
         // tool failures are results, not protocol errors — the model should see them
-        return ok({ content: [{ type: 'text', text: `Motif error: ${(err as Error).message}` }], isError: true });
+        return ok({
+          content: [{ type: 'text', text: `Motif error: ${(err as Error).message}` }],
+          isError: true,
+        });
       }
     }
     default:

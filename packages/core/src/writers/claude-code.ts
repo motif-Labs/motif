@@ -144,11 +144,20 @@ export function toClaudeSessionLines(session: MotifSession, opts: ClaudeConvertO
   flushTools();
 
   const title =
-    session.title ?? session.messages.find((m) => m.role === 'user')?.text?.replace(/\s+/g, ' ').slice(0, 80) ?? 'Handed-off session';
+    session.title ??
+    session.messages
+      .find((m) => m.role === 'user')
+      ?.text?.replace(/\s+/g, ' ')
+      .slice(0, 80) ??
+    'Handed-off session';
   lines.push({ type: 'ai-title', aiTitle: title.slice(0, 120), sessionId });
   lines.push({
     type: 'last-prompt',
-    lastPrompt: [...session.messages].reverse().find((m) => m.role === 'user')?.text?.slice(0, 200) ?? provenance.slice(0, 200),
+    lastPrompt:
+      [...session.messages]
+        .reverse()
+        .find((m) => m.role === 'user')
+        ?.text?.slice(0, 200) ?? provenance.slice(0, 200),
     leafUuid: parentUuid,
     sessionId,
   });

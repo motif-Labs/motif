@@ -3,7 +3,7 @@
 A self-hosted unification layer for AI coding-agent sessions: it collects
 sessions from Claude Code, Codex and Cursor on every dev machine, makes them
 searchable across the team, hands a session from one tool to another
-*natively*, and distils them into team memory that agents query over MCP.
+_natively_, and distils them into team memory that agents query over MCP.
 
 ## Ground rules
 
@@ -15,7 +15,7 @@ be able to clone it, run it, and find no trace of whoever wrote it.
   timezones or locales; no real email addresses. Test fixtures use `alice`,
   `ben`, `ada` and paths like `/workspace/app` or `/tmp/demo`.
 - **No captured session content.** Fixtures are written by hand, not copied
-  from a real run. `fixtures/codex/rollout-0.150.1.jsonl` keeps the *envelope*
+  from a real run. `fixtures/codex/rollout-0.150.1.jsonl` keeps the _envelope_
   of a real rollout with every message replaced by synthetic text — that is the
   pattern to follow if a new format needs a fixture.
 - **No third-party proprietary text.** Vendor system prompts, base instructions
@@ -35,7 +35,7 @@ be able to clone it, run it, and find no trace of whoever wrote it.
 
 **Never read or sync the machine's real agent history in a test, script or
 demo.** Every reader takes an override — `--claude-dir`, `CODEX_HOME`,
-`MOTIF_CURSOR_DIR` — and `MOTIF_HOME` relocates config *and* the database. Pin
+`MOTIF_CURSOR_DIR` — and `MOTIF_HOME` relocates config _and_ the database. Pin
 all four; an override that silently falls back to the real directory is a bug,
 not a convenience.
 
@@ -61,9 +61,9 @@ npm run bench                    # retrieval hit rate and token size
 bash scripts/demo.sh             # a populated dashboard in ~30 seconds
 ```
 
-The published npm package is **`motifhq`**; the binary it installs is `motif`
+The published npm package is **`getmotif`**; the binary it installs is `motif`
 (the name `motif` was already taken on npm). Any user-facing install string
-must say `motifhq`.
+must say `getmotif`.
 
 ## Things worth knowing before changing code
 
@@ -71,7 +71,7 @@ must say `motifhq`.
   `parentUuid`, and a session must be linearised from the last leaf. Two
   different `user` line shapes exist.
 - **Codex rollouts** are `{timestamp, ordinal, type, payload}` per line, and
-  `function_call.arguments` is a JSON *string*, not an object. A handoff also
+  `function_call.arguments` is a JSON _string_, not an object. A handoff also
   has to register the thread in `~/.codex/state_5.sqlite` or `codex resume`
   will not list it.
 - **Sync is incremental with a prefix hash.** A mismatch (or a 409) falls back

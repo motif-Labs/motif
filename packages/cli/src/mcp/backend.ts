@@ -45,7 +45,15 @@ export interface Backend {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function renderSessionList(
-  rows: { id: string; title: string | null; memberName: string | null; projectPath: string; updatedAt: string | null; messageCount: number; snippet?: string }[],
+  rows: {
+    id: string;
+    title: string | null;
+    memberName: string | null;
+    projectPath: string;
+    updatedAt: string | null;
+    messageCount: number;
+    snippet?: string;
+  }[],
   heading: string,
 ): string {
   if (rows.length === 0) return `${heading}\n\n(nothing found)`;
@@ -81,7 +89,13 @@ function renderTranscript(session: MotifSession, tail: number): string {
 }
 
 /** Shared by both backends: the wording of an ask outcome. */
-function renderAsk(sessionId: string, question: string, status: string, answer?: string | null, error?: string | null): string {
+function renderAsk(
+  sessionId: string,
+  question: string,
+  status: string,
+  answer?: string | null,
+  error?: string | null,
+): string {
   if (status === 'done' && answer) {
     return `# Answer from session \`${sessionId}\`\n\n_Question: ${question}_\n\n${answer}`;
   }
@@ -142,7 +156,8 @@ class LocalBackend implements Backend {
     }
 
     // otherwise queue it for the machine that owns it
-    if (this.viewer === undefined) return 'Asking a teammate\'s session needs a member token (run `motif connect`).';
+    if (this.viewer === undefined)
+      return "Asking a teammate's session needs a member token (run `motif connect`).";
     const request = createAskRequest(this.db, this.viewer, row, question);
     const deadline = Date.now() + waitSeconds * 1000;
     while (Date.now() < deadline) {
@@ -202,7 +217,8 @@ class RemoteBackend implements Backend {
   }
 }
 
-const isLoopback = (url: string): boolean => /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:|\/|$)/i.test(url);
+const isLoopback = (url: string): boolean =>
+  /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:|\/|$)/i.test(url);
 
 export function createBackend(dbPath?: string): Backend {
   const cfg = loadConfig();

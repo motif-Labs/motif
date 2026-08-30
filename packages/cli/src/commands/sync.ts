@@ -51,7 +51,11 @@ export function registerSync(program: Command): void {
       console.log(`Watching for session changes (server: ${cfg.serverUrl})…`);
       watchAndSync(client, cfg, {
         claudeDir,
-        live: { serverUrl: cfg.serverUrl, token: cfg.memberToken, log: (m) => console.log(`[${new Date().toISOString()}] ${m}`) },
+        live: {
+          serverUrl: cfg.serverUrl,
+          token: cfg.memberToken,
+          log: (m) => console.log(`[${new Date().toISOString()}] ${m}`),
+        },
         onReport: (r) => {
           if (r.pushed || r.errors.length) console.log(`[${new Date().toISOString()}] ${reportLine(r)}`);
         },
@@ -110,7 +114,9 @@ export function registerSync(program: Command): void {
     .action(() => {
       const pid = daemonPid();
       const paused = fs.existsSync(path.join(motifHome(), 'paused'));
-      console.log(pid ? `Daemon running (pid ${pid})${paused ? ' — paused' : ''}.` : 'Daemon is not running.');
+      console.log(
+        pid ? `Daemon running (pid ${pid})${paused ? ' — paused' : ''}.` : 'Daemon is not running.',
+      );
     });
 
   daemon
@@ -166,7 +172,9 @@ export function registerSync(program: Command): void {
           `[Unit]\nDescription=Motif session sync daemon\nAfter=network-online.target\n\n[Service]\nExecStart=${process.execPath} ${entry} sync --watch\nRestart=always\nRestartSec=10\n\n[Install]\nWantedBy=default.target\n`,
         );
         console.log(`Wrote ${unit}`);
-        console.log('Enable with: systemctl --user daemon-reload && systemctl --user enable --now motif-daemon');
+        console.log(
+          'Enable with: systemctl --user daemon-reload && systemctl --user enable --now motif-daemon',
+        );
       } else {
         console.log('Auto-start install is not automated on this OS yet.');
         console.log(`Run at login: ${process.execPath} ${entry} sync --watch`);

@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MotifSession } from '@motif/core';
-import {
-  effectiveRedactPatterns,
-  isExcluded,
-  redactSession,
-} from '../packages/cli/src/daemon/syncer.js';
+import { effectiveRedactPatterns, isExcluded, redactSession } from '../packages/cli/src/daemon/syncer.js';
 
 const session: MotifSession = {
   id: 'claude-code:r1',
@@ -48,10 +44,8 @@ describe('privacy controls', () => {
   it('built-in secret patterns are on by default and catch common token shapes', () => {
     const patterns = effectiveRedactPatterns({});
     const scrub = (text: string) =>
-      redactSession(
-        { ...session, messages: [{ id: 'x', role: 'user', timestamp: '', text }] },
-        patterns,
-      ).messages[0]!.text!;
+      redactSession({ ...session, messages: [{ id: 'x', role: 'user', timestamp: '', text }] }, patterns)
+        .messages[0]!.text!;
 
     expect(scrub('key: AKIAIOSFODNN7EXAMPLE')).toContain('[REDACTED]');
     expect(scrub('token ghp_abcdefghijklmnopqrstuvwxyz0123456789')).toContain('[REDACTED]');
@@ -59,7 +53,9 @@ describe('privacy controls', () => {
     expect(
       scrub('jwt eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpM'),
     ).toContain('[REDACTED]');
-    expect(scrub('-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----')).toContain('[REDACTED]');
+    expect(scrub('-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----')).toContain(
+      '[REDACTED]',
+    );
     expect(scrub('motif token mm_EXAMPLEtokenNOTreal000000000000000')).toContain('[REDACTED]');
     // ordinary prose survives
     expect(scrub('we chose sqlite for storage')).toBe('we chose sqlite for storage');

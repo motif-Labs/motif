@@ -12,7 +12,9 @@ export function registerPrune(program: Command): void {
       requireConnection(cfg);
       const client = new MotifClient({ serverUrl: cfg.serverUrl, token: cfg.memberToken });
       const result = await client.prune(Number(opts.olderThan));
-      console.log(`Pruned ${result.sessions} session(s) / ${result.messages} message(s) older than ${opts.olderThan} days.`);
+      console.log(
+        `Pruned ${result.sessions} session(s) / ${result.messages} message(s) older than ${opts.olderThan} days.`,
+      );
       console.log('Distilled memory notes were kept.');
     });
 }

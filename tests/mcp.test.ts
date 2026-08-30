@@ -30,7 +30,10 @@ const get = () => stub;
 
 describe('mcp protocol', () => {
   it('handshakes and advertises its tools', async () => {
-    const init = (await handleRpc({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } }, get))!;
+    const init = (await handleRpc(
+      { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } },
+      get,
+    ))!;
     expect((init.result as { serverInfo: { name: string } }).serverInfo.name).toBe('motif');
     expect((init.result as { capabilities: { tools: unknown } }).capabilities.tools).toBeDefined();
 
@@ -48,21 +51,45 @@ describe('mcp protocol', () => {
 
   it('routes tool calls with their defaults', async () => {
     const res = (await handleRpc(
-      { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'recall', arguments: { query: 'auth' } } },
+      {
+        jsonrpc: '2.0',
+        id: 3,
+        method: 'tools/call',
+        params: { name: 'recall', arguments: { query: 'auth' } },
+      },
       get,
     ))!;
     const content = (res.result as { content: { text: string }[]; isError: boolean }).content;
     expect(content[0]!.text).toContain('sqlite');
     expect((res.result as { isError: boolean }).isError).toBe(false);
 
-    await handleRpc({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'get_session', arguments: { sessionId: 'x' } } }, get);
-    await handleRpc({ jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'ask_session', arguments: { sessionId: 'x', question: 'why?' } } }, get);
+    await handleRpc(
+      {
+        jsonrpc: '2.0',
+        id: 4,
+        method: 'tools/call',
+        params: { name: 'get_session', arguments: { sessionId: 'x' } },
+      },
+      get,
+    );
+    await handleRpc(
+      {
+        jsonrpc: '2.0',
+        id: 5,
+        method: 'tools/call',
+        params: { name: 'ask_session', arguments: { sessionId: 'x', question: 'why?' } },
+      },
+      get,
+    );
     expect(calls).toContain('get:x:40');
     expect(calls).toContain('ask:x:why?:90');
   });
 
   it('reports tool failures to the model instead of breaking the protocol', async () => {
-    const res = (await handleRpc({ jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'nope', arguments: {} } }, get))!;
+    const res = (await handleRpc(
+      { jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'nope', arguments: {} } },
+      get,
+    ))!;
     expect((res.result as { isError: boolean }).isError).toBe(true);
     expect((res.result as { content: { text: string }[] }).content[0]!.text).toContain('unknown tool');
   });

@@ -26,7 +26,13 @@ export interface SessionDetail extends SessionRow {
   visibility: 'team' | 'personal';
   filesTouched: string[];
   toolVersion: string | null;
-  meta: { subagentCount: number; branchCount: number; parseErrors: number; model?: string; sourceBytes?: number };
+  meta: {
+    subagentCount: number;
+    branchCount: number;
+    parseErrors: number;
+    model?: string;
+    sourceBytes?: number;
+  };
   messages: Message[];
 }
 

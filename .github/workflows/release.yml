@@ -25,7 +25,7 @@ jobs:
       - run: npx tsc -b packages/core packages/cli packages/server
       - run: npx vitest run
       - run: npm run build -w @motif/ui
-      - run: npm run build -w motifhq
-      - run: npm publish -w motifhq --provenance --access public
+      - run: npm run build -w getmotif
+      - run: npm publish -w getmotif --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

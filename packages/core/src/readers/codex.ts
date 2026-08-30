@@ -38,7 +38,9 @@ export function discoverCodexSessions(codexDir = defaultCodexDir()): CodexSessio
       const full = path.join(dir, e.name);
       if (e.isDirectory() && depth < 3) walk(full, depth + 1);
       else if (e.isFile() && /^rollout-.*\.jsonl$/.test(e.name)) {
-        const m = e.name.match(/rollout-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-([0-9a-f-]+?)(?:_[0-9a-f-]+)?\.jsonl$/);
+        const m = e.name.match(
+          /rollout-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-([0-9a-f-]+?)(?:_[0-9a-f-]+)?\.jsonl$/,
+        );
         if (!m) continue;
         let st: fs.Stats;
         try {

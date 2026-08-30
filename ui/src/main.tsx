@@ -77,14 +77,31 @@ function clock(iso: string | null | undefined): string {
 
 function fullDate(iso: string | null | undefined): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  return new Date(iso).toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 const projName = (p: string | null | undefined) => (p ?? '').split('/').filter(Boolean).pop() ?? '?';
-const isActive = (iso: string | null | undefined) => !!iso && Date.now() - new Date(iso).getTime() < 5 * 60 * 1000;
-const kb = (b?: number) => (b === undefined ? '—' : b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${(b / 1024).toFixed(1)} KB`);
+const isActive = (iso: string | null | undefined) =>
+  !!iso && Date.now() - new Date(iso).getTime() < 5 * 60 * 1000;
+const kb = (b?: number) =>
+  b === undefined ? '—' : b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${(b / 1024).toFixed(1)} KB`;
 
-const AVATAR_COLORS = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
+const AVATAR_COLORS = [
+  '#6366f1',
+  '#0ea5e9',
+  '#10b981',
+  '#f59e0b',
+  '#ef4444',
+  '#8b5cf6',
+  '#ec4899',
+  '#14b8a6',
+];
 function Avatar({ name, size = 22 }: { name: string | null; size?: number }) {
   const n = name ?? '?';
   let h = 0;
@@ -96,7 +113,10 @@ function Avatar({ name, size = 22 }: { name: string | null; size?: number }) {
     .join('')
     .toUpperCase();
   return (
-    <span class="avatar" style={`width:${size}px;height:${size}px;background:${AVATAR_COLORS[h % AVATAR_COLORS.length]}`}>
+    <span
+      class="avatar"
+      style={`width:${size}px;height:${size}px;background:${AVATAR_COLORS[h % AVATAR_COLORS.length]}`}
+    >
       {initials}
     </span>
   );
@@ -165,7 +185,9 @@ function dayLabel(iso: string | null): string {
   if (!iso) return 'Earlier';
   const d = new Date(iso);
   const today = new Date();
-  const diffDays = Math.floor((new Date(today.toDateString()).getTime() - new Date(d.toDateString()).getTime()) / 86400000);
+  const diffDays = Math.floor(
+    (new Date(today.toDateString()).getTime() - new Date(d.toDateString()).getTime()) / 86400000,
+  );
   if (diffDays <= 0) return 'Today';
   if (diffDays === 1) return 'Yesterday';
   if (diffDays < 7) return d.toLocaleDateString([], { weekday: 'long' });
@@ -181,7 +203,9 @@ function SessionsPage({ me }: { me: Me }) {
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
   const reload = () =>
-    api<SessionRow[]>(`/api/sessions?limit=200&scope=${scopeRef.current}`).then(setSessions).catch(() => setSessions([]));
+    api<SessionRow[]>(`/api/sessions?limit=200&scope=${scopeRef.current}`)
+      .then(setSessions)
+      .catch(() => setSessions([]));
   useEffect(() => {
     setSessions(null);
     reload();
@@ -260,9 +284,15 @@ function SessionsPage({ me }: { me: Me }) {
       {sessions.length === 0 ? (
         <div class="empty">
           {scope === 'personal' ? (
-            <>Your personal drawer is empty — sessions of projects not marked with <code>motif projects team</code> land here, visible only to you.</>
+            <>
+              Your personal drawer is empty — sessions of projects not marked with{' '}
+              <code>motif projects team</code> land here, visible only to you.
+            </>
           ) : (
-            <>Nothing team-visible yet. Mark company projects with <code>motif projects team &lt;path&gt;</code>, or promote a personal session from its page.</>
+            <>
+              Nothing team-visible yet. Mark company projects with{' '}
+              <code>motif projects team &lt;path&gt;</code>, or promote a personal session from its page.
+            </>
           )}
         </div>
       ) : (
@@ -349,7 +379,9 @@ function ChatTurn({
                 </span>
                 <span class="when">{ago(c.created_at)}</span>
                 {myName && c.author_name === myName && (
-                  <span class="del" title="Delete note" onClick={() => onDelete(c.id)}>×</span>
+                  <span class="del" title="Delete note" onClick={() => onDelete(c.id)}>
+                    ×
+                  </span>
                 )}
               </div>
             ))}
@@ -384,7 +416,9 @@ function ChatTurn({
         )}
       </div>
       {canPin && !composerOpen && (
-        <button class="pin-btn" title="Pin a note here" onClick={onOpenComposer}>﹢</button>
+        <button class="pin-btn" title="Pin a note here" onClick={onOpenComposer}>
+          ﹢
+        </button>
       )}
     </div>
   );
@@ -400,7 +434,10 @@ function HandoffPanel({ session, me }: { session: SessionDetail; me: Me }) {
   const reqId = useRef<number | undefined>(undefined);
 
   useEffect(() => {
-    if (me.kind === 'member') api<MemberRow[]>('/api/members').then(setMembers).catch(() => setMembers([]));
+    if (me.kind === 'member')
+      api<MemberRow[]>('/api/members')
+        .then(setMembers)
+        .catch(() => setMembers([]));
   }, [me.kind]);
 
   useEffect(() => {
@@ -409,7 +446,10 @@ function HandoffPanel({ session, me }: { session: SessionDetail; me: Me }) {
     // The live stream is the fast path; this poll is the one that survives a
     // dropped EventSource, a sleeping laptop, or an event that arrives before
     // the POST resolves. Without it the panel waits forever.
-    const settle = (status?: string, d: { targetSessionId?: string; outputPath?: string; error?: string } = {}) => {
+    const settle = (
+      status?: string,
+      d: { targetSessionId?: string; outputPath?: string; error?: string } = {},
+    ) => {
       if (status === 'done') {
         setState('done');
         setResult({ threadId: d.targetSessionId, outputPath: d.outputPath });
@@ -424,11 +464,23 @@ function HandoffPanel({ session, me }: { session: SessionDetail; me: Me }) {
       api<{ status?: string; target_session_id?: string; output_path?: string; error?: string }>(
         `/api/handoff-requests/${id}`,
       )
-        .then((r) => settle(r.status, { targetSessionId: r.target_session_id, outputPath: r.output_path, error: r.error }))
+        .then((r) =>
+          settle(r.status, {
+            targetSessionId: r.target_session_id,
+            outputPath: r.output_path,
+            error: r.error,
+          }),
+        )
         .catch(() => {});
     }, 3000);
     const stop = openEvents((name, data) => {
-      const d = data as { requestId?: number; status?: string; targetSessionId?: string; outputPath?: string; error?: string };
+      const d = data as {
+        requestId?: number;
+        status?: string;
+        targetSessionId?: string;
+        outputPath?: string;
+        error?: string;
+      };
       if (name === 'handoff-request-updated' && d.requestId === reqId.current) {
         if (d.status === 'done') {
           setState('done');
@@ -455,7 +507,11 @@ function HandoffPanel({ session, me }: { session: SessionDetail; me: Me }) {
     try {
       const r = await api<HandoffRequest>('/api/handoff-requests', {
         method: 'POST',
-        body: JSON.stringify({ sessionId: session.id, target: chosenTarget, ...(assignee ? { assignee } : {}) }),
+        body: JSON.stringify({
+          sessionId: session.id,
+          target: chosenTarget,
+          ...(assignee ? { assignee } : {}),
+        }),
       });
       reqId.current = r.id;
     } catch (err) {
@@ -464,13 +520,17 @@ function HandoffPanel({ session, me }: { session: SessionDetail; me: Me }) {
     }
   };
   const targets = (['claude-code', 'codex'] as const).filter((t) => t !== session.source);
-  const resumeCmd = (id?: string) => (target === 'claude-code' ? `claude --resume ${id}` : `codex resume ${id}`);
+  const resumeCmd = (id?: string) =>
+    target === 'claude-code' ? `claude --resume ${id}` : `codex resume ${id}`;
 
   if (me.kind !== 'member') {
     return (
       <div>
         <button disabled>Continue in…</button>
-        <div class="hint">Handoff runs on your machine via your daemon. Sign in with your member token (see ~/.motif/config.json) to enable it.</div>
+        <div class="hint">
+          Handoff runs on your machine via your daemon. Sign in with your member token (see
+          ~/.motif/config.json) to enable it.
+        </div>
       </div>
     );
   }
@@ -498,7 +558,11 @@ function HandoffPanel({ session, me }: { session: SessionDetail; me: Me }) {
               <option value={m.name}>{m.name}</option>
             ))}
           </select>
-          <button style="width:auto" disabled={!teammate || state === 'working'} onClick={() => request(teammate, targets[0]!)}>
+          <button
+            style="width:auto"
+            disabled={!teammate || state === 'working'}
+            onClick={() => request(teammate, targets[0]!)}
+          >
             Send
           </button>
         </div>
@@ -561,7 +625,9 @@ function SessionNoteComposer({ onPost }: { onPost: (body: string) => void }) {
         onInput={(e) => setDraft((e.target as HTMLInputElement).value)}
         onKeyDown={(e) => e.key === 'Enter' && send()}
       />
-      <button class="primary" onClick={send}>Pin</button>
+      <button class="primary" onClick={send}>
+        Pin
+      </button>
     </div>
   );
 }
@@ -575,10 +641,17 @@ function SessionView({ id, me }: { id: string; me: Me }) {
   const [composerFor, setComposerFor] = useState<string | null>(null);
   const [error, setError] = useState('');
   const reload = () =>
-    api<SessionDetail>(`/api/sessions/${encodeURIComponent(id)}`).then(setSession).catch((e) => setError(String(e.message)));
+    api<SessionDetail>(`/api/sessions/${encodeURIComponent(id)}`)
+      .then(setSession)
+      .catch((e) => setError(String(e.message)));
   const loadComments = () =>
-    api<Comment[]>(`/api/sessions/${encodeURIComponent(id)}/comments`).then(setComments).catch(() => {});
-  const loadAsks = () => api<Ask[]>(`/api/sessions/${encodeURIComponent(id)}/asks`).then(setAsks).catch(() => {});
+    api<Comment[]>(`/api/sessions/${encodeURIComponent(id)}/comments`)
+      .then(setComments)
+      .catch(() => {});
+  const loadAsks = () =>
+    api<Ask[]>(`/api/sessions/${encodeURIComponent(id)}/asks`)
+      .then(setAsks)
+      .catch(() => {});
   const askSession = async () => {
     if (!question.trim()) return;
     setAsking(true);
@@ -597,7 +670,11 @@ function SessionView({ id, me }: { id: string; me: Me }) {
     return openEvents((name, data) => {
       if (name === 'session-upserted' && (data as { id?: string }).id === id) reload();
       if (name === 'comment-added' && (data as { sessionId?: string }).sessionId === id) loadComments();
-      if ((name === 'ask-requested' || name === 'ask-answered') && (data as { sessionId?: string }).sessionId === id) loadAsks();
+      if (
+        (name === 'ask-requested' || name === 'ask-answered') &&
+        (data as { sessionId?: string }).sessionId === id
+      )
+        loadAsks();
     });
   }, [id]);
   const postComment = async (messageId: string | null, body: string) => {
@@ -609,7 +686,9 @@ function SessionView({ id, me }: { id: string; me: Me }) {
     loadComments();
   };
   const removeComment = async (commentId: number) => {
-    await api(`/api/sessions/${encodeURIComponent(id)}/comments/${commentId}`, { method: 'DELETE' }).catch(() => {});
+    await api(`/api/sessions/${encodeURIComponent(id)}/comments/${commentId}`, { method: 'DELETE' }).catch(
+      () => {},
+    );
     loadComments();
   };
   if (error) return <div class="empty">{error}</div>;
@@ -618,7 +697,10 @@ function SessionView({ id, me }: { id: string; me: Me }) {
   const mine = me.kind === 'member' && me.member?.id !== undefined && session.memberName === me.member.name;
   const toggleVisibility = async () => {
     const next = session.visibility === 'personal' ? 'team' : 'personal';
-    const verb = next === 'team' ? 'Share this session with the whole team?' : 'Move this session back to your personal drawer?';
+    const verb =
+      next === 'team'
+        ? 'Share this session with the whole team?'
+        : 'Move this session back to your personal drawer?';
     if (!confirm(verb)) return;
     await api(`/api/sessions/${encodeURIComponent(session.id)}/visibility`, {
       method: 'PATCH',
@@ -652,10 +734,15 @@ function SessionView({ id, me }: { id: string; me: Me }) {
             <div class={`ask ${a.status}`} key={a.id}>
               <div class="ask-q">
                 <Avatar name={a.asker_name} size={16} />
-                <span><span class="who">{a.asker_name}</span>{a.question}</span>
+                <span>
+                  <span class="who">{a.asker_name}</span>
+                  {a.question}
+                </span>
                 <span class="when">{ago(a.created_at)}</span>
               </div>
-              {a.status === 'pending' && <div class="ask-a pending">…waiting for the machine that owns this session</div>}
+              {a.status === 'pending' && (
+                <div class="ask-a pending">…waiting for the machine that owns this session</div>
+              )}
               {a.status === 'error' && <div class="ask-a err">{a.error}</div>}
               {a.answer && <div class="ask-a">{a.answer}</div>}
             </div>
@@ -677,19 +764,24 @@ function SessionView({ id, me }: { id: string; me: Me }) {
           )}
 
           <h2 style="margin-top:24px">Notes on this session</h2>
-          {comments.filter((c) => c.message_id === null).map((c) => (
-            <div class="pin" key={c.id} style="max-width:none;margin-bottom:6px">
-              <Avatar name={c.author_name} size={16} />
-              <span><span class="who">{c.author_name}</span>{c.body}</span>
-              <span class="when">{ago(c.created_at)}</span>
-              {me.kind === 'member' && c.author_name === me.member?.name && (
-                <span class="del" onClick={() => removeComment(c.id)}>×</span>
-              )}
-            </div>
-          ))}
-          {me.kind === 'member' && (
-            <SessionNoteComposer onPost={(body) => postComment(null, body)} />
-          )}
+          {comments
+            .filter((c) => c.message_id === null)
+            .map((c) => (
+              <div class="pin" key={c.id} style="max-width:none;margin-bottom:6px">
+                <Avatar name={c.author_name} size={16} />
+                <span>
+                  <span class="who">{c.author_name}</span>
+                  {c.body}
+                </span>
+                <span class="when">{ago(c.created_at)}</span>
+                {me.kind === 'member' && c.author_name === me.member?.name && (
+                  <span class="del" onClick={() => removeComment(c.id)}>
+                    ×
+                  </span>
+                )}
+              </div>
+            ))}
+          {me.kind === 'member' && <SessionNoteComposer onPost={(body) => postComment(null, body)} />}
         </div>
       </div>
       <div class="meta-panel">
@@ -703,10 +795,22 @@ function SessionView({ id, me }: { id: string; me: Me }) {
           </div>
           <div class="spec-stitch" />
           <div class="spec-grid">
-            <div class="spec-cell"><div class="k">Messages</div><div class="v">{session.messages.length}</div></div>
-            <div class="spec-cell"><div class="k">Size</div><div class="v">{kb(session.meta?.sourceBytes)}</div></div>
-            <div class="spec-cell"><div class="k">Started</div><div class="v">{fullDate(session.createdAt)}</div></div>
-            <div class="spec-cell"><div class="k">Updated</div><div class="v">{fullDate(session.updatedAt)}</div></div>
+            <div class="spec-cell">
+              <div class="k">Messages</div>
+              <div class="v">{session.messages.length}</div>
+            </div>
+            <div class="spec-cell">
+              <div class="k">Size</div>
+              <div class="v">{kb(session.meta?.sourceBytes)}</div>
+            </div>
+            <div class="spec-cell">
+              <div class="k">Started</div>
+              <div class="v">{fullDate(session.createdAt)}</div>
+            </div>
+            <div class="spec-cell">
+              <div class="k">Updated</div>
+              <div class="v">{fullDate(session.updatedAt)}</div>
+            </div>
           </div>
           <div class="spec-row">
             <span class="chip" style="gap:6px">
@@ -720,7 +824,9 @@ function SessionView({ id, me }: { id: string; me: Me }) {
               {session.visibility === 'personal' ? '◐ Personal' : '✓ Team'}
               {mine && ' ▾'}
             </span>
-            <span class="chip mono" style="font-size:10.5px">{projName(session.projectPath)}</span>
+            <span class="chip mono" style="font-size:10.5px">
+              {projName(session.projectPath)}
+            </span>
           </div>
           <div class="spec-stitch" />
           <div class="spec-actions" style="margin-top:12px">
@@ -731,8 +837,14 @@ function SessionView({ id, me }: { id: string; me: Me }) {
             <details>
               <summary>Details</summary>
               <div class="session-id mono">{session.id}</div>
-              {session.sourcePath && <div class="session-id mono" style="margin-top:6px">{session.sourcePath}</div>}
-              <div class="session-id mono" style="margin-top:6px">{session.projectPath}</div>
+              {session.sourcePath && (
+                <div class="session-id mono" style="margin-top:6px">
+                  {session.sourcePath}
+                </div>
+              )}
+              <div class="session-id mono" style="margin-top:6px">
+                {session.projectPath}
+              </div>
             </details>
           </div>
         </div>
@@ -745,13 +857,17 @@ function SessionView({ id, me }: { id: string; me: Me }) {
 
 function PeoplePage({ me }: { me: Me }) {
   const [members, setMembers] = useState<MemberRow[] | null>(null);
-  const reload = () => api<MemberRow[]>('/api/members').then(setMembers).catch(() => setMembers([]));
+  const reload = () =>
+    api<MemberRow[]>('/api/members')
+      .then(setMembers)
+      .catch(() => setMembers([]));
   useEffect(() => {
     reload();
   }, []);
   const amOwner = me.kind === 'member' && me.member?.role === 'owner';
   const revoke = async (m: MemberRow) => {
-    if (!confirm(`Revoke ${m.name}'s access? Their devices stop syncing immediately; their sessions stay.`)) return;
+    if (!confirm(`Revoke ${m.name}'s access? Their devices stop syncing immediately; their sessions stay.`))
+      return;
     await api(`/api/members/${m.id}/revoke`, { method: 'POST', body: '{}' }).catch(() => {});
     reload();
   };
@@ -790,7 +906,10 @@ function PeoplePage({ me }: { me: Me }) {
 
 function MemoryPage() {
   const [entities, setEntities] = useState<MemoryEntity[] | null>(null);
-  const reload = () => api<MemoryEntity[]>('/api/memory/entities').then(setEntities).catch(() => setEntities([]));
+  const reload = () =>
+    api<MemoryEntity[]>('/api/memory/entities')
+      .then(setEntities)
+      .catch(() => setEntities([]));
   useEffect(() => {
     reload();
     return openEvents((name) => {
@@ -804,7 +923,8 @@ function MemoryPage() {
       <h1>Memory</h1>
       {entities.length === 0 && (
         <div class="empty">
-          No memory yet. Enable it on the server with <code>MOTIF_LLM_PROVIDER</code> — notes appear as sessions go idle.
+          No memory yet. Enable it on the server with <code>MOTIF_LLM_PROVIDER</code> — notes appear as
+          sessions go idle.
         </div>
       )}
       {kinds.map((kind) => {
@@ -817,9 +937,15 @@ function MemoryPage() {
               {of.map((e) => (
                 <a key={e.id} class="row" href={`#/memory/${e.id}`}>
                   <span class="title">{e.name}</span>
-                  <span class="who"><span>{projName(e.project_path)}</span></span>
-                  <span class="vis"><span class="chip">{e.current_notes} notes</span></span>
-                  <span class="ago">{e.conflicts > 0 && <span class="chip conflict">{e.conflicts} conflict</span>}</span>
+                  <span class="who">
+                    <span>{projName(e.project_path)}</span>
+                  </span>
+                  <span class="vis">
+                    <span class="chip">{e.current_notes} notes</span>
+                  </span>
+                  <span class="ago">
+                    {e.conflicts > 0 && <span class="chip conflict">{e.conflicts} conflict</span>}
+                  </span>
                 </a>
               ))}
             </div>
@@ -833,7 +959,9 @@ function MemoryPage() {
 function MemoryEntityView({ id }: { id: string }) {
   const [data, setData] = useState<{ entity: MemoryEntity; notes: MemoryNote[] } | null>(null);
   useEffect(() => {
-    api<{ entity: MemoryEntity; notes: MemoryNote[] }>(`/api/memory/entities/${id}`).then(setData).catch(() => {});
+    api<{ entity: MemoryEntity; notes: MemoryNote[] }>(`/api/memory/entities/${id}`)
+      .then(setData)
+      .catch(() => {});
   }, [id]);
   if (!data) return <div class="empty">Loading…</div>;
   return (
@@ -859,7 +987,10 @@ function SearchPage() {
   const [q, setQ] = useState('');
   const [rows, setRows] = useState<SessionRow[] | null>(null);
   const run = () => {
-    if (q.trim()) api<SessionRow[]>(`/api/search?q=${encodeURIComponent(q)}`).then(setRows).catch(() => setRows([]));
+    if (q.trim())
+      api<SessionRow[]>(`/api/search?q=${encodeURIComponent(q)}`)
+        .then(setRows)
+        .catch(() => setRows([]));
   };
   return (
     <div>
@@ -872,7 +1003,9 @@ function SearchPage() {
           onInput={(e) => setQ((e.target as HTMLInputElement).value)}
           onKeyDown={(e) => e.key === 'Enter' && run()}
         />
-        <button class="primary" onClick={run}>Search</button>
+        <button class="primary" onClick={run}>
+          Search
+        </button>
       </div>
       {rows && rows.length === 0 && <div class="empty">No matches.</div>}
       {rows && rows.length > 0 && (
@@ -895,7 +1028,9 @@ function SetupPage({ me }: { me: Me }) {
   const amOwner = me.kind === 'member' && me.member?.role === 'owner';
   const rename = async () => {
     if (!teamName.trim()) return;
-    await api('/api/team', { method: 'PATCH', body: JSON.stringify({ name: teamName.trim() }) }).catch(() => {});
+    await api('/api/team', { method: 'PATCH', body: JSON.stringify({ name: teamName.trim() }) }).catch(
+      () => {},
+    );
     setRenamed(true);
     setTimeout(() => location.reload(), 600);
   };
@@ -923,37 +1058,44 @@ function SetupPage({ me }: { me: Me }) {
       )}
       <h2>Connect a teammate</h2>
       <div class="meta-card">
-        <p style="color:var(--dim);margin-bottom:8px">On their machine, with the team token you share out-of-band:</p>
-        <div class="cmd">npx motif connect {origin} --token &lt;team-token&gt; --name "Ada" --email ada@team.dev</div>
+        <p style="color:var(--dim);margin-bottom:8px">
+          On their machine, with the team token you share out-of-band:
+        </p>
+        <div class="cmd">
+          npx motif connect {origin} --token &lt;team-token&gt; --name "Ada" --email ada@team.dev
+        </div>
         <div class="cmd">motif daemon start</div>
-        <div class="hint">The daemon streams their sessions here live and fulfils their dashboard handoffs.</div>
+        <div class="hint">
+          The daemon streams their sessions here live and fulfils their dashboard handoffs.
+        </div>
       </div>
       <h2>Your login</h2>
       <div class="meta-card">
         {me.kind === 'member' ? (
           <p style="color:var(--dim)">
-            Signed in as <b>@{me.member?.name}</b> ({me.member?.role}) with your personal member token — actions like
-            handoff are enabled.
+            Signed in as <b>@{me.member?.name}</b> ({me.member?.role}) with your personal member token —
+            actions like handoff are enabled.
           </p>
         ) : (
           <p style="color:var(--dim)">
-            Signed in with the shared <b>team token</b> — read-only. To enable actions, sign out and log in with your
-            personal member token from <code>~/.motif/config.json</code> on your machine.
+            Signed in with the shared <b>team token</b> — read-only. To enable actions, sign out and log in
+            with your personal member token from <code>~/.motif/config.json</code> on your machine.
           </p>
         )}
       </div>
       <h2>Privacy</h2>
       <div class="meta-card">
         <p style="color:var(--dim); line-height:1.6">
-          Sessions stay on this server — nothing leaves your infrastructure. Doing personal work on the same machine?
-          Switch that machine to allowlist mode so <b>only</b> company projects sync:
+          Sessions stay on this server — nothing leaves your infrastructure. Doing personal work on the same
+          machine? Switch that machine to allowlist mode so <b>only</b> company projects sync:
         </p>
         <div class="cmd">motif projects mode selected</div>
         <div class="cmd">motif projects include ~/work/company-repo</div>
         <p style="color:var(--dim); line-height:1.6; margin-top:8px">
-          Or stay in default mode and block specific projects with <code>motif projects exclude &lt;path&gt; --purge</code>{' '}
-          (purge also withdraws already-synced sessions). <code>redactPatterns</code> in <code>~/.motif/config.json</code>{' '}
-          scrub secrets before upload. Put TLS in front with a reverse proxy for teams outside a trusted network.
+          Or stay in default mode and block specific projects with{' '}
+          <code>motif projects exclude &lt;path&gt; --purge</code> (purge also withdraws already-synced
+          sessions). <code>redactPatterns</code> in <code>~/.motif/config.json</code> scrub secrets before
+          upload. Put TLS in front with a reverse proxy for teams outside a trusted network.
         </p>
       </div>
     </div>
@@ -979,8 +1121,8 @@ function TokenGate({ onDone }: { onDone: () => void }) {
     <div class="center">
       <img src="/brand/logo.png" alt="motif" style="width:200px;mix-blend-mode:multiply" />
       <div style="color:var(--dim);line-height:1.6">
-        Sign in with your <b>member token</b> (from <code>~/.motif/config.json</code>, full access) or the shared{' '}
-        <b>team token</b> (read-only).
+        Sign in with your <b>member token</b> (from <code>~/.motif/config.json</code>, full access) or the
+        shared <b>team token</b> (read-only).
       </div>
       <input
         type="password"
@@ -1020,8 +1162,13 @@ function App() {
           setAuthed(false);
         }
       });
-    api<{ name: string }>('/api/team').then((t) => setTeam(t.name)).catch(() => {});
-    const loadMembers = () => api<MemberRow[]>('/api/members').then(setMembers).catch(() => setMembers([]));
+    api<{ name: string }>('/api/team')
+      .then((t) => setTeam(t.name))
+      .catch(() => {});
+    const loadMembers = () =>
+      api<MemberRow[]>('/api/members')
+        .then(setMembers)
+        .catch(() => setMembers([]));
     loadMembers();
     return openEvents((name) => {
       if (name === 'member-joined') loadMembers();

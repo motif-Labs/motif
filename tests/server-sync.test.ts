@@ -156,10 +156,14 @@ describe('http api', () => {
     });
     expect(spoofed.status).toBe(403);
 
-    const put = await call(`/api/sessions/${encodeURIComponent(session.id)}`, {
-      method: 'PUT',
-      body: JSON.stringify(session),
-    }, memberToken);
+    const put = await call(
+      `/api/sessions/${encodeURIComponent(session.id)}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(session),
+      },
+      memberToken,
+    );
     expect(put.status).toBe(200);
 
     const me = (await (await call('/api/me', {}, memberToken)).json()) as { kind: string };
@@ -169,52 +173,81 @@ describe('http api', () => {
     expect(list.map((s) => s.id)).toContain(session.id);
     expect(list[0]!.memberName).toBe('alice');
 
-    const conflict = await call(`/api/sessions/${encodeURIComponent(session.id)}/messages`, {
-      method: 'POST',
-      body: JSON.stringify({
-        session: { ...session, messages: undefined },
-        afterId: 'wrong-tail',
-        prefixHash: 'nope',
-        messages: [msg('u2', 'user', 'x')],
-      }),
-    }, memberToken);
+    const conflict = await call(
+      `/api/sessions/${encodeURIComponent(session.id)}/messages`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          session: { ...session, messages: undefined },
+          afterId: 'wrong-tail',
+          prefixHash: 'nope',
+          messages: [msg('u2', 'user', 'x')],
+        }),
+      },
+      memberToken,
+    );
     expect(conflict.status).toBe(409);
 
-    const exported = (await (await call(`/api/sessions/${encodeURIComponent(session.id)}/export`)).json()) as MotifSession;
+    const exported = (await (
+      await call(`/api/sessions/${encodeURIComponent(session.id)}/export`)
+    ).json()) as MotifSession;
     expect(exported.messages).toHaveLength(1);
   });
 
   it('scopes handoff requests to the requesting member', async () => {
-    const regA = (await (await call('/api/members/register', {
-      method: 'POST',
-      body: JSON.stringify({ name: 'alice', email: 'a@example.com' }),
-    })).json()) as { memberToken: string };
-    const regB = (await (await call('/api/members/register', {
-      method: 'POST',
-      body: JSON.stringify({ name: 'bob', email: 'b@example.com' }),
-    })).json()) as { memberToken: string };
+    const regA = (await (
+      await call('/api/members/register', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'alice', email: 'a@example.com' }),
+      })
+    ).json()) as { memberToken: string };
+    const regB = (await (
+      await call('/api/members/register', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'bob', email: 'b@example.com' }),
+      })
+    ).json()) as { memberToken: string };
 
     const session = makeSession('hr1', [msg('u1', 'user', 'handoff me')]);
-    await call(`/api/sessions/${encodeURIComponent(session.id)}`, {
-      method: 'PUT',
-      body: JSON.stringify(session),
-    }, regA.memberToken);
+    await call(
+      `/api/sessions/${encodeURIComponent(session.id)}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(session),
+      },
+      regA.memberToken,
+    );
 
     // team token cannot request a handoff (no machine to run it on)
     expect(
-      (await call('/api/handoff-requests', { method: 'POST', body: JSON.stringify({ sessionId: session.id }) })).status,
+      (
+        await call('/api/handoff-requests', {
+          method: 'POST',
+          body: JSON.stringify({ sessionId: session.id }),
+        })
+      ).status,
     ).toBe(403);
 
-    const created = (await (await call('/api/handoff-requests', {
-      method: 'POST',
-      body: JSON.stringify({ sessionId: session.id, cwd: '/tmp/clone' }),
-    }, regA.memberToken)).json()) as { id: number; status: string };
+    const created = (await (
+      await call(
+        '/api/handoff-requests',
+        {
+          method: 'POST',
+          body: JSON.stringify({ sessionId: session.id, cwd: '/tmp/clone' }),
+        },
+        regA.memberToken,
+      )
+    ).json()) as { id: number; status: string };
     expect(created.status).toBe('pending');
 
     // bob's daemon must not see alice's request
-    const bobPending = (await (await call('/api/handoff-requests?status=pending', {}, regB.memberToken)).json()) as unknown[];
+    const bobPending = (await (
+      await call('/api/handoff-requests?status=pending', {}, regB.memberToken)
+    ).json()) as unknown[];
     expect(bobPending).toHaveLength(0);
-    const alicePending = (await (await call('/api/handoff-requests?status=pending', {}, regA.memberToken)).json()) as {
+    const alicePending = (await (
+      await call('/api/handoff-requests?status=pending', {}, regA.memberToken)
+    ).json()) as {
       id: number;
       cwd_override: string;
     }[];
@@ -223,83 +256,139 @@ describe('http api', () => {
 
     // bob cannot complete alice's request either
     expect(
-      (await call(`/api/handoff-requests/${created.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status: 'done' }),
-      }, regB.memberToken)).status,
+      (
+        await call(
+          `/api/handoff-requests/${created.id}`,
+          {
+            method: 'PATCH',
+            body: JSON.stringify({ status: 'done' }),
+          },
+          regB.memberToken,
+        )
+      ).status,
     ).toBe(404);
 
-    const completed = (await (await call(`/api/handoff-requests/${created.id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'done', outputPath: '/x/rollout.jsonl', targetSessionId: 'tid' }),
-    }, regA.memberToken)).json()) as { status: string };
+    const completed = (await (
+      await call(
+        `/api/handoff-requests/${created.id}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ status: 'done', outputPath: '/x/rollout.jsonl', targetSessionId: 'tid' }),
+        },
+        regA.memberToken,
+      )
+    ).json()) as { status: string };
     expect(completed.status).toBe('done');
   });
 
   it('a handoff assigned to a teammate is executed by THEIR daemon, not the requester', async () => {
-    const alice = (await (await call('/api/members/register', {
-      method: 'POST',
-      body: JSON.stringify({ name: 'ayse', email: 'ayse@example.com' }),
-    })).json()) as { memberToken: string };
-    const bob = (await (await call('/api/members/register', {
-      method: 'POST',
-      body: JSON.stringify({ name: 'burak', email: 'burak@example.com' }),
-    })).json()) as { memberToken: string };
+    const alice = (await (
+      await call('/api/members/register', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'ayse', email: 'ayse@example.com' }),
+      })
+    ).json()) as { memberToken: string };
+    const bob = (await (
+      await call('/api/members/register', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'burak', email: 'burak@example.com' }),
+      })
+    ).json()) as { memberToken: string };
 
     const session = makeSession('assign1', [msg('u1', 'user', 'take this over please')]);
-    await call(`/api/sessions/${encodeURIComponent(session.id)}`, { method: 'PUT', body: JSON.stringify(session) }, alice.memberToken);
+    await call(
+      `/api/sessions/${encodeURIComponent(session.id)}`,
+      { method: 'PUT', body: JSON.stringify(session) },
+      alice.memberToken,
+    );
 
     // ayse hands the session to burak (by @name)
-    const created = (await (await call('/api/handoff-requests', {
-      method: 'POST',
-      body: JSON.stringify({ sessionId: session.id, assignee: '@burak' }),
-    }, alice.memberToken)).json()) as { id: number; assignee_id: number | null };
+    const created = (await (
+      await call(
+        '/api/handoff-requests',
+        {
+          method: 'POST',
+          body: JSON.stringify({ sessionId: session.id, assignee: '@burak' }),
+        },
+        alice.memberToken,
+      )
+    ).json()) as { id: number; assignee_id: number | null };
     expect(created.assignee_id).not.toBeNull();
 
     // burak's daemon sees it (with the requester's name); ayse's does not
-    const bobPending = (await (await call('/api/handoff-requests?status=pending', {}, bob.memberToken)).json()) as {
+    const bobPending = (await (
+      await call('/api/handoff-requests?status=pending', {}, bob.memberToken)
+    ).json()) as {
       id: number;
       requester_name: string;
     }[];
     expect(bobPending.map((r) => r.id)).toContain(created.id);
     expect(bobPending.find((r) => r.id === created.id)!.requester_name).toBe('ayse');
-    const alicePending = (await (await call('/api/handoff-requests?status=pending', {}, alice.memberToken)).json()) as { id: number }[];
+    const alicePending = (await (
+      await call('/api/handoff-requests?status=pending', {}, alice.memberToken)
+    ).json()) as { id: number }[];
     expect(alicePending.map((r) => r.id)).not.toContain(created.id);
 
     // burak (the executor) completes it; unknown assignee is rejected upfront
-    const done = await call(`/api/handoff-requests/${created.id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'done', targetSessionId: 'tid2' }),
-    }, bob.memberToken);
+    const done = await call(
+      `/api/handoff-requests/${created.id}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'done', targetSessionId: 'tid2' }),
+      },
+      bob.memberToken,
+    );
     expect(done.status).toBe(200);
     expect(
-      (await call('/api/handoff-requests', {
-        method: 'POST',
-        body: JSON.stringify({ sessionId: session.id, assignee: '@nobody-here' }),
-      }, alice.memberToken)).status,
+      (
+        await call(
+          '/api/handoff-requests',
+          {
+            method: 'POST',
+            body: JSON.stringify({ sessionId: session.id, assignee: '@nobody-here' }),
+          },
+          alice.memberToken,
+        )
+      ).status,
     ).toBe(404);
   });
 
   it('owner-only team rename and member revocation', async () => {
-    const owner = (await (await call('/api/members/register', {
-      method: 'POST',
-      body: JSON.stringify({ name: 'olive', email: 'o@example.com' }),
-    })).json()) as { memberToken: string; role: string };
-    const guest = (await (await call('/api/members/register', {
-      method: 'POST',
-      body: JSON.stringify({ name: 'gus', email: 'g@example.com' }),
-    })).json()) as { memberToken: string; memberId: number; role: string };
+    const owner = (await (
+      await call('/api/members/register', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'olive', email: 'o@example.com' }),
+      })
+    ).json()) as { memberToken: string; role: string };
+    const guest = (await (
+      await call('/api/members/register', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'gus', email: 'g@example.com' }),
+      })
+    ).json()) as { memberToken: string; memberId: number; role: string };
     expect(owner.role).toBe('owner');
     expect(guest.role).toBe('member');
 
     // non-owner cannot rename; owner can
     expect(
-      (await call('/api/team', { method: 'PATCH', body: JSON.stringify({ name: 'Hijacked' }) }, guest.memberToken)).status,
+      (
+        await call(
+          '/api/team',
+          { method: 'PATCH', body: JSON.stringify({ name: 'Hijacked' }) },
+          guest.memberToken,
+        )
+      ).status,
     ).toBe(403);
-    const renamed = (await (await call('/api/team', {
-      method: 'PATCH',
-      body: JSON.stringify({ name: 'Olive & Co' }),
-    }, owner.memberToken)).json()) as { name: string };
+    const renamed = (await (
+      await call(
+        '/api/team',
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ name: 'Olive & Co' }),
+        },
+        owner.memberToken,
+      )
+    ).json()) as { name: string };
     expect(renamed.name).toBe('Olive & Co');
 
     // owner revokes guest → guest's token dies instantly
@@ -309,66 +398,109 @@ describe('http api', () => {
   });
 
   it('personal sessions are invisible to everyone but their owner', async () => {
-    const zoe = (await (await call('/api/members/register', {
-      method: 'POST',
-      body: JSON.stringify({ name: 'zoe', email: 'zoe@example.com' }),
-    })).json()) as { memberToken: string };
-    const kai = (await (await call('/api/members/register', {
-      method: 'POST',
-      body: JSON.stringify({ name: 'kai', email: 'kai@example.com' }),
-    })).json()) as { memberToken: string };
+    const zoe = (await (
+      await call('/api/members/register', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'zoe', email: 'zoe@example.com' }),
+      })
+    ).json()) as { memberToken: string };
+    const kai = (await (
+      await call('/api/members/register', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'kai', email: 'kai@example.com' }),
+      })
+    ).json()) as { memberToken: string };
 
-    const secret = { ...makeSession('priv1', [msg('u1', 'user', 'my side project idea')]), visibility: 'personal' as const };
-    await call(`/api/sessions/${encodeURIComponent(secret.id)}`, { method: 'PUT', body: JSON.stringify(secret) }, zoe.memberToken);
+    const secret = {
+      ...makeSession('priv1', [msg('u1', 'user', 'my side project idea')]),
+      visibility: 'personal' as const,
+    };
+    await call(
+      `/api/sessions/${encodeURIComponent(secret.id)}`,
+      { method: 'PUT', body: JSON.stringify(secret) },
+      zoe.memberToken,
+    );
 
     // owner sees it in the personal drawer; teammate and team-token viewers never do
-    const zoePersonal = (await (await call('/api/sessions?scope=personal', {}, zoe.memberToken)).json()) as { id: string }[];
+    const zoePersonal = (await (await call('/api/sessions?scope=personal', {}, zoe.memberToken)).json()) as {
+      id: string;
+    }[];
     expect(zoePersonal.map((s) => s.id)).toContain(secret.id);
     const kaiAll = (await (await call('/api/sessions', {}, kai.memberToken)).json()) as { id: string }[];
     expect(kaiAll.map((s) => s.id)).not.toContain(secret.id);
-    expect((await call(`/api/sessions/${encodeURIComponent(secret.id)}`, {}, kai.memberToken)).status).toBe(404);
+    expect((await call(`/api/sessions/${encodeURIComponent(secret.id)}`, {}, kai.memberToken)).status).toBe(
+      404,
+    );
     expect((await call(`/api/sessions/${encodeURIComponent(secret.id)}/export`, {})).status).toBe(404);
     // search never leaks it to others either
-    const kaiSearch = (await (await call('/api/search?q=side+project', {}, kai.memberToken)).json()) as unknown[];
+    const kaiSearch = (await (
+      await call('/api/search?q=side+project', {}, kai.memberToken)
+    ).json()) as unknown[];
     expect(kaiSearch).toHaveLength(0);
 
     // owner promotes it → team can see it; a daemon re-sync must NOT demote it
-    await call(`/api/sessions/${encodeURIComponent(secret.id)}/visibility`, {
-      method: 'PATCH',
-      body: JSON.stringify({ visibility: 'team' }),
-    }, zoe.memberToken);
-    await call(`/api/sessions/${encodeURIComponent(secret.id)}`, { method: 'PUT', body: JSON.stringify(secret) }, zoe.memberToken);
+    await call(
+      `/api/sessions/${encodeURIComponent(secret.id)}/visibility`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ visibility: 'team' }),
+      },
+      zoe.memberToken,
+    );
+    await call(
+      `/api/sessions/${encodeURIComponent(secret.id)}`,
+      { method: 'PUT', body: JSON.stringify(secret) },
+      zoe.memberToken,
+    );
     const kaiAfter = (await (await call('/api/sessions', {}, kai.memberToken)).json()) as { id: string }[];
     expect(kaiAfter.map((s) => s.id)).toContain(secret.id);
   });
 
   it('comments pin onto sessions without touching the transcript; mentions resolve; scope respected', async () => {
-    const eda = (await (await call('/api/members/register', {
-      method: 'POST',
-      body: JSON.stringify({ name: 'eda', email: 'eda@example.com' }),
-    })).json()) as { memberToken: string; memberId: number };
-    const can = (await (await call('/api/members/register', {
-      method: 'POST',
-      body: JSON.stringify({ name: 'can', email: 'can@example.com' }),
-    })).json()) as { memberToken: string; memberId: number };
+    const eda = (await (
+      await call('/api/members/register', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'eda', email: 'eda@example.com' }),
+      })
+    ).json()) as { memberToken: string; memberId: number };
+    const can = (await (
+      await call('/api/members/register', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'can', email: 'can@example.com' }),
+      })
+    ).json()) as { memberToken: string; memberId: number };
 
     const session = makeSession('cmt1', [msg('u1', 'user', 'review this refactor')]);
-    await call(`/api/sessions/${encodeURIComponent(session.id)}`, { method: 'PUT', body: JSON.stringify(session) }, eda.memberToken);
+    await call(
+      `/api/sessions/${encodeURIComponent(session.id)}`,
+      { method: 'PUT', body: JSON.stringify(session) },
+      eda.memberToken,
+    );
 
     // can pins a note on a specific message, mentioning eda
-    const posted = (await (await call(`/api/sessions/${encodeURIComponent(session.id)}/comments`, {
-      method: 'POST',
-      body: JSON.stringify({ body: '@eda can we talk through this retry logic', messageId: 'u1' }),
-    }, can.memberToken)).json()) as { id: number; mentions: number[]; message_id: string };
+    const posted = (await (
+      await call(
+        `/api/sessions/${encodeURIComponent(session.id)}/comments`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ body: '@eda can we talk through this retry logic', messageId: 'u1' }),
+        },
+        can.memberToken,
+      )
+    ).json()) as { id: number; mentions: number[]; message_id: string };
     expect(posted.mentions).toContain(eda.memberId);
     expect(posted.message_id).toBe('u1');
 
     // transcript untouched; comment listed with author
-    const detail = (await (await call(`/api/sessions/${encodeURIComponent(session.id)}`, {}, eda.memberToken)).json()) as {
+    const detail = (await (
+      await call(`/api/sessions/${encodeURIComponent(session.id)}`, {}, eda.memberToken)
+    ).json()) as {
       messages: unknown[];
     };
     expect(detail.messages).toHaveLength(1);
-    const list = (await (await call(`/api/sessions/${encodeURIComponent(session.id)}/comments`, {}, eda.memberToken)).json()) as {
+    const list = (await (
+      await call(`/api/sessions/${encodeURIComponent(session.id)}/comments`, {}, eda.memberToken)
+    ).json()) as {
       author_name: string;
     }[];
     expect(list).toHaveLength(1);
@@ -376,56 +508,105 @@ describe('http api', () => {
 
     // only the author deletes; team token can read but not write
     expect(
-      (await call(`/api/sessions/${encodeURIComponent(session.id)}/comments/${posted.id}`, { method: 'DELETE' }, eda.memberToken)).status,
+      (
+        await call(
+          `/api/sessions/${encodeURIComponent(session.id)}/comments/${posted.id}`,
+          { method: 'DELETE' },
+          eda.memberToken,
+        )
+      ).status,
     ).toBe(404);
     expect(
-      (await call(`/api/sessions/${encodeURIComponent(session.id)}/comments`, { method: 'POST', body: JSON.stringify({ body: 'x' }) })).status,
+      (
+        await call(`/api/sessions/${encodeURIComponent(session.id)}/comments`, {
+          method: 'POST',
+          body: JSON.stringify({ body: 'x' }),
+        })
+      ).status,
     ).toBe(403);
 
     // comments on a personal session are as invisible as the session itself
     const priv = { ...makeSession('cmt2', [msg('u1', 'user', 'secret')]), visibility: 'personal' as const };
-    await call(`/api/sessions/${encodeURIComponent(priv.id)}`, { method: 'PUT', body: JSON.stringify(priv) }, eda.memberToken);
-    expect((await call(`/api/sessions/${encodeURIComponent(priv.id)}/comments`, {}, can.memberToken)).status).toBe(404);
+    await call(
+      `/api/sessions/${encodeURIComponent(priv.id)}`,
+      { method: 'PUT', body: JSON.stringify(priv) },
+      eda.memberToken,
+    );
+    expect(
+      (await call(`/api/sessions/${encodeURIComponent(priv.id)}/comments`, {}, can.memberToken)).status,
+    ).toBe(404);
   });
 
   it('routes asks to the session owner and nobody else', async () => {
-    const owner = (await (await call('/api/members/register', {
-      method: 'POST',
-      body: JSON.stringify({ name: 'ola', email: 'ola@example.com' }),
-    })).json()) as { memberToken: string; memberId: number };
-    const asker = (await (await call('/api/members/register', {
-      method: 'POST',
-      body: JSON.stringify({ name: 'ari', email: 'ari@example.com' }),
-    })).json()) as { memberToken: string; memberId: number };
+    const owner = (await (
+      await call('/api/members/register', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'ola', email: 'ola@example.com' }),
+      })
+    ).json()) as { memberToken: string; memberId: number };
+    const asker = (await (
+      await call('/api/members/register', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'ari', email: 'ari@example.com' }),
+      })
+    ).json()) as { memberToken: string; memberId: number };
 
     const s = makeSession('ask1', [msg('u1', 'user', 'why did we drop rclone')]);
-    await call(`/api/sessions/${encodeURIComponent(s.id)}`, { method: 'PUT', body: JSON.stringify(s) }, owner.memberToken);
+    await call(
+      `/api/sessions/${encodeURIComponent(s.id)}`,
+      { method: 'PUT', body: JSON.stringify(s) },
+      owner.memberToken,
+    );
 
-    const ask = (await (await call(`/api/sessions/${encodeURIComponent(s.id)}/asks`, {
-      method: 'POST',
-      body: JSON.stringify({ question: 'why did we drop rclone?' }),
-    }, asker.memberToken)).json()) as { id: number; executor_id: number; status: string };
+    const ask = (await (
+      await call(
+        `/api/sessions/${encodeURIComponent(s.id)}/asks`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ question: 'why did we drop rclone?' }),
+        },
+        asker.memberToken,
+      )
+    ).json()) as { id: number; executor_id: number; status: string };
     expect(ask.executor_id).toBe(owner.memberId); // only the owner has the transcript
     expect(ask.status).toBe('pending');
 
     // the owner's daemon sees it; the asker's does not
-    const ownerQueue = (await (await call('/api/ask-requests?status=pending', {}, owner.memberToken)).json()) as { id: number }[];
+    const ownerQueue = (await (
+      await call('/api/ask-requests?status=pending', {}, owner.memberToken)
+    ).json()) as { id: number }[];
     expect(ownerQueue.map((r) => r.id)).toContain(ask.id);
-    const askerQueue = (await (await call('/api/ask-requests?status=pending', {}, asker.memberToken)).json()) as { id: number }[];
+    const askerQueue = (await (
+      await call('/api/ask-requests?status=pending', {}, asker.memberToken)
+    ).json()) as { id: number }[];
     expect(askerQueue.map((r) => r.id)).not.toContain(ask.id);
 
     // the asker cannot fabricate an answer; the owner can
     expect(
-      (await call(`/api/ask-requests/${ask.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'done', answer: 'fake' }) }, asker.memberToken)).status,
+      (
+        await call(
+          `/api/ask-requests/${ask.id}`,
+          { method: 'PATCH', body: JSON.stringify({ status: 'done', answer: 'fake' }) },
+          asker.memberToken,
+        )
+      ).status,
     ).toBe(404);
-    const done = (await (await call(`/api/ask-requests/${ask.id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'done', answer: 'We dropped rclone for a staging directory.' }),
-    }, owner.memberToken)).json()) as { status: string; answer: string };
+    const done = (await (
+      await call(
+        `/api/ask-requests/${ask.id}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ status: 'done', answer: 'We dropped rclone for a staging directory.' }),
+        },
+        owner.memberToken,
+      )
+    ).json()) as { status: string; answer: string };
     expect(done.status).toBe('done');
 
     // both sides can read the answered thread on the session
-    const thread = (await (await call(`/api/sessions/${encodeURIComponent(s.id)}/asks`, {}, asker.memberToken)).json()) as {
+    const thread = (await (
+      await call(`/api/sessions/${encodeURIComponent(s.id)}/asks`, {}, asker.memberToken)
+    ).json()) as {
       answer: string;
       asker_name: string;
     }[];
@@ -434,21 +615,37 @@ describe('http api', () => {
 
     // asks on a personal session are invisible like the session itself
     const priv = { ...makeSession('ask2', [msg('u1', 'user', 'private')]), visibility: 'personal' as const };
-    await call(`/api/sessions/${encodeURIComponent(priv.id)}`, { method: 'PUT', body: JSON.stringify(priv) }, owner.memberToken);
+    await call(
+      `/api/sessions/${encodeURIComponent(priv.id)}`,
+      { method: 'PUT', body: JSON.stringify(priv) },
+      owner.memberToken,
+    );
     expect(
-      (await call(`/api/sessions/${encodeURIComponent(priv.id)}/asks`, { method: 'POST', body: JSON.stringify({ question: 'q' }) }, asker.memberToken)).status,
+      (
+        await call(
+          `/api/sessions/${encodeURIComponent(priv.id)}/asks`,
+          { method: 'POST', body: JSON.stringify({ question: 'q' }) },
+          asker.memberToken,
+        )
+      ).status,
     ).toBe(404);
   });
 
   it('serves a recall bundle scoped to the viewer', async () => {
-    const m = (await (await call('/api/members/register', {
-      method: 'POST',
-      body: JSON.stringify({ name: 'rec', email: 'rec@example.com' }),
-    })).json()) as { memberToken: string };
+    const m = (await (
+      await call('/api/members/register', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'rec', email: 'rec@example.com' }),
+      })
+    ).json()) as { memberToken: string };
     const s = makeSession('rec1', [
       msg('u1', 'user', 'the deploy pipeline keeps timing out on the docker build step'),
     ]);
-    await call(`/api/sessions/${encodeURIComponent(s.id)}`, { method: 'PUT', body: JSON.stringify(s) }, m.memberToken);
+    await call(
+      `/api/sessions/${encodeURIComponent(s.id)}`,
+      { method: 'PUT', body: JSON.stringify(s) },
+      m.memberToken,
+    );
 
     const bundle = (await (await call('/api/recall?q=docker+build+timeout', {}, m.memberToken)).json()) as {
       items: { text: string }[];
@@ -457,34 +654,57 @@ describe('http api', () => {
     expect(bundle.items.map((i) => i.text).join()).toContain('docker build');
     expect(bundle.tokensApprox).toBeGreaterThan(0);
 
-    const md = await (await call('/api/recall?q=docker+build+timeout&format=markdown', {}, m.memberToken)).text();
+    const md = await (
+      await call('/api/recall?q=docker+build+timeout&format=markdown', {}, m.memberToken)
+    ).text();
     expect(md).toContain('# Team context');
   });
 
   it('owner prunes old sessions; recent ones and memory notes survive', async () => {
-    const owner = (await (await call('/api/members/register', {
-      method: 'POST',
-      body: JSON.stringify({ name: 'root', email: 'root@example.com' }),
-    })).json()) as { memberToken: string };
+    const owner = (await (
+      await call('/api/members/register', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'root', email: 'root@example.com' }),
+      })
+    ).json()) as { memberToken: string };
 
     const old = makeSession('old1', [msg('u1', 'user', 'ancient work')]);
     old.updatedAt = '2020-01-01T00:00:00.000Z';
     const fresh = makeSession('new1', [msg('u1', 'user', 'recent work')]);
     fresh.updatedAt = new Date().toISOString();
     for (const s of [old, fresh]) {
-      await call(`/api/sessions/${encodeURIComponent(s.id)}`, { method: 'PUT', body: JSON.stringify(s) }, owner.memberToken);
+      await call(
+        `/api/sessions/${encodeURIComponent(s.id)}`,
+        { method: 'PUT', body: JSON.stringify(s) },
+        owner.memberToken,
+      );
     }
 
     // non-owner blocked, bad threshold blocked
-    expect((await call('/api/admin/prune', { method: 'POST', body: JSON.stringify({ olderThanDays: 30 }) })).status).toBe(403);
     expect(
-      (await call('/api/admin/prune', { method: 'POST', body: JSON.stringify({ olderThanDays: 1 }) }, owner.memberToken)).status,
+      (await call('/api/admin/prune', { method: 'POST', body: JSON.stringify({ olderThanDays: 30 }) }))
+        .status,
+    ).toBe(403);
+    expect(
+      (
+        await call(
+          '/api/admin/prune',
+          { method: 'POST', body: JSON.stringify({ olderThanDays: 1 }) },
+          owner.memberToken,
+        )
+      ).status,
     ).toBe(400);
 
-    const pruned = (await (await call('/api/admin/prune', {
-      method: 'POST',
-      body: JSON.stringify({ olderThanDays: 30 }),
-    }, owner.memberToken)).json()) as { sessions: number };
+    const pruned = (await (
+      await call(
+        '/api/admin/prune',
+        {
+          method: 'POST',
+          body: JSON.stringify({ olderThanDays: 30 }),
+        },
+        owner.memberToken,
+      )
+    ).json()) as { sessions: number };
     expect(pruned.sessions).toBeGreaterThanOrEqual(1);
 
     const remaining = (await (await call('/api/sessions')).json()) as { id: string }[];

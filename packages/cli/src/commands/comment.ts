@@ -29,7 +29,9 @@ export function registerComment(program: Command): void {
         return;
       }
       for (const c of comments) {
-        console.log(`@${c.author_name ?? '?'} · ${c.created_at.slice(0, 16).replace('T', ' ')}\n  ${c.body}\n`);
+        console.log(
+          `@${c.author_name ?? '?'} · ${c.created_at.slice(0, 16).replace('T', ' ')}\n  ${c.body}\n`,
+        );
       }
     });
 }

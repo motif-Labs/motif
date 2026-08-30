@@ -70,7 +70,10 @@ export class MotifClient {
     return this.request('POST', '/api/admin/prune', { olderThanDays });
   }
 
-  recall(query: string, opts: { project?: string; budget?: number; markdown?: boolean } = {}): Promise<unknown> {
+  recall(
+    query: string,
+    opts: { project?: string; budget?: number; markdown?: boolean } = {},
+  ): Promise<unknown> {
     const q = new URLSearchParams({ q: query });
     if (opts.project) q.set('project', opts.project);
     if (opts.budget) q.set('budget', String(opts.budget));
@@ -106,19 +109,32 @@ export class MotifClient {
     return this.request('GET', `/api/ask-requests${status ? `?status=${status}` : ''}`);
   }
 
-  completeAskRequest(id: number, result: { status: 'done' | 'error'; answer?: string; error?: string }): Promise<unknown> {
+  completeAskRequest(
+    id: number,
+    result: { status: 'done' | 'error'; answer?: string; error?: string },
+  ): Promise<unknown> {
     return this.request('PATCH', `/api/ask-requests/${id}`, result);
   }
 
   addComment(sessionId: string, body: string, messageId?: string): Promise<{ id: number }> {
-    return this.request('POST', `/api/sessions/${encodeURIComponent(sessionId)}/comments`, { body, messageId });
+    return this.request('POST', `/api/sessions/${encodeURIComponent(sessionId)}/comments`, {
+      body,
+      messageId,
+    });
   }
 
-  listComments(sessionId: string): Promise<{ id: number; author_name: string | null; body: string; created_at: string }[]> {
+  listComments(
+    sessionId: string,
+  ): Promise<{ id: number; author_name: string | null; body: string; created_at: string }[]> {
     return this.request('GET', `/api/sessions/${encodeURIComponent(sessionId)}/comments`);
   }
 
-  createHandoffRequest(input: { sessionId: string; cwd?: string; assignee?: string; target?: string }): Promise<{
+  createHandoffRequest(input: {
+    sessionId: string;
+    cwd?: string;
+    assignee?: string;
+    target?: string;
+  }): Promise<{
     id: number;
     assignee_id: number | null;
   }> {
@@ -190,11 +206,20 @@ export class MotifClient {
     return this.request('GET', `/api/sessions/${encodeURIComponent(id)}/export`);
   }
 
-  search(query: string): Promise<{ id: string; title: string | null; projectPath: string; snippet: string; memberName: string | null }[]> {
+  search(
+    query: string,
+  ): Promise<
+    { id: string; title: string | null; projectPath: string; snippet: string; memberName: string | null }[]
+  > {
     return this.request('GET', `/api/search?q=${encodeURIComponent(query)}`);
   }
 
-  postHandoff(input: { sessionId: string; target: string; outputPath?: string; targetSessionId?: string }): Promise<{ ok: boolean }> {
+  postHandoff(input: {
+    sessionId: string;
+    target: string;
+    outputPath?: string;
+    targetSessionId?: string;
+  }): Promise<{ ok: boolean }> {
     return this.request('POST', '/api/handoffs', input);
   }
 }

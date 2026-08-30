@@ -301,8 +301,7 @@ export function readClaudeSession(filePath: string): MotifSession {
     // no subagents dir
   }
 
-  const title =
-    aiTitle ?? (firstPrompt ? firstPrompt.replace(/\s+/g, ' ').trim().slice(0, 120) : undefined);
+  const title = aiTitle ?? (firstPrompt ? firstPrompt.replace(/\s+/g, ' ').trim().slice(0, 120) : undefined);
 
   return {
     id: motifSessionId('claude-code', sessionId),

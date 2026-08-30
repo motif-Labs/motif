@@ -128,7 +128,8 @@ function spendKey(): string {
 }
 
 function getSpend(db: Db): number {
-  const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(spendKey()) as { value: string } | undefined;
+  const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(spendKey()) as
+    { value: string } | undefined;
   return row ? Number(row.value) : 0;
 }
 

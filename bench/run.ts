@@ -27,7 +27,8 @@ const arg = (name: string, fallback?: string): string | undefined => {
 };
 
 const dbPath = arg('db') ?? process.env.MOTIF_DB_PATH ?? path.join(os.homedir(), '.motif', 'motif.db');
-const questionsPath = arg('questions') ?? path.join(path.dirname(new URL(import.meta.url).pathname), 'questions.json');
+const questionsPath =
+  arg('questions') ?? path.join(path.dirname(new URL(import.meta.url).pathname), 'questions.json');
 const budget = Number(arg('budget', '1500'));
 
 if (!fs.existsSync(dbPath)) {
@@ -56,7 +57,10 @@ const rows: { q: string; hit: boolean; tokens: number; items: number; sessions: 
 
 for (const question of questions) {
   const result = recall(db, { query: question.q, project: question.project, budget });
-  const haystack = result.items.map((i) => i.text).join('\n').toLowerCase();
+  const haystack = result.items
+    .map((i) => i.text)
+    .join('\n')
+    .toLowerCase();
   const hit = question.expect.every((e) => haystack.includes(e.toLowerCase()));
   rows.push({
     q: question.q,
@@ -72,7 +76,9 @@ const tokens = rows.map((r) => r.tokens).sort((a, b) => a - b);
 const median = tokens[Math.floor(tokens.length / 2)] ?? 0;
 
 console.log(`# Motif retrieval benchmark\n`);
-console.log(`Corpus: ${corpusTokens.toLocaleString()} tokens of session history · budget ${budget} tokens/answer\n`);
+console.log(
+  `Corpus: ${corpusTokens.toLocaleString()} tokens of session history · budget ${budget} tokens/answer\n`,
+);
 console.log('| question | answer present | tokens | items | sessions cited |');
 console.log('|---|---|---|---|---|');
 for (const r of rows) {

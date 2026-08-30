@@ -36,7 +36,8 @@ export function registerSearch(program: Command): void {
       }
       const scan = scanLocal(claudeDir);
       const q = query.toLowerCase();
-      const hits: { sessionId: string; shortId: string; title?: string; project: string; snippet: string }[] = [];
+      const hits: { sessionId: string; shortId: string; title?: string; project: string; snippet: string }[] =
+        [];
 
       for (const s of scan.sessions) {
         if (opts.project && s.projectPath !== path.resolve(opts.project)) continue;

@@ -1,0 +1,13 @@
+# Normalise line endings so a Windows contributor does not produce a
+# whole-file diff, and CI on windows-latest sees the same bytes.
+* text=auto eol=lf
+
+*.png binary
+*.gif binary
+
+# Fixtures are byte-exact format captures: never touched by any filter.
+fixtures/**/*.jsonl -text
+
+# Keep generated/vendored noise out of language stats and PR diffs.
+package-lock.json linguist-generated=true -diff
+docs/assets/* linguist-documentation
