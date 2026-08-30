@@ -6,6 +6,7 @@ dist/
 .env
 .env.*
 research/
+.private/
 .types/
 
 # local databases and runtime state — never publish a developer's own sessions
@@ -25,3 +26,4 @@ coverage/
 packages/cli/LICENSE
 packages/cli/NOTICE
 packages/cli/README.md
+
