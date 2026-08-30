@@ -4,3 +4,14 @@ Copyright 2026 The Motif Authors
 This product includes software developed as part of the Motif project
 (https://github.com/motif-Labs/motif), licensed under the Apache License,
 Version 2.0.
+
+Trademarks
+----------
+Motif is an independent project. It is not affiliated with, endorsed by, or
+sponsored by Anthropic, OpenAI, or Anysphere.
+
+Claude and Claude Code are trademarks of Anthropic, PBC. Codex and ChatGPT are
+trademarks of OpenAI, Inc. Cursor is a trademark of Anysphere, Inc. These names
+and the accompanying marks reproduced in the dashboard are used solely to
+identify the tools Motif integrates with (nominative fair use). All trademarks
+are the property of their respective owners.

@@ -227,6 +227,29 @@ state DB, so `codex resume` lists it and appends to it as its own history.
 Recall, the MCP server and ask-a-session are in. 62 tests, CI on Linux,
 macOS and Windows.
 
+## Independence and compatibility
+
+Motif is an independent project, not affiliated with or endorsed by Anthropic,
+OpenAI or Anysphere. It reads and writes files these tools keep on **your own
+machine**, in formats that are private and undocumented, worked out by reading
+real files and the tools' own open-source code where it exists. Nothing is
+scraped and no service is called on your behalf — the only network traffic is
+between your machines and your server.
+
+Two things follow, and you should know both before you rely on it:
+
+- **Formats can change without notice.** Every reader parses tolerantly and
+  never fails the whole sync on an unknown shape, and the conformance fixtures
+  pin what we understood at the time — but an upstream release can still break
+  a handoff. A failing fixture test plus a corrected parse is the single most
+  useful pull request you can send.
+- **`ask` runs on the owning machine, under that person's own account.** When a
+  teammate asks a question of your session, _your_ daemon resumes it read-only
+  with _your_ CLI and _your_ subscription, and it only ever answers sessions you
+  own. It is off unless you run the daemon, and `motif daemon pause` stops it.
+  If you would rather approve each one, leave the daemon off and run
+  `motif asks <id>` yourself.
+
 ## Contributing
 
 New session readers are the most welcome contribution — Motif is only as useful
