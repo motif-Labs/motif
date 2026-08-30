@@ -66,7 +66,8 @@ function ago(iso: string | null | undefined): string {
   if (s < 90) return 'just now';
   if (s < 3600) return `${Math.round(s / 60)}m ago`;
   if (s < 86400) return `${Math.round(s / 3600)}h ago`;
-  return `${Math.round(s / 86400)} days ago`;
+  const days = Math.round(s / 86400);
+  return days === 1 ? 'yesterday' : `${days} days ago`;
 }
 
 function clock(iso: string | null | undefined): string {
