@@ -1,6 +1,6 @@
 {
   "name": "getmotif",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Unification layer for AI coding agent sessions \u2014 collect, search, and natively hand off sessions across tools. Self-hosted.",
   "keywords": [
     "ai",

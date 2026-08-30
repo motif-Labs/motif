@@ -6,6 +6,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.1] — 2026-08-31
+
+### Changed
+
+- README rewritten. It now opens with a real `motif recall` result rather than
+  the handoff animation, states the single-machine case explicitly, and carries
+  version, CI and license badges.
+
+### Fixed
+
+- The README claimed 62 tests (there are 64) and quoted an exact benchmark
+  corpus size that grows over time. The durable claim replaced the drifting one.
+- Image URLs are absolute, so they render on the npm package page as well as on
+  GitHub.
+
 ## [1.0.0] — 2026-08-30
 
 First public release.
@@ -45,5 +60,6 @@ First public release.
   header. Tokens are 192-bit, stored as SHA-256 hashes, compared in constant
   time, and rate-limited on failure.
 
-[Unreleased]: https://github.com/motif-Labs/motif/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/motif-Labs/motif/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/motif-Labs/motif/releases/tag/v1.0.1
 [1.0.0]: https://github.com/motif-Labs/motif/releases/tag/v1.0.0
