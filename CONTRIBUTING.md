@@ -19,11 +19,11 @@ relicensing anyone's work without consent.)
 ## Getting started
 
 ```bash
-git clone https://github.com/<org>/motif && cd motif
+git clone https://github.com/motifhq/motif && cd motif
 npm ci
-npx vitest run                 # 30 tests should pass
+npx vitest run                 # the suite should pass (62 tests)
 npx tsx packages/cli/src/index.ts scan   # run the CLI from source
-npm run build -w @motif/ui && npm run build -w motif   # full bundle
+npm run build -w @motif/ui && npm run build -w motifhq   # full bundle
 ```
 
 Layout: `packages/core` (schema, readers, writers — pure), `packages/cli`

@@ -1,7 +1,7 @@
 {
   "name": "@motif/ui",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,5 +13,6 @@
   "devDependencies": {
     "@preact/preset-vite": "^2.9.3",
     "vite": "^6.0.7"
-  }
+  },
+  "license": "Apache-2.0"
 }

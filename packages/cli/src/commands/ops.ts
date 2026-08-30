@@ -155,11 +155,11 @@ export function registerOps(program: Command): void {
     .option('--check', 'only check (default behavior)')
     .action(async () => {
       try {
-        const res = await fetch('https://registry.npmjs.org/motif/latest');
+        const res = await fetch('https://registry.npmjs.org/motifhq/latest');
         if (!res.ok) throw new Error(String(res.status));
         const latest = ((await res.json()) as { version: string }).version;
         if (latest === CLI_VERSION) console.log(`motif ${CLI_VERSION} is up to date.`);
-        else console.log(`motif ${latest} is available (you have ${CLI_VERSION}).\nUpdate with: npm i -g motif@latest`);
+        else console.log(`motif ${latest} is available (you have ${CLI_VERSION}).\nUpdate with: npm i -g motifhq@latest`);
       } catch {
         console.log(`Could not reach the npm registry (or motif isn't published yet). You have ${CLI_VERSION}.`);
       }
@@ -216,6 +216,6 @@ export function registerOps(program: Command): void {
         console.log(`Kept ${motifHome()} (config + tokens) — delete it yourself or re-run with --purge.`);
       }
       console.log('Your Claude Code / Codex / Cursor sessions were never moved and remain untouched.');
-      console.log('Server-side team data (if any) stays on the server. Uninstall the package with: npm rm -g motif');
+      console.log('Server-side team data (if any) stays on the server. Uninstall the package with: npm rm -g motifhq');
     });
 }

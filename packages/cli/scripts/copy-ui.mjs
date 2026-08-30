@@ -13,3 +13,11 @@ if (!fs.existsSync(path.join(src, 'index.html'))) {
 }
 fs.cpSync(src, dest, { recursive: true });
 console.log(`copied ui -> ${dest}`);
+
+// The published tarball needs its own copies of the legal + intro files,
+// which live at the repo root.
+const repoRoot = path.join(here, '..', '..', '..');
+for (const file of ['LICENSE', 'NOTICE', 'README.md']) {
+  fs.copyFileSync(path.join(repoRoot, file), path.join(here, '..', file));
+}
+console.log('copied LICENSE, NOTICE, README.md -> package root');

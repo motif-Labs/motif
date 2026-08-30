@@ -1,7 +1,7 @@
 {
   "name": "@motif/server",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "main": "./src/index.ts",
   "exports": {
@@ -12,5 +12,6 @@
     "@motif/core": "*",
     "better-sqlite3": "^11.7.0",
     "hono": "^4.6.14"
-  }
+  },
+  "license": "Apache-2.0"
 }

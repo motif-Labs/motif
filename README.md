@@ -18,9 +18,8 @@ treats it as its own history, not a summary.
 
 - **Collect** — a lightweight daemon watches **Claude Code, Codex, and Cursor**
   sessions on each dev machine and syncs them live to your self-hosted server.
-  Sessions never leave your infrastructure. (Agents running open-weight models
-  through OpenCode/Aider-style tools are on the roadmap; open-weight models
-  themselves — Hermes, Qwen, Llama via Ollama/OpenRouter — already work today
+  Sessions never leave your infrastructure. (Other open-source agent CLIs are on
+  the roadmap; open-weight models themselves — Hermes, Qwen, Llama via Ollama/OpenRouter — already work today
   as the memory engine through the `openai-compatible` provider.)
 - **Native handoff** — convert a Claude Code session into a real Codex rollout file.
   `codex resume` picks it up as its own session; continue exactly where you left off.
@@ -76,10 +75,11 @@ Corpus: 2,080,410 tokens of session history · budget 1500 tokens/answer
 hit rate 8/10 (80%) · median 1,497 tokens per answer · 1,404× smaller than the history it draws from
 ```
 
-That is a *retrieval* benchmark on the maintainer's own bilingual corpus (the
-two misses are questions asked in English about decisions discussed in
-Turkish — lexical search is language-bound; distilled memory covers that gap).
-Write your own `bench/questions.json` and reproduce it on yours.
+That is a *retrieval* benchmark over a real two-million-token corpus. The two
+misses are cross-language: the question was asked in one language about a
+decision discussed in another, and lexical search is language-bound — distilled
+memory covers that gap. Write your own `bench/questions.json` and reproduce it
+on your corpus.
 
 **No API key, no embeddings, no vector store.** Ranking comes from FTS/bm25 over
 message text, the session graph (handoff lineage, shared memory entities,
@@ -91,19 +91,20 @@ picked.
 **Solo (one machine):**
 
 ```bash
-npx motif up          # server + live sync on localhost:4680
-npx motif ui          # open the dashboard
+npm i -g motifhq      # the binary is `motif`
+motif up              # server + live sync on localhost:4680
+motif ui              # open the dashboard
 ```
 
 **Team (self-hosted server):**
 
 ```bash
 # On your server (or: docker compose up)
-npx motif server --port 4680
+npx motifhq server --port 4680
 # → prints the team token
 
 # On each dev machine
-npx motif connect http://your-server:4680 --token <token> --name "Ada" --email ada@team.dev
+npx motifhq connect http://your-server:4680 --token <token> --name "Ada" --email ada@team.dev
 motif daemon start    # sessions now stream to the server live
 ```
 
@@ -130,7 +131,7 @@ entity-based notes — decisions, files, topics — where new knowledge supersed
 old (history kept) and contradictions are flagged instead of silently piling up:
 
 ```bash
-MOTIF_LLM_PROVIDER=anthropic MOTIF_LLM_API_KEY=sk-... npx motif server
+MOTIF_LLM_PROVIDER=anthropic MOTIF_LLM_API_KEY=sk-... motif server
 # or: openai | openai-compatible (any baseURL: Ollama, vLLM, OpenRouter) | claude-code (local CLI, no key)
 ```
 
@@ -165,10 +166,10 @@ One server per team, one daemon per dev machine:
 ```bash
 # Company server (survives restarts; SQLite lives in the volume)
 docker compose up -d
-# or without Docker:  MOTIF_TOKEN=<fixed-token> npx motif server
+# or without Docker:  MOTIF_TOKEN=<fixed-token> npx motifhq server
 
 # Each developer, once:
-npx motif connect https://motif.internal.yourco.dev --token <team-token> --name "Ada" --email ada@yourco.dev
+npx motifhq connect https://motif.internal.yourco.dev --token <team-token> --name "Ada" --email ada@yourco.dev
 motif daemon start        # logs: ~/.motif/daemon.log (auto-rotated)
 ```
 
@@ -195,14 +196,32 @@ a schedule, or point [Litestream](https://litestream.io) at it for continuous
 replication. Keep the database lean with `motif prune --older-than 90` —
 old raw sessions go, distilled memory notes stay.
 
+## Try it without touching your own history
+
+```bash
+git clone https://github.com/motifhq/motif && cd motif
+npm install && npm run build
+bash scripts/demo.sh        # two members, invented sessions, a live dashboard
+```
+
+The demo pins every reader at its own scratch directories, so it never reads
+`~/.claude`, `~/.codex` or your Cursor storage. `bash scripts/demo.sh clean`
+removes it.
+
 ## Status
 
-Early development (v0.1). Claude Code reader and native handoff
-(Claude Code → Codex) are live — the handoff writes a real Codex rollout file
-and registers the thread in Codex's state DB, verified against Codex 0.150.1:
-`codex resume` lists the session and appends to it as its own history.
-Codex reader and Cursor reader are next.
+v1. Readers for Claude Code, Codex and Cursor are live; native handoff runs in
+both directions (Claude Code ⇄ Codex) and is verified against Codex 0.150.1 —
+the handoff writes a real rollout file and registers the thread in Codex's
+state DB, so `codex resume` lists it and appends to it as its own history.
+Recall, the MCP server and ask-a-session are in. 62 tests, CI on Linux,
+macOS and Windows.
 
 ## License
 
-MIT
+Apache-2.0 — see [LICENSE](LICENSE).
+
+Everything in this repository is Apache-2.0 and stays that way. Organisation
+features (SSO enforcement, SCIM, audit and retention policy) will live in
+[`ee/`](ee/) under a separate commercial licence; nothing that is free today
+will move there. See [ee/README.md](ee/README.md).

@@ -10,9 +10,9 @@ export function ClaudeMark({ size = 14 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
       {rays.map((deg) => (
-        <path d="M12 12 L10.4 3.2 Q12 1.6 13.6 3.2 Z" fill="#D97757" transform={`rotate(${deg} 12 12)`} />
+        <path d="M12 12 L10.4 3.2 Q12 1.6 13.6 3.2 Z" fill="currentColor" transform={`rotate(${deg} 12 12)`} />
       ))}
-      <circle cx="12" cy="12" r="2.6" fill="#D97757" />
+      <circle cx="12" cy="12" r="2.6" fill="currentColor" />
     </svg>
   );
 }

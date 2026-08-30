@@ -42,6 +42,13 @@ export type LiveEventName = keyof LiveEvents;
  * SQLite file, so an in-memory emitter is all the pub/sub we need.
  */
 export class LiveBus extends EventEmitter {
+  constructor() {
+    super();
+    // one listener per open dashboard tab and per daemon; a team of ten
+    // trips Node's default cap of 10 and prints a warning that means nothing here
+    this.setMaxListeners(0);
+  }
+
   publish<K extends LiveEventName>(event: K, data: LiveEvents[K]): void {
     this.emit('event', { event, data });
   }

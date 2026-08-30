@@ -1,14 +1,14 @@
 {
   "name": "motif-monorepo",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "workspaces": [
     "packages/*",
     "ui"
   ],
   "scripts": {
-    "build": "npm run build -w motif",
+    "build": "npm run build -w @motif/ui && npm run build -w motifhq",
     "test": "vitest run",
     "typecheck": "tsc -b packages/core packages/cli packages/server",
     "bench": "tsx bench/run.ts"
@@ -23,5 +23,6 @@
   },
   "engines": {
     "node": ">=20"
-  }
+  },
+  "license": "Apache-2.0"
 }

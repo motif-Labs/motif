@@ -23,6 +23,11 @@ export function registerRecall(program: Command): void {
           console.log(JSON.stringify(await client.recall(query, { project, budget }), null, 2));
           return;
         }
+        // no remote server: answer from the local database rather than falling
+        // through to markdown, which would break anything piping this to jq
+        const backend = createBackend();
+        console.log(JSON.stringify(await backend.recallJson(query, project, budget), null, 2));
+        return;
       }
       const backend = createBackend();
       console.log(await backend.recall(query, project, budget));

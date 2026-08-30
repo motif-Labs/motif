@@ -8,11 +8,12 @@ import { runMcpServer } from '../mcp/server.js';
 
 /** How an agent should be told to launch us. */
 function launchCommand(): { command: string; args: string[] } {
-  const entry = path.resolve(process.argv[1] ?? '');
-  // a globally installed binary is cleaner in configs than an absolute path
-  return entry.includes('/node_modules/') || entry.endsWith('/dist/index.js') === false
-    ? { command: 'motif', args: ['mcp'] }
-    : { command: process.execPath, args: [entry, 'mcp'] };
+  // A bare `motif` is nicer in a config file, but only if it actually resolves:
+  // under npx or a dev checkout it does not, and the agent would fail to spawn
+  // us silently. Fall back to this exact interpreter and entry point.
+  const onPath = spawnSync('motif', ['--version'], { stdio: 'ignore' }).status === 0;
+  if (onPath) return { command: 'motif', args: ['mcp'] };
+  return { command: process.execPath, args: [path.resolve(process.argv[1] ?? ''), 'mcp'] };
 }
 
 function installCursor(cmd: { command: string; args: string[] }, print: boolean): string {

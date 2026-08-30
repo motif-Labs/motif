@@ -37,7 +37,7 @@ describe('member dedupe (migration v3 logic)', () => {
     const ins = db.prepare(
       "INSERT INTO members(name, email, machine, role, created_at, last_seen_at) VALUES (?, NULL, 'mac', 'member', ?, ?)",
     );
-    const ids = [1, 2, 3, 4].map(() => Number(ins.run('mertcicekci', now, now).lastInsertRowid));
+    const ids = [1, 2, 3, 4].map(() => Number(ins.run('ada', now, now).lastInsertRowid));
 
     // the same session synced under three of those identities; freshest under id 3
     fullReplaceSession(db, ids[0]!, session('dup', '2026-08-20T10:00:00.000Z'));
