@@ -3,7 +3,7 @@
 **A unification layer for AI coding agent sessions.** Open source, fully self-hosted.
 
 <p align="center">
-  <img src="docs/assets/handoff.gif" alt="Handing a Claude Code session off to Codex, natively" width="820" />
+  <img src="https://raw.githubusercontent.com/motif-Labs/motif/main/docs/assets/handoff.gif" alt="Handing a Claude Code session off to Codex, natively" width="820" />
 </p>
 
 <p align="center"><i>Start in Claude Code, finish in Codex — the session comes with you, natively.</i></p>
@@ -36,7 +36,7 @@ treats it as its own history, not a summary.
 - **Solo mode** — `motif up` runs the same server locally. No team required.
 
 <p align="center">
-  <img src="docs/assets/dashboard.png" alt="The team dashboard: every member's sessions across Claude Code, Codex, and Cursor on one timeline" width="880" />
+  <img src="https://raw.githubusercontent.com/motif-Labs/motif/main/docs/assets/dashboard.png" alt="The team dashboard: every member's sessions across Claude Code, Codex, and Cursor on one timeline" width="880" />
 </p>
 
 <p align="center"><i>Every teammate's sessions, from every tool, on one timeline.</i></p>
@@ -45,7 +45,7 @@ Open one and you get the conversation as it happened, what it touched, and the
 one button that matters — continue it somewhere else, or hand it to someone:
 
 <p align="center">
-  <img src="docs/assets/session.png" alt="A session: the transcript, the tools it used, and the controls to continue it elsewhere or ask it a question" width="880" />
+  <img src="https://raw.githubusercontent.com/motif-Labs/motif/main/docs/assets/session.png" alt="A session: the transcript, the tools it used, and the controls to continue it elsewhere or ask it a question" width="880" />
 </p>
 
 ## Your agents can query it
