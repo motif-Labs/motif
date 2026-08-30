@@ -404,6 +404,17 @@ export function listHandoffRequests(
   return db.prepare(`${base} ORDER BY h.id DESC LIMIT 50`).all(memberId) as HandoffRequestRow[];
 }
 
+/** One request, visible to whoever asked for it or has to run it. */
+export function getHandoffRequestFor(db: Db, memberId: number, id: number): HandoffRequestRow | undefined {
+  return db
+    .prepare(
+      `SELECT h.*, m.name AS requester_name FROM handoff_requests h
+       LEFT JOIN members m ON m.id = h.requested_by
+       WHERE h.id = ? AND (h.requested_by = ? OR COALESCE(h.assignee_id, h.requested_by) = ?)`,
+    )
+    .get(id, memberId, memberId) as HandoffRequestRow | undefined;
+}
+
 export function completeHandoffRequest(
   db: Db,
   memberId: number,

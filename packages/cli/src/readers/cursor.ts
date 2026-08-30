@@ -17,6 +17,14 @@ import Database from 'better-sqlite3';
 import { motifSessionId, type MotifMessage, type MotifSession } from '@motif/core';
 
 export function defaultCursorDb(): string | undefined {
+  // MOTIF_CURSOR_DIR points the reader somewhere else — used by the demo and by
+  // tests. When it is set, the real Cursor directory is never consulted: an
+  // override that silently falls back would sync somebody's actual history.
+  const override = process.env.MOTIF_CURSOR_DIR;
+  if (override) {
+    const db = path.join(override, 'User', 'globalStorage', 'state.vscdb');
+    return fs.existsSync(db) ? db : undefined;
+  }
   const candidates =
     process.platform === 'darwin'
       ? [path.join(os.homedir(), 'Library', 'Application Support', 'Cursor')]

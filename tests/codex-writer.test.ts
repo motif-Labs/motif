@@ -34,9 +34,9 @@ describe('codex writer', () => {
     );
   });
 
-  it('matches the envelope shape of a real captured Codex 0.150.1 rollout', () => {
+  it('matches the envelope shape of a real Codex 0.150.1 rollout', () => {
     const captured = fs
-      .readFileSync(path.join(root, 'fixtures', 'codex', 'rollout-captured-0.150.1.jsonl'), 'utf8')
+      .readFileSync(path.join(root, 'fixtures', 'codex', 'rollout-0.150.1.jsonl'), 'utf8')
       .trim()
       .split('\n')
       .map((l) => JSON.parse(l) as Record<string, unknown>);

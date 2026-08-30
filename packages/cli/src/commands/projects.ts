@@ -14,15 +14,24 @@ async function purge(glob: string): Promise<void> {
   const mine = await client.listSessions({ limit: 500 });
   const matching = mine.filter((s) => isExcluded(s.projectPath, [glob]));
   let deleted = 0;
+  const failed: { id: string; error: string }[] = [];
   for (const s of matching) {
     try {
       await client.deleteSession(s.id);
       deleted++;
-    } catch {
-      // someone else's session with the same project — server refuses; skip
+    } catch (err) {
+      // a teammate's session in the same project is refused by design (403);
+      // anything else means the withdrawal did NOT happen and must be visible
+      const message = err instanceof Error ? err.message : String(err);
+      if (!/403/.test(message)) failed.push({ id: s.id, error: message });
     }
   }
   console.log(`Purged ${deleted} session(s) matching ${glob} from the server.`);
+  if (failed.length > 0) {
+    console.error(`\n${failed.length} session(s) could NOT be removed — they are still on the server:`);
+    for (const f of failed) console.error(`  ${f.id}: ${f.error}`);
+    process.exitCode = 1;
+  }
 }
 
 export function registerProjects(program: Command): void {

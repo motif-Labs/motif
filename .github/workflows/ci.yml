@@ -34,6 +34,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build -w @motif/ui
-      - run: npm run build -w motif
+      - run: npm run build -w motifhq
       - name: smoke the built binary
         run: node packages/cli/dist/index.js --version

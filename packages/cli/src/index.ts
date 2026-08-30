@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { CLI_VERSION } from './version.js';
 import { registerScan } from './commands/scan.js';
 import { registerList } from './commands/list.js';
 import { registerShow } from './commands/show.js';
@@ -22,7 +23,7 @@ const program = new Command();
 program
   .name('motif')
   .description('Unification layer for AI coding agent sessions')
-  .version('0.1.0')
+  .version(CLI_VERSION)
   .option('--claude-dir <path>', 'Claude Code data directory (default: ~/.claude)');
 
 registerScan(program);

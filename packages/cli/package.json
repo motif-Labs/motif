@@ -1,14 +1,38 @@
 {
-  "name": "motif",
-  "version": "0.1.0",
-  "description": "Unification layer for AI coding agent sessions — collect, search, and natively hand off sessions across tools. Self-hosted.",
-  "license": "MIT",
+  "name": "motifhq",
+  "version": "1.0.0",
+  "description": "Unification layer for AI coding agent sessions \u2014 collect, search, and natively hand off sessions across tools. Self-hosted.",
+  "keywords": [
+    "ai",
+    "agents",
+    "claude-code",
+    "codex",
+    "cursor",
+    "sessions",
+    "handoff",
+    "mcp",
+    "self-hosted",
+    "team",
+    "developer-tools"
+  ],
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/motifhq/motif#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/motifhq/motif.git"
+  },
+  "bugs": {
+    "url": "https://github.com/motifhq/motif/issues"
+  },
   "type": "module",
   "bin": {
     "motif": "dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "LICENSE",
+    "NOTICE",
+    "README.md"
   ],
   "scripts": {
     "build": "tsup && node scripts/copy-ui.mjs",
@@ -16,11 +40,13 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
-    "@motif/core": "*",
-    "@motif/server": "*",
     "better-sqlite3": "^11.7.0",
     "commander": "^12.1.0",
     "hono": "^4.6.14"
+  },
+  "devDependencies": {
+    "@motif/core": "*",
+    "@motif/server": "*"
   },
   "engines": {
     "node": ">=20"

@@ -7,7 +7,7 @@ COPY packages/server/package.json packages/server/
 COPY ui/package.json ui/
 RUN npm ci
 COPY . .
-RUN npm run build -w @motif/ui && npm run build -w motif
+RUN npm run build -w @motif/ui && npm run build -w motifhq
 
 FROM node:22-slim
 WORKDIR /app

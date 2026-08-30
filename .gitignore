@@ -4,5 +4,24 @@ dist/
 .DS_Store
 *.log
 .env
+.env.*
 research/
 .types/
+
+# local databases and runtime state — never publish a developer's own sessions
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+.motif/
+data/
+
+# benchmark output is specific to whoever ran it
+bench/results/
+coverage/
+
+# copied into the published package at build time (source of truth is the repo root)
+packages/cli/LICENSE
+packages/cli/NOTICE
+packages/cli/README.md

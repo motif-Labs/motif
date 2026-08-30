@@ -14,8 +14,19 @@ export function registerConnect(program: Command): void {
     .option('--email <email>', 'your email (stable identity across machines)')
     .option('--selected', 'start in allowlist mode: NOTHING syncs until you `motif projects include <path>`')
     .action(async (serverUrl: string, opts: { token: string; name: string; email?: string; selected?: boolean }) => {
+      if (!/^https?:\/\//.test(serverUrl)) {
+        throw new Error(`Server URL needs a scheme — try http://${serverUrl}`);
+      }
       const client = new MotifClient({ serverUrl, token: opts.token });
-      await client.health();
+      try {
+        await client.health();
+      } catch (err) {
+        const why = err instanceof Error ? err.message : String(err);
+        throw new Error(
+          `Could not reach a Motif server at ${serverUrl} (${why}).\n` +
+            'Check the URL and that the server is running (`motif server` on that machine).',
+        );
+      }
       const { memberId, memberToken, role } = await client.register({
         name: opts.name,
         email: opts.email,

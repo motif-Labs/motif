@@ -13,10 +13,13 @@ export function registerUp(program: Command): void {
     .option('--db <path>', 'SQLite database path (default: ~/.motif/motif.db)')
     .action(async (opts: { port: string; db?: string }) => {
       const { claudeDir } = program.opts<{ claudeDir?: string }>();
+      // resolve the memory provider BEFORE binding the port: a missing
+      // MOTIF_LLM_* value throws, and aborting mid-startup would leave a
+      // listening server with no config written and nothing syncing
+      const provider = createProvider();
       const server = createServer({ dbPath: opts.db });
       startServer(server, { port: Number(opts.port), hostname: '127.0.0.1' });
       const serverUrl = `http://127.0.0.1:${opts.port}`;
-      const provider = createProvider();
       if (provider) {
         startMemoryScheduler(server.db, provider, server.bus, { log: console.log });
         console.log(`Session memory enabled (provider: ${provider.name})`);

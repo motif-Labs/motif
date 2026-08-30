@@ -169,7 +169,7 @@ export function performCodexHandoff(
  */
 export function performClaudeHandoff(
   session: MotifSession,
-  opts: { cwdOverride?: string; force?: boolean; claudeDir?: string } = {},
+  opts: { cwdOverride?: string; force?: boolean; claudeDir?: string; dryRun?: boolean } = {},
 ): HandoffResult {
   if (session.source === 'claude-code' && session.sourcePath && fs.existsSync(session.sourcePath)) {
     throw new Error(
@@ -209,13 +209,15 @@ export function performClaudeHandoff(
   });
   const target = path.join(home, result.relativePath);
   if (fs.existsSync(target)) throw new Error(`Refusing to overwrite existing session: ${target}`);
-  fs.mkdirSync(path.dirname(target), { recursive: true });
-  fs.writeFileSync(target, serializeClaudeSession(result.lines));
+  if (!opts.dryRun) {
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, serializeClaudeSession(result.lines));
+  }
 
   return {
     target,
     threadId: result.sessionId,
-    registered: true, // Claude Code discovers transcripts from disk; no DB needed
+    registered: !opts.dryRun, // Claude Code discovers transcripts from disk; no DB needed
     droppedReasoning: result.droppedReasoning,
     messageCount: session.messages.length,
     projectPath: session.projectPath,

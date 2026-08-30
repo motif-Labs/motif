@@ -29,18 +29,18 @@ afterEach(() => {
 });
 
 describe('codex reader', () => {
-  it('reads a real captured rollout: conversation kept, telemetry and injected context dropped', () => {
-    const s = readCodexSession(path.join(root, 'fixtures', 'codex', 'rollout-captured-0.150.1.jsonl'));
+  it('reads a Codex 0.150.1 rollout: conversation kept, telemetry and injected context dropped', () => {
+    const s = readCodexSession(path.join(root, 'fixtures', 'codex', 'rollout-0.150.1.jsonl'));
     expect(s.source).toBe('codex');
-    expect(s.sourceSessionId).toBe('01a049f4-8c89-7d83-a1a3-f3b2a68112e6');
-    expect(s.projectPath).toContain('/scratchpad');
+    expect(s.sourceSessionId).toBe('01a04900-1111-7d83-a1a3-b0b0b0b0b0b0');
+    expect(s.projectPath).toContain('/example-project');
     expect(s.meta.model).toBe('gpt-5.6-sol');
     const texts = s.messages.map((m) => m.text ?? '');
-    expect(texts).toContain('say hello and nothing else');
+    expect(texts).toContain('list the files in this directory');
     // environment_context / skills_instructions user-items and developer items are injected, not conversation
     expect(texts.join()).not.toContain('<environment_context>');
     expect(texts.join()).not.toContain('skills_instructions');
-    expect(s.title).toBe('say hello and nothing else');
+    expect(s.title).toBe('list the files in this directory');
   });
 
   it('round-trips a Claude session through the handoff writer', () => {
@@ -75,7 +75,7 @@ describe('codex reader', () => {
   });
 
   it('refuses codex → codex handoff only when the rollout is already local', () => {
-    const s = readCodexSession(path.join(root, 'fixtures', 'codex', 'rollout-captured-0.150.1.jsonl'));
+    const s = readCodexSession(path.join(root, 'fixtures', 'codex', 'rollout-0.150.1.jsonl'));
     const prevHome = process.env.CODEX_HOME;
     process.env.CODEX_HOME = path.join(tmp, 'codex-home'); // never touch the real ~/.codex
     try {
@@ -94,7 +94,7 @@ describe('codex reader', () => {
 
 describe('claude-code writer (reverse handoff)', () => {
   it('round-trips a Codex session into a Claude Code transcript our own reader accepts', () => {
-    const codex = readCodexSession(path.join(root, 'fixtures', 'codex', 'rollout-captured-0.150.1.jsonl'));
+    const codex = readCodexSession(path.join(root, 'fixtures', 'codex', 'rollout-0.150.1.jsonl'));
     const result = toClaudeSessionLines(codex, {
       sessionId: '11111111-2222-4333-8444-555555555555',
       now: new Date('2026-08-29T12:00:00.000Z'),
@@ -113,7 +113,7 @@ describe('claude-code writer (reverse handoff)', () => {
     expect(back.projectPath).toBe(codex.projectPath);
     expect(back.title).toBe(codex.title);
     expect(back.messages.some((m) => m.text?.includes('Handed off from codex session'))).toBe(true);
-    expect(back.messages.some((m) => m.text === 'say hello and nothing else')).toBe(true);
+    expect(back.messages.some((m) => m.text === 'list the files in this directory')).toBe(true);
     expect(back.meta.parseErrors).toBe(0);
     // conversation chain is linear and complete (no dropped links)
     expect(back.messages.length).toBeGreaterThanOrEqual(2);

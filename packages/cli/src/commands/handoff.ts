@@ -6,7 +6,7 @@ import { discoverCodexSessions, readCodexSession, toRolloutLines, uuidv7, type M
 import { resolveSession, scanLocal } from '../local.js';
 import { loadConfig } from '../config.js';
 import { MotifClient } from '../api-client.js';
-import { codexHome, performHandoff, resumeCommandFor, type HandoffTarget } from '../handoff/perform.js';
+import { codexHome, performClaudeHandoff, performHandoff, resumeCommandFor, type HandoffTarget } from '../handoff/perform.js';
 
 export function registerHandoff(program: Command): void {
   program
@@ -77,6 +77,18 @@ export function registerHandoff(program: Command): void {
         );
       }
 
+      if (opts.dryRun && target === 'claude-code') {
+        const preview = performClaudeHandoff(session, { cwdOverride: opts.cwd, force: opts.force, dryRun: true });
+        if (opts.json) {
+          console.log(JSON.stringify({ target: preview.target, messages: preview.messageCount }, null, 2));
+        } else {
+          console.log(`Would write ${preview.messageCount} messages to:\n  ${preview.target}`);
+          if (preview.droppedReasoning) {
+            console.log(`(${preview.droppedReasoning} reasoning blocks dropped — not portable across providers)`);
+          }
+        }
+        return;
+      }
       if (opts.dryRun && target === 'codex') {
         const preview = toRolloutLines(
           opts.cwd ? { ...session, projectPath: path.resolve(opts.cwd) } : session,

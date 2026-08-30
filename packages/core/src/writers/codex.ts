@@ -2,7 +2,8 @@
  * MotifSession → Codex rollout conversion (the native-handoff hero).
  *
  * Format pinned against Codex 0.150.1: a real captured rollout
- * (fixtures/codex/rollout-captured-0.150.1.jsonl) plus the serde definitions
+ * (fixtures/codex/rollout-0.150.1.jsonl — envelope captured from the real
+ * CLI, message content replaced with synthetic text) plus the serde definitions
  * in openai/codex @ rust-v0.150.1 — RolloutLine {timestamp, ordinal, type,
  * payload}; ResponseItem tagged `type`/snake_case with function_call
  * `arguments` as a JSON STRING and function_call_output `output` as a plain

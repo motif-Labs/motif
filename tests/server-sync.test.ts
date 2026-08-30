@@ -52,7 +52,7 @@ afterEach(() => {
 describe('store sync protocol', () => {
   it('creates, appends incrementally, and rejects a bad prefix', () => {
     const db = openDb(path.join(tmp, 'db.sqlite'));
-    const { memberId } = registerMember(db, { name: 'mert', email: 'm@example.com' });
+    const { memberId } = registerMember(db, { name: 'alice', email: 'm@example.com' });
 
     const m1 = [msg('u1', 'user', 'hello'), msg('a1#0', 'assistant', 'hi there')];
     const session = makeSession('s1', m1);
@@ -133,7 +133,7 @@ describe('http api', () => {
 
     const reg = await call('/api/members/register', {
       method: 'POST',
-      body: JSON.stringify({ name: 'mert', email: 'm@example.com' }),
+      body: JSON.stringify({ name: 'alice', email: 'm@example.com' }),
     });
     const { memberToken, role } = (await reg.json()) as { memberToken: string; role: string };
     expect(memberToken).toMatch(/^mm_/);
@@ -167,7 +167,7 @@ describe('http api', () => {
 
     const list = (await (await call('/api/sessions')).json()) as { id: string; memberName: string }[];
     expect(list.map((s) => s.id)).toContain(session.id);
-    expect(list[0]!.memberName).toBe('mert');
+    expect(list[0]!.memberName).toBe('alice');
 
     const conflict = await call(`/api/sessions/${encodeURIComponent(session.id)}/messages`, {
       method: 'POST',

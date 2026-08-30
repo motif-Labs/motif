@@ -11,6 +11,8 @@
  */
 
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
   canView,
   createAskRequest,
@@ -26,12 +28,14 @@ import {
 } from '@motif/server';
 import type { MotifSession } from '@motif/core';
 import { MotifClient, type AskRequest } from '../api-client.js';
-import { loadConfig, type MotifConfig } from '../config.js';
+import { loadConfig, motifHome, type MotifConfig } from '../config.js';
 import { askSessionLocally, canAnswerLocally, looksLive } from '../ask/perform.js';
 
 export interface Backend {
   readonly kind: 'local' | 'remote';
   recall(query: string, project?: string, budget?: number): Promise<string>;
+  /** The same bundle, unrendered — for `--json` and the benchmark. */
+  recallJson(query: string, project?: string, budget?: number): Promise<unknown>;
   search(query: string, limit: number): Promise<string>;
   listSessions(project: string | undefined, limit: number): Promise<string>;
   getSession(id: string, tail: number): Promise<string>;
@@ -102,6 +106,10 @@ class LocalBackend implements Backend {
     return renderRecall(recall(this.db, { query, project, viewerId: this.viewer, budget }));
   }
 
+  async recallJson(query: string, project?: string, budget?: number): Promise<unknown> {
+    return recall(this.db, { query, project, viewerId: this.viewer, budget });
+  }
+
   async search(query: string, limit: number): Promise<string> {
     const rows = searchSessions(this.db, query, limit, this.viewer);
     return renderSessionList(rows, `# Sessions matching "${query}"`);
@@ -156,6 +164,10 @@ class RemoteBackend implements Backend {
     return this.client.recallMarkdown(query, { project, budget });
   }
 
+  async recallJson(query: string, project?: string, budget?: number): Promise<unknown> {
+    return this.client.recall(query, { project, budget });
+  }
+
   async search(query: string, limit: number): Promise<string> {
     const rows = (await this.client.search(query)).slice(0, limit) as never[];
     return renderSessionList(rows, `# Sessions matching "${query}"`);
@@ -197,7 +209,7 @@ export function createBackend(dbPath?: string): Backend {
   if (cfg.serverUrl && !isLoopback(cfg.serverUrl) && (cfg.memberToken || cfg.token)) {
     return new RemoteBackend(new MotifClient({ serverUrl: cfg.serverUrl, token: cfg.memberToken ?? cfg.token! }));
   }
-  const file = dbPath ?? process.env.MOTIF_DB_PATH ?? `${process.env.HOME}/.motif/motif.db`;
+  const file = dbPath ?? process.env.MOTIF_DB_PATH ?? path.join(motifHome(), 'motif.db');
   if (!fs.existsSync(file)) {
     throw new Error(
       `No Motif database at ${file} and no remote server configured.\nRun \`motif up\` once (solo) or \`motif connect <url> --token …\` (team), then retry.`,

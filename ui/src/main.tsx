@@ -405,6 +405,27 @@ function HandoffPanel({ session, me }: { session: SessionDetail; me: Me }) {
   useEffect(() => {
     if (state !== 'working') return;
     const slowTimer = setTimeout(() => setSlow(true), 15000);
+    // The live stream is the fast path; this poll is the one that survives a
+    // dropped EventSource, a sleeping laptop, or an event that arrives before
+    // the POST resolves. Without it the panel waits forever.
+    const settle = (status?: string, d: { targetSessionId?: string; outputPath?: string; error?: string } = {}) => {
+      if (status === 'done') {
+        setState('done');
+        setResult({ threadId: d.targetSessionId, outputPath: d.outputPath });
+      } else if (status === 'error') {
+        setState('error');
+        setResult({ error: d.error ?? 'unknown error' });
+      }
+    };
+    const poll = setInterval(() => {
+      const id = reqId.current;
+      if (id === undefined) return;
+      api<{ status?: string; target_session_id?: string; output_path?: string; error?: string }>(
+        `/api/handoff-requests/${id}`,
+      )
+        .then((r) => settle(r.status, { targetSessionId: r.target_session_id, outputPath: r.output_path, error: r.error }))
+        .catch(() => {});
+    }, 3000);
     const stop = openEvents((name, data) => {
       const d = data as { requestId?: number; status?: string; targetSessionId?: string; outputPath?: string; error?: string };
       if (name === 'handoff-request-updated' && d.requestId === reqId.current) {
@@ -419,6 +440,7 @@ function HandoffPanel({ session, me }: { session: SessionDetail; me: Me }) {
     });
     return () => {
       clearTimeout(slowTimer);
+      clearInterval(poll);
       stop();
     };
   }, [state]);

@@ -178,18 +178,6 @@ h2 {
 
 /* ── session table ───────────────────────────────────── */
 .table { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
-.thead {
-  display: flex; gap: 14px; padding: 8px 16px; border-bottom: 1px solid var(--border);
-  background: var(--chip-bg);
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-  font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase; color: var(--faint);
-}
-.thead .time { width: 62px; flex-shrink: 0; }
-.thead .title { flex: 1; }
-.thead .who { width: 150px; flex-shrink: 0; }
-.thead .tool { width: 120px; flex-shrink: 0; }
-.thead .vis { width: 60px; flex-shrink: 0; }
-.thead .ago { width: 82px; flex-shrink: 0; text-align: right; }
 @media (max-width: 900px) { .thead .vis, .thead .tool { display: none; } }
 .row {
   display: flex; align-items: center; gap: 14px; padding: 11px 16px;
@@ -209,36 +197,10 @@ h2 {
 /* ── detail layout ───────────────────────────────────── */
 .detail { display: flex; gap: 24px; align-items: flex-start; }
 .transcript { flex: 1; min-width: 0; max-width: 860px; }
-.msg { margin-bottom: 14px; }
-.msg .head { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; color: var(--dim); font-size: 12px; font-weight: 550; }
-.msg .body {
-  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
-  padding: 10px 14px; white-space: pre-wrap; word-break: break-word; line-height: 1.55;
-}
-.msg.user .body { background: var(--chip-bg); }
-.msg.tool details { border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
-.msg.tool summary {
-  cursor: pointer; padding: 8px 14px; color: var(--dim); font-size: 12px; font-weight: 550;
-  display: flex; align-items: center; gap: 8px; list-style: none;
-}
-.msg.tool summary::before { content: '▸'; color: var(--faint); font-size: 10px; }
-.msg.tool details[open] summary::before { content: '▾'; }
-.msg.tool pre {
-  border-top: 1px solid var(--border); padding: 10px 14px; overflow-x: auto;
-  font-size: 12px; line-height: 1.5; margin: 0;
-}
 
 /* metadata panel */
 .meta-panel { width: 280px; flex-shrink: 0; position: sticky; top: 76px; }
 .meta-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
-.meta-row { display: flex; gap: 12px; padding: 6px 0; font-size: 12.5px; }
-.meta-row .k {
-  width: 84px; flex-shrink: 0; color: var(--faint);
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 10.5px;
-  text-transform: uppercase; letter-spacing: 0.5px; padding-top: 2px;
-}
-.meta-row .v { color: var(--text); min-width: 0; word-break: break-word; }
-.meta-sep { border-top: 1px solid var(--border); margin: 10px -16px; }
 .session-id { color: var(--faint); font-size: 10.5px; word-break: break-all; line-height: 1.5; }
 
 button {

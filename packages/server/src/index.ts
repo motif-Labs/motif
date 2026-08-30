@@ -30,6 +30,7 @@ import {
   fullReplaceSession,
   getSessionMessages,
   getSessionRow,
+  getHandoffRequestFor,
   listHandoffRequests,
   listSessions,
   registerMember,
@@ -54,7 +55,10 @@ export interface MotifServer {
 }
 
 export function defaultDbPath(): string {
-  return process.env.MOTIF_DB_PATH ?? path.join(os.homedir(), '.motif', 'motif.db');
+  // MOTIF_HOME relocates every piece of local state, the database included —
+  // otherwise a sandboxed run (demo, tests) would read the real one.
+  const home = process.env.MOTIF_HOME ?? path.join(os.homedir(), '.motif');
+  return process.env.MOTIF_DB_PATH ?? path.join(home, 'motif.db');
 }
 
 export function createServer(config: ServerConfig = {}): MotifServer {
@@ -218,7 +222,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   app.get('/api/sessions', (c) => {
     const viewer = memberId(c);
     const q = c.req.query('q');
-    if (q) return c.json(searchSessions(db, q, Number(c.req.query('limit') ?? 30), viewer));
+    if (q?.trim()) return c.json(searchSessions(db, q, Number(c.req.query('limit') ?? 30), viewer));
     const scope = c.req.query('scope');
     return c.json(
       listSessions(db, {
@@ -233,7 +237,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
 
   app.get('/api/search', (c) => {
     const q = c.req.query('q');
-    if (!q) return c.json({ error: 'q required' }, 400);
+    if (!q?.trim()) return c.json({ error: 'q required' }, 400);
     return c.json(searchSessions(db, q, Number(c.req.query('limit') ?? 30), memberId(c)));
   });
 
@@ -273,7 +277,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   // everything. Deterministic, no model calls — see retrieval.ts.
   app.get('/api/recall', (c) => {
     const q = c.req.query('q');
-    if (!q) return c.json({ error: 'q required' }, 400);
+    if (!q?.trim()) return c.json({ error: 'q required' }, 400);
     const result = recall(db, {
       query: q,
       project: c.req.query('project'),
@@ -406,7 +410,11 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     if (!row) return c.json({ error: 'not found' }, 404);
     if (row.member_id !== member) return c.json({ error: 'you can only delete your own sessions' }, 403);
     db.transaction(() => {
+      // drop the references first: memory notes and handoffs outlive the raw session
+      db.prepare('UPDATE memory_notes SET source_session_pk = NULL WHERE source_session_pk = ?').run(row.pk);
+      db.prepare('UPDATE handoffs SET session_pk = NULL WHERE session_pk = ?').run(row.pk);
       db.prepare('DELETE FROM messages_fts WHERE session_pk = ?').run(row.pk);
+      db.prepare('DELETE FROM messages WHERE session_pk = ?').run(row.pk);
       db.prepare('DELETE FROM sessions WHERE pk = ?').run(row.pk);
     })();
     return c.json({ ok: true, deleted: row.id });
@@ -499,6 +507,14 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     return c.json(listHandoffRequests(db, member, { status: c.req.query('status') }));
   });
 
+  app.get('/api/handoff-requests/:id', (c) => {
+    const member = memberId(c);
+    if (member === undefined) return c.json({ error: 'member token required' }, 403);
+    const row = getHandoffRequestFor(db, member, Number(c.req.param('id')));
+    if (!row) return c.json({ error: 'not found' }, 404);
+    return c.json(row);
+  });
+
   app.patch('/api/handoff-requests/:id', async (c) => {
     const member = memberId(c);
     if (member === undefined) return c.json({ error: 'member token required' }, 403);
@@ -588,6 +604,9 @@ function serveUi(app: Hono): void {
     '.ico': 'image/x-icon',
   };
   app.get('*', (c) => {
+    // never let an unknown API path fall through to index.html: the client
+    // would parse HTML as JSON and report a syntax error instead of a 404
+    if (c.req.path.startsWith('/api/')) return c.json({ error: 'not found' }, 404);
     const reqPath = c.req.path === '/' ? '/index.html' : c.req.path;
     const file = path.normalize(path.join(uiDir, reqPath));
     const fallback = path.join(uiDir, 'index.html'); // SPA hash-router entry
