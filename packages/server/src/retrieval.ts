@@ -526,10 +526,28 @@ export function renderRecall(result: RecallResult): string {
   }
   if (excerpts.length > 0) {
     lines.push('\n## From past sessions');
+    // Excerpts from one session share a header rather than repeating it, and an
+    // excerpt that only restates the title carries no information — the title is
+    // already on the line above it.
+    const bySession = new Map<string, typeof excerpts>();
     for (const e of excerpts) {
+      const id = e.sessionId ?? '';
+      const group = bySession.get(id) ?? [];
+      group.push(e);
+      bySession.set(id, group);
+    }
+    for (const [sessionId, group] of bySession) {
+      const head = group[0]!;
+      const title = (head.sessionTitle ?? '').trim().toLowerCase();
+      const quotes = group
+        .map((e) => e.text.trim())
+        .filter((body) => !(title && body.toLowerCase().startsWith(title.slice(0, 60))));
+      // every quote was just the title again: the header alone would say nothing
+      if (quotes.length === 0) continue;
       lines.push(
-        `\n**${e.sessionTitle ?? 'session'}** — @${e.member ?? '?'}, ${e.when?.slice(0, 10) ?? ''} · \`${e.sessionId}\`\n> ${e.text.replace(/\n/g, '\n> ')}`,
+        `\n**${head.sessionTitle ?? 'session'}** — @${head.member ?? '?'}, ${head.when?.slice(0, 10) ?? ''} · \`${sessionId}\``,
       );
+      for (const body of quotes) lines.push(`> ${body.replace(/\n/g, '\n> ')}`);
     }
   }
   if (result.related.length > 0) {
