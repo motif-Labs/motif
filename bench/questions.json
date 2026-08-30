@@ -1,0 +1,42 @@
+[
+  {
+    "q": "which storage engine did we choose for the server and why",
+    "expect": ["sqlite"]
+  },
+  {
+    "q": "why did we not use the built-in node:sqlite module",
+    "expect": ["node:sqlite"]
+  },
+  {
+    "q": "how does the handoff produce a codex session",
+    "expect": ["rollout"]
+  },
+  {
+    "q": "what happens when the sync prefix hash does not match",
+    "expect": ["409"]
+  },
+  {
+    "q": "what did we decide about redacting secrets by default",
+    "expect": ["redact"]
+  },
+  {
+    "q": "how do personal sessions differ from team sessions",
+    "expect": ["personal"]
+  },
+  {
+    "q": "which port does the motif server listen on",
+    "expect": ["4680"]
+  },
+  {
+    "q": "did we decide to install with npm or a curl script",
+    "expect": ["npm"]
+  },
+  {
+    "q": "how are member identities authenticated",
+    "expect": ["token"]
+  },
+  {
+    "q": "what is the plan for enterprise features and the ee folder",
+    "expect": ["ee"]
+  }
+]

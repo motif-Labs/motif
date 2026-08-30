@@ -9,10 +9,16 @@ import { fileURLToPath } from 'node:url';
 import type { MotifMessage, MotifSession } from '@motif/core';
 import { ensureTeamToken, openDb, type Db } from './db/database.js';
 import { LiveBus } from './live/bus.js';
+import { recall, renderRecall } from './retrieval.js';
 import {
   addComment,
   appendMessages,
   canView,
+  completeAskRequest,
+  createAskRequest,
+  getAskRequest,
+  listAskRequests,
+  listAsksForSession,
   deleteComment,
   listComments,
   completeHandoffRequest,
@@ -261,6 +267,78 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       meta: JSON.parse(row.meta_json),
       messages: getSessionMessages(db, row.pk),
     });
+  });
+
+  // Retrieval: the context bundle an agent should get instead of re-deriving
+  // everything. Deterministic, no model calls — see retrieval.ts.
+  app.get('/api/recall', (c) => {
+    const q = c.req.query('q');
+    if (!q) return c.json({ error: 'q required' }, 400);
+    const result = recall(db, {
+      query: q,
+      project: c.req.query('project'),
+      viewerId: memberId(c),
+      budget: c.req.query('budget') ? Number(c.req.query('budget')) : undefined,
+    });
+    return c.req.query('format') === 'markdown'
+      ? c.text(renderRecall(result))
+      : c.json(result);
+  });
+
+  // Ask a past session a question — the owning machine answers it.
+  app.post('/api/sessions/:id/asks', async (c) => {
+    const member = memberId(c);
+    if (member === undefined) return c.json({ error: 'member token required' }, 403);
+    const row = getSessionRow(db, c.req.param('id'));
+    if (!row || !canView(row, member)) return c.json({ error: 'not found' }, 404);
+    const body = await c.req.json<{ question?: string }>();
+    const question = body.question?.trim();
+    if (!question) return c.json({ error: 'question required' }, 400);
+    if (question.length > 2000) return c.json({ error: 'question too long' }, 400);
+    const request = createAskRequest(db, member, row, question);
+    bus.publish('ask-requested', {
+      requestId: request.id,
+      sessionId: row.id,
+      executorId: row.member_id,
+      askerName: request.asker_name ?? null,
+    });
+    return c.json(request);
+  });
+
+  app.get('/api/sessions/:id/asks', (c) => {
+    const row = getSessionRow(db, c.req.param('id'));
+    if (!row || !canView(row, memberId(c))) return c.json({ error: 'not found' }, 404);
+    return c.json(listAsksForSession(db, row.id));
+  });
+
+  app.get('/api/asks/:id', (c) => {
+    const request = getAskRequest(db, Number(c.req.param('id')));
+    if (!request) return c.json({ error: 'not found' }, 404);
+    const row = getSessionRow(db, request.session_id);
+    if (!row || !canView(row, memberId(c))) return c.json({ error: 'not found' }, 404);
+    return c.json(request);
+  });
+
+  // The executor's daemon polls this and reports back.
+  app.get('/api/ask-requests', (c) => {
+    const member = memberId(c);
+    if (member === undefined) return c.json({ error: 'member token required' }, 403);
+    return c.json(listAskRequests(db, member, c.req.query('status')));
+  });
+
+  app.patch('/api/ask-requests/:id', async (c) => {
+    const member = memberId(c);
+    if (member === undefined) return c.json({ error: 'member token required' }, 403);
+    const body = await c.req.json<{ status: 'done' | 'error'; answer?: string; error?: string }>();
+    const updated = completeAskRequest(db, member, Number(c.req.param('id')), body);
+    if (!updated) return c.json({ error: 'not found or not yours or not pending' }, 404);
+    bus.publish('ask-answered', {
+      requestId: updated.id,
+      sessionId: updated.session_id,
+      askedBy: updated.asked_by,
+      status: updated.status,
+    });
+    return c.json(updated);
   });
 
   // Comments: an annotation layer pinned onto a session. The transcript is
@@ -531,7 +609,8 @@ export function startServer(
   });
 }
 
-export { dedupeMembers, openDb } from './db/database.js';
+export { dedupeMembers, openDb, type Db } from './db/database.js';
+export * from './retrieval.js';
 export * from './store.js';
 export { LiveBus } from './live/bus.js';
 export { createProvider, type LLMProvider } from './memory/providers.js';

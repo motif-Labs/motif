@@ -13,6 +13,9 @@ import { registerProjects } from './commands/projects.js';
 import { registerPrune } from './commands/prune.js';
 import { registerOps } from './commands/ops.js';
 import { registerComment } from './commands/comment.js';
+import { registerRecall } from './commands/recall.js';
+import { registerAsk } from './commands/ask.js';
+import { registerMcp } from './commands/mcp.js';
 
 const program = new Command();
 
@@ -36,6 +39,9 @@ registerProjects(program);
 registerPrune(program);
 registerOps(program);
 registerComment(program);
+registerRecall(program);
+registerAsk(program);
+registerMcp(program);
 
 program.parseAsync().catch((err: unknown) => {
   console.error(err instanceof Error ? err.message : String(err));

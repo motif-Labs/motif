@@ -8,6 +8,50 @@
 
 import { MotifClient } from '../api-client.js';
 import { performHandoff, resumeCommandFor, type HandoffTarget } from '../handoff/perform.js';
+import { askSessionLocally, looksLive } from '../ask/perform.js';
+import type { MotifConfig } from '../config.js';
+
+/**
+ * Answer the questions teammates asked of sessions this machine owns. Only
+ * this machine has the raw transcript, so only it can resume them; the answer
+ * goes back to the server for everyone to read.
+ */
+export async function fulfillPendingAsks(
+  client: MotifClient,
+  config: MotifConfig,
+  log: (msg: string) => void = () => {},
+): Promise<number> {
+  let requests;
+  try {
+    requests = await client.listAskRequests('pending');
+  } catch {
+    return 0;
+  }
+  let answered = 0;
+  for (const req of requests) {
+    if (config.allowAsks === false) {
+      await client
+        .completeAskRequest(req.id, { status: 'error', error: 'the owner disabled asks on this machine' })
+        .catch(() => {});
+      continue;
+    }
+    try {
+      const session = await client.exportSession(req.session_id);
+      if (looksLive(session)) throw new Error('that session is running right now; try again once it is idle');
+      log(`💬 @${req.asker_name ?? 'someone'} asked ${req.session_id} — answering…`);
+      const outcome = askSessionLocally(session, req.question);
+      await client.completeAskRequest(req.id, { status: 'done', answer: outcome.answer });
+      log(`   answered in ${Math.round(outcome.durationMs / 1000)}s (${outcome.agent})`);
+      answered++;
+    } catch (err) {
+      await client
+        .completeAskRequest(req.id, { status: 'error', error: String(err).slice(0, 500) })
+        .catch(() => {});
+      log(`   could not answer #${req.id}: ${String(err).slice(0, 160)}`);
+    }
+  }
+  return answered;
+}
 
 export async function fulfillPendingHandoffs(
   client: MotifClient,

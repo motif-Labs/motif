@@ -142,14 +142,14 @@ function insertMessages(db: Db, sessionPk: number, startSeq: number, messages: M
   const insertMsg = db.prepare(
     'INSERT OR IGNORE INTO messages (session_pk, id, seq, role, content_json, ts) VALUES (?, ?, ?, ?, ?, ?)',
   );
-  const insertFts = db.prepare('INSERT INTO messages_fts (text, session_pk) VALUES (?, ?)');
+  const insertFts = db.prepare('INSERT INTO messages_fts (text, session_pk, message_id) VALUES (?, ?, ?)');
   let seq = startSeq;
   for (const m of messages) {
     const res = insertMsg.run(sessionPk, m.id, seq, m.role, JSON.stringify(m), m.timestamp ?? null);
     if (res.changes === 0) continue; // duplicate id — first occurrence wins
     seq++;
     if ((m.role === 'user' || m.role === 'assistant') && m.text) {
-      insertFts.run(m.text, sessionPk);
+      insertFts.run(m.text, sessionPk, m.id);
     }
   }
 }
@@ -547,6 +547,91 @@ export function listComments(db: Db, sessionPk: number): CommentRow[] {
 /** Authors delete their own comments; nobody else's. */
 export function deleteComment(db: Db, authorId: number, commentId: number): boolean {
   return db.prepare('DELETE FROM session_comments WHERE id = ? AND author_id = ?').run(commentId, authorId).changes > 0;
+}
+
+export interface AskRequestRow {
+  id: number;
+  session_id: string;
+  asked_by: number;
+  executor_id: number;
+  question: string;
+  status: 'pending' | 'done' | 'error';
+  answer: string | null;
+  error: string | null;
+  created_at: string;
+  completed_at: string | null;
+  asker_name?: string | null;
+  session_title?: string | null;
+}
+
+/**
+ * "Ask a past session a question": only the machine that owns the raw
+ * transcript can answer, so the executor is always the session's owner. The
+ * asker just queues the question; the owner's daemon resumes the session
+ * headlessly and writes the answer back.
+ */
+export function createAskRequest(
+  db: Db,
+  askerId: number,
+  session: SessionRow,
+  question: string,
+): AskRequestRow {
+  const res = db
+    .prepare(
+      'INSERT INTO ask_requests (session_id, asked_by, executor_id, question, created_at) VALUES (?, ?, ?, ?, ?)',
+    )
+    .run(session.id, askerId, session.member_id, question, new Date().toISOString());
+  return getAskRequest(db, Number(res.lastInsertRowid))!;
+}
+
+export function getAskRequest(db: Db, id: number): AskRequestRow | undefined {
+  return db
+    .prepare(
+      `SELECT a.*, m.name AS asker_name, s.title AS session_title
+       FROM ask_requests a
+       LEFT JOIN members m ON m.id = a.asked_by
+       LEFT JOIN sessions s ON s.id = a.session_id
+       WHERE a.id = ?`,
+    )
+    .get(id) as AskRequestRow | undefined;
+}
+
+/** What this member's daemon must answer (executor scope). */
+export function listAskRequests(db: Db, memberId: number, status?: string): AskRequestRow[] {
+  const base = `SELECT a.*, m.name AS asker_name, s.title AS session_title
+                FROM ask_requests a
+                LEFT JOIN members m ON m.id = a.asked_by
+                LEFT JOIN sessions s ON s.id = a.session_id
+                WHERE a.executor_id = ?`;
+  return status
+    ? (db.prepare(`${base} AND a.status = ? ORDER BY a.id`).all(memberId, status) as AskRequestRow[])
+    : (db.prepare(`${base} ORDER BY a.id DESC LIMIT 50`).all(memberId) as AskRequestRow[]);
+}
+
+/** Everything asked about one session — the "asked & answered" log. */
+export function listAsksForSession(db: Db, sessionId: string): AskRequestRow[] {
+  return db
+    .prepare(
+      `SELECT a.*, m.name AS asker_name FROM ask_requests a
+       LEFT JOIN members m ON m.id = a.asked_by
+       WHERE a.session_id = ? ORDER BY a.id`,
+    )
+    .all(sessionId) as AskRequestRow[];
+}
+
+export function completeAskRequest(
+  db: Db,
+  executorId: number,
+  id: number,
+  result: { status: 'done' | 'error'; answer?: string; error?: string },
+): AskRequestRow | undefined {
+  const changed = db
+    .prepare(
+      `UPDATE ask_requests SET status = ?, answer = ?, error = ?, completed_at = ?
+       WHERE id = ? AND executor_id = ? AND status = 'pending'`,
+    )
+    .run(result.status, result.answer ?? null, result.error ?? null, new Date().toISOString(), id, executorId);
+  return changed.changes === 0 ? undefined : getAskRequest(db, id);
 }
 
 /** Owner-only scope change; the server owns visibility after insert. */

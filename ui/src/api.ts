@@ -66,6 +66,16 @@ export interface Comment {
   created_at: string;
 }
 
+export interface Ask {
+  id: number;
+  question: string;
+  answer: string | null;
+  error: string | null;
+  status: 'pending' | 'done' | 'error';
+  asker_name: string | null;
+  created_at: string;
+}
+
 export interface Me {
   kind: 'team' | 'member';
   member?: { id: number; name: string; email: string | null; role: string };
@@ -138,6 +148,8 @@ export function openEvents(onEvent: (name: string, data: unknown) => void): () =
     'handoff-requested',
     'handoff-request-updated',
     'comment-added',
+    'ask-requested',
+    'ask-answered',
   ];
   for (const name of names) {
     src.addEventListener(name, (e) => {

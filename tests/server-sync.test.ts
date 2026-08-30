@@ -388,6 +388,79 @@ describe('http api', () => {
     expect((await call(`/api/sessions/${encodeURIComponent(priv.id)}/comments`, {}, can.memberToken)).status).toBe(404);
   });
 
+  it('routes asks to the session owner and nobody else', async () => {
+    const owner = (await (await call('/api/members/register', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'ola', email: 'ola@example.com' }),
+    })).json()) as { memberToken: string; memberId: number };
+    const asker = (await (await call('/api/members/register', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'ari', email: 'ari@example.com' }),
+    })).json()) as { memberToken: string; memberId: number };
+
+    const s = makeSession('ask1', [msg('u1', 'user', 'why did we drop rclone')]);
+    await call(`/api/sessions/${encodeURIComponent(s.id)}`, { method: 'PUT', body: JSON.stringify(s) }, owner.memberToken);
+
+    const ask = (await (await call(`/api/sessions/${encodeURIComponent(s.id)}/asks`, {
+      method: 'POST',
+      body: JSON.stringify({ question: 'why did we drop rclone?' }),
+    }, asker.memberToken)).json()) as { id: number; executor_id: number; status: string };
+    expect(ask.executor_id).toBe(owner.memberId); // only the owner has the transcript
+    expect(ask.status).toBe('pending');
+
+    // the owner's daemon sees it; the asker's does not
+    const ownerQueue = (await (await call('/api/ask-requests?status=pending', {}, owner.memberToken)).json()) as { id: number }[];
+    expect(ownerQueue.map((r) => r.id)).toContain(ask.id);
+    const askerQueue = (await (await call('/api/ask-requests?status=pending', {}, asker.memberToken)).json()) as { id: number }[];
+    expect(askerQueue.map((r) => r.id)).not.toContain(ask.id);
+
+    // the asker cannot fabricate an answer; the owner can
+    expect(
+      (await call(`/api/ask-requests/${ask.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'done', answer: 'fake' }) }, asker.memberToken)).status,
+    ).toBe(404);
+    const done = (await (await call(`/api/ask-requests/${ask.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'done', answer: 'We dropped rclone for a staging directory.' }),
+    }, owner.memberToken)).json()) as { status: string; answer: string };
+    expect(done.status).toBe('done');
+
+    // both sides can read the answered thread on the session
+    const thread = (await (await call(`/api/sessions/${encodeURIComponent(s.id)}/asks`, {}, asker.memberToken)).json()) as {
+      answer: string;
+      asker_name: string;
+    }[];
+    expect(thread[0]!.answer).toContain('staging directory');
+    expect(thread[0]!.asker_name).toBe('ari');
+
+    // asks on a personal session are invisible like the session itself
+    const priv = { ...makeSession('ask2', [msg('u1', 'user', 'private')]), visibility: 'personal' as const };
+    await call(`/api/sessions/${encodeURIComponent(priv.id)}`, { method: 'PUT', body: JSON.stringify(priv) }, owner.memberToken);
+    expect(
+      (await call(`/api/sessions/${encodeURIComponent(priv.id)}/asks`, { method: 'POST', body: JSON.stringify({ question: 'q' }) }, asker.memberToken)).status,
+    ).toBe(404);
+  });
+
+  it('serves a recall bundle scoped to the viewer', async () => {
+    const m = (await (await call('/api/members/register', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'rec', email: 'rec@example.com' }),
+    })).json()) as { memberToken: string };
+    const s = makeSession('rec1', [
+      msg('u1', 'user', 'the deploy pipeline keeps timing out on the docker build step'),
+    ]);
+    await call(`/api/sessions/${encodeURIComponent(s.id)}`, { method: 'PUT', body: JSON.stringify(s) }, m.memberToken);
+
+    const bundle = (await (await call('/api/recall?q=docker+build+timeout', {}, m.memberToken)).json()) as {
+      items: { text: string }[];
+      tokensApprox: number;
+    };
+    expect(bundle.items.map((i) => i.text).join()).toContain('docker build');
+    expect(bundle.tokensApprox).toBeGreaterThan(0);
+
+    const md = await (await call('/api/recall?q=docker+build+timeout&format=markdown', {}, m.memberToken)).text();
+    expect(md).toContain('# Team context');
+  });
+
   it('owner prunes old sessions; recent ones and memory notes survive', async () => {
     const owner = (await (await call('/api/members/register', {
       method: 'POST',
