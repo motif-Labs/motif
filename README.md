@@ -262,9 +262,6 @@ handoff or scope. Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 Apache-2.0 — see [LICENSE](LICENSE).
 
-Everything in this repository is Apache-2.0, with no license key, no feature
-flags and no limits: unlimited members, sessions and projects, self-hosted for
-as long as you like. Everything that is free today stays free.
-
-A commercial offering for organisations running many teams will come later. It
-will add to this, not take anything out of it.
+Everything in this repository is Apache-2.0: no license key, no feature flags,
+and no limits on members, sessions or projects. Everything that is free today
+stays free.
