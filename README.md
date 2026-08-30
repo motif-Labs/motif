@@ -1,210 +1,208 @@
-# Motif
+<h1 align="center">Motif</h1>
 
-**A unification layer for AI coding agent sessions.** Open source, fully self-hosted.
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/motif-Labs/motif/main/docs/assets/handoff.gif" alt="Handing a Claude Code session off to Codex, natively" width="820" />
-</p>
-
-<p align="center"><i>Start in Claude Code, finish in Codex — the session comes with you, natively.</i></p>
-
-Your team writes code with Claude Code, Codex, and Cursor — each tool keeps its sessions
-in its own format, in its own corner. Motif collects them in one place, makes them
-searchable across tools and teammates, streams them live to a team dashboard, and can
-hand a session started in one tool over to another tool **natively** — the target tool
-treats it as its own history, not a summary.
-
-## Features (v1)
-
-- **Collect** — a lightweight daemon watches **Claude Code, Codex, and Cursor**
-  sessions on each dev machine and syncs them live to your self-hosted server.
-  Sessions never leave your infrastructure. (Other open-source agent CLIs are on
-  the roadmap; open-weight models themselves — Hermes, Qwen, Llama via Ollama/OpenRouter — already work today
-  as the memory engine through the `openai-compatible` provider.)
-- **Native handoff** — convert a Claude Code session into a real Codex rollout file.
-  `codex resume` picks it up as its own session; continue exactly where you left off.
-- **Recall** — an MCP server that hands your agents the 1-2k tokens that matter
-  instead of letting them re-derive the codebase every session. Deterministic
-  (FTS + session graph + human notes), so it needs no API key.
-- **Ask a session** — resume any past Claude Code or Codex session read-only on
-  the machine that owns it and get an answer from the agent that lived it, not a
-  summary.
-- **Session memory** — the server distills sessions into entity-based notes (files,
-  decisions, topics) with supersession and conflict detection, powered by a pluggable
-  LLM provider (Anthropic, OpenAI, any OpenAI-compatible endpoint, or the local
-  `claude` CLI).
-- **Solo mode** — `motif up` runs the same server locally. No team required.
+<p align="center"><b>Your coding agents stop starting from zero.</b></p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/motif-Labs/motif/main/docs/assets/dashboard.png" alt="The team dashboard: every member's sessions across Claude Code, Codex, and Cursor on one timeline" width="880" />
+  Motif collects every Claude Code, Codex and Cursor session your team runs onto a server you own —<br />
+  then lets any agent recall what was already decided, move a session between tools natively,<br />
+  or put a question to a session from three weeks ago.
 </p>
-
-<p align="center"><i>Every teammate's sessions, from every tool, on one timeline.</i></p>
-
-Open one and you get the conversation as it happened, what it touched, and the
-one button that matters — continue it somewhere else, or hand it to someone:
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/motif-Labs/motif/main/docs/assets/session.png" alt="A session: the transcript, the tools it used, and the controls to continue it elsewhere or ask it a question" width="880" />
+  <a href="https://www.npmjs.com/package/getmotif"><img src="https://img.shields.io/npm/v/getmotif?color=2b7fff&label=npm" alt="npm version" /></a>
+  <a href="https://github.com/motif-Labs/motif/actions/workflows/ci.yml"><img src="https://github.com/motif-Labs/motif/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache-2.0" /></a>
+  <img src="https://img.shields.io/badge/node-%3E%3D20-green" alt="Node 20+" />
+  <img src="https://img.shields.io/badge/self--hosted-no%20cloud-lightgrey" alt="Self-hosted" />
 </p>
 
-## Your agents can query it
+---
 
-Motif's real audience is not the dashboard — it is the agents themselves. One
-command registers Motif as an MCP server with Claude Code, Codex and Cursor:
+Every agent session starts cold. It re-reads the codebase, re-derives the
+constraints, and re-litigates a decision someone on your team settled weeks ago
+in a different tool. The reasoning exists — it is sitting in a JSONL file on
+somebody's laptop, and nothing collects it.
+
+Motif does:
+
+```console
+$ motif recall "why do we fail open when the token service times out"
+
+# Team context for "why do we fail open when the token service times out"
+
+## From past sessions
+
+**Auth middleware fails open when the token service times out — make it fail closed.**
+— @ben, 12 days ago · `claude-code:88b19192`
+> Flipped it to fail closed, with one carve-out: the internal health route keeps
+> working so the load balancer does not pull every node when the token service blips.
+
+**The public API has no rate limiting, and it has to survive a restart.**
+— @ada, 3 weeks ago · `codex:99bfccc0`
+> Fail open, and log loudly. Rejecting live payment traffic because a cache is
+> unreachable is worse than briefly serving unlimited requests. ADR-014.
+
+---
+230 tokens from 5 sessions. Cite session ids when you use this.
+```
+
+Two teammates, two different tools, one answer with the reasoning still attached.
+
+**Your agent gets the same bundle over MCP, without being asked.** That is the
+point of the product: you are not meant to open a dashboard.
+
+## Install
+
+```bash
+npm i -g getmotif        # the binary is `motif`
+motif up                 # server + live sync on 127.0.0.1:4680
+motif mcp install        # register with Claude Code, Codex and Cursor
+```
+
+That is the whole solo setup. Your existing sessions import on first run, and
+your agents can query them immediately. No account, no cloud, no API key.
+
+Works for one person on one machine — the benchmark further down was measured on
+a single developer's history. A team server is optional, and covered below.
+
+## What it does
+
+### One memory, across every tool and teammate
+
+A small daemon watches Claude Code, Codex and Cursor on each machine and streams
+sessions to your server as they happen. Nothing leaves your infrastructure and
+there is no telemetry.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/motif-Labs/motif/main/docs/assets/dashboard.png" alt="The dashboard: every member's sessions across Claude Code, Codex and Cursor on one timeline" width="880" />
+</p>
+
+### Native handoff, in both directions
+
+Start in Claude Code, finish in Codex. Motif writes a real Codex rollout file and
+registers the thread in Codex's own state database, so `codex resume` lists it
+and appends to it as its own history — not a summary someone pasted in.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/motif-Labs/motif/main/docs/assets/handoff.gif" alt="Handing a Claude Code session to Codex, natively" width="820" />
+</p>
+
+```bash
+motif handoff <id> --open              # continue it here, in the other tool
+motif handoff <id> --to-member "Ada"   # hand it to a teammate — lands in THEIR tool
+```
+
+Verified against Codex 0.150.1. Cursor sessions convert into either target.
+
+### Ask a session
+
+A transcript answers what happened. Sometimes you need to ask what _would_
+happen. `ask` resumes a past session read-only **on the machine that owns it**,
+and the agent that lived it answers with the full context it had.
+
+```bash
+motif ask 4f2a9c "what did we rule out here, and why?"
+```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/motif-Labs/motif/main/docs/assets/session.png" alt="A session: the transcript, what it touched, and the controls to continue it elsewhere or ask it a question" width="880" />
+</p>
+
+## Your agents query it themselves
+
+One command registers Motif as an MCP server with Claude Code, Codex and Cursor:
 
 ```bash
 motif mcp install
 ```
 
-Now your agent can answer "why is this like this?" from the team's own history
-instead of grepping, and it can talk to past sessions:
+| tool                                | what it does                                                                |
+| ----------------------------------- | --------------------------------------------------------------------------- |
+| `recall`                            | the distilled answer — decisions, human notes, cited excerpts, ~1.5k tokens |
+| `search_sessions` · `list_sessions` | find the session                                                            |
+| `get_session`                       | read a transcript                                                           |
+| `ask_session`                       | **put a question to a past session** — the agent that lived it answers      |
 
-| tool                                | what it does                                                                           |
-| ----------------------------------- | -------------------------------------------------------------------------------------- |
-| `recall`                            | the distilled answer — past decisions, human notes, cited excerpts, in ~1.5k tokens    |
-| `search_sessions` / `list_sessions` | find the session                                                                       |
-| `get_session`                       | read a transcript                                                                      |
-| `ask_session`                       | **ask a past session a question** — the agent that lived it answers, with full context |
+`ask_session` is the unusual one: your Claude Code agent can question a Codex
+session from three weeks ago, and the machine that owns that session answers.
 
-Same thing from your shell:
+## Measured, not asserted
 
-```bash
-motif recall "why did we drop the network mount"
-motif ask <session-id> "what was left to do here?"
-```
-
-### Does it actually save tokens?
-
-Retrieval is measured, not asserted. `npm run bench` runs a set of questions
-against your own corpus and reports whether the answer was in the bundle and
-how big the bundle was:
-
-```
-Corpus: 1,774,659 tokens of session history · budget 1500 tokens/answer
-hit rate 8/9 (89%) · median 1,496 tokens per answer · 1,186× smaller than the history it draws from
-```
-
-That is a _retrieval_ benchmark over a real 1.8M-token corpus. The miss is
-cross-language — the question was asked in one language about a decision
-discussed in another, and lexical search is language-bound; distilled memory
-covers that gap. Write your own `bench/questions.json` and reproduce it on
-your corpus.
-
-**No API key, no embeddings, no vector store.** Ranking comes from FTS/bm25 over
-message text, the session graph (handoff lineage, shared memory entities,
-overlapping files) and human curation — every item in a bundle says why it was
-picked.
-
-## Quick start
-
-**Solo (one machine):**
+Retrieval is benchmarked rather than claimed. Against a ~2M-token corpus of real
+sessions, `motif recall` returns the answer for **8 of 9 questions** inside a
+1,500-token budget — roughly three orders of magnitude smaller than the history
+it draws from.
 
 ```bash
-npm i -g getmotif      # the binary is `motif`
-motif up              # server + live sync on localhost:4680
-motif ui              # open the dashboard
+npm run bench    # reproduce it on your own corpus
 ```
 
-**Team (self-hosted server):**
+**No embeddings, no vector store, no API key.** Ranking comes from full-text
+search over the graph the sessions already form — handoff lineage, shared memory
+entities, overlapping files — plus the notes people pinned. Every item in a
+bundle says why it was picked, and the whole thing runs on your machine.
+
+The one miss is cross-language: a question asked in one language about a decision
+discussed in another. Lexical search is language-bound; distilled memory covers
+that gap.
+
+## Privacy and security
+
+**Two credentials, two levels.** A _team token_ is shared once and grants read
+access plus the right to register. A _member token_ is minted per person and
+device by `motif connect`; only its hash reaches the server. Every write is
+attributed to the token's owner — a claimed name or header changes nothing, so
+members cannot write as each other.
+
+**Joining a team shares nothing by default.** A freshly connected machine uploads
+everything as `personal`, visible only to you, until you mark projects
+team-visible:
 
 ```bash
-# On your server (or: docker compose up)
-npx getmotif server --port 4680
-# → prints the team token
-
-# On each dev machine
-npx getmotif connect http://your-server:4680 --token <token> --name "Ada" --email ada@team.dev
-motif daemon start    # sessions now stream to the server live
+motif projects team ~/work/payments-api    # this one goes to the team
+motif projects exclude ~/personal --purge  # this one never does, and withdraw what did
 ```
 
-**Everyday commands:**
+**Filtering runs before upload.** Exclude globs keep whole trees local, and
+`redactPatterns` scrub secrets out of message text _and_ tool inputs on the
+source machine. Handoffs and asks only ever execute on the machine that owns the
+session, through its own daemon. Full model in [SECURITY.md](SECURITY.md).
+
+## Running it for a team
+
+One server per team, one daemon per machine.
 
 ```bash
-motif list                        # sessions across the whole team, newest first
-motif search "rclone"             # full-text search over everyone's sessions
-motif show <id>                   # read any session as a transcript
-motif handoff <id> --open         # continue a Claude Code session in Codex, natively
-motif handoff <id> --to-member "Ada"   # hand it to a teammate — lands in THEIR Codex
-motif recall "how does auth work"      # what the team already knows (agents get this over MCP)
-motif ask <id> "why did we do it this way?"   # the session answers, with its full context
-motif mcp install                 # register Motif with Claude Code / Codex / Cursor
-motif status / motif doctor       # health at a glance / diagnose with fixes
-motif daemon install              # start the daemon at every login
-motif skills                      # teach your agents to query the team memory
+# on the server
+docker compose up -d                       # or: MOTIF_TOKEN=<token> npx getmotif server
+
+# on each developer's machine, once
+npx getmotif connect https://motif.internal.yourco.dev \
+  --token <team-token> --name "Ada" --email ada@yourco.dev
+motif daemon install                       # start at every login
 ```
 
-## Session memory
+Everything lives in one SQLite file, so backup is `cp`. Measured on a real
+workload of 130 sessions: **≈57 MB resident** for server and daemon combined,
+**≈14 MB** database, idle CPU effectively zero. `GET /api/health` for monitoring,
+`motif prune --older-than 90` to keep it lean — raw sessions go, distilled notes
+stay.
 
-Set an LLM provider on the server and Motif distills idle sessions into
-entity-based notes — decisions, files, topics — where new knowledge supersedes
-old (history kept) and contradictions are flagged instead of silently piling up:
+Put TLS in front with any reverse proxy for teams outside a trusted network.
+
+## Everyday commands
 
 ```bash
-MOTIF_LLM_PROVIDER=anthropic MOTIF_LLM_API_KEY=sk-... motif server
-# or: openai | openai-compatible (any baseURL: Ollama, vLLM, OpenRouter) | claude-code (local CLI, no key)
+motif list                          # sessions across the team, newest first
+motif search "idempotency"          # full-text search over everyone's sessions
+motif show <id>                     # read a session as a transcript
+motif recall "how does auth work"   # what the team already knows
+motif ask <id> "why this way?"      # the session answers, with its context
+motif handoff <id> --open           # continue it in another tool, natively
+motif status · motif doctor         # health at a glance · diagnose with fixes
 ```
 
-## Security model
-
-Two credentials, two levels:
-
-- **Team token** — shared once when the server first starts. Grants _read_
-  access (dashboard, search) and lets a new teammate register. It can never
-  write sessions or trigger actions: there is no identity to attribute.
-- **Member token** — minted per person/device by `motif connect`, stored in
-  `~/.motif/config.json` (only a hash lives on the server). Every write is
-  attributed to the token's owner; a claimed name or header changes nothing,
-  so members cannot impersonate each other.
-
-Joining a team never auto-shares your history: a freshly connected machine
-uploads everything as **personal** (visible only to you) until you mark
-projects team-visible with `motif projects team <path>` or promote a session
-from the dashboard. Team-visible sessions are readable by the whole team —
-that is the product. Nobody can _write as_ someone else, and handoffs and
-asks only ever execute on the owning machine, via its own daemon.
-
-**Privacy controls, applied before anything leaves a machine:** `exclude`
-globs keep whole projects local; `redactPatterns` regexes scrub message text
-_and_ tool inputs. Put TLS in front with your reverse proxy (a two-line Caddy
-config) for teams outside a trusted network.
-
-## Running it for a team, 24/7
-
-One server per team, one daemon per dev machine:
-
-```bash
-# Company server (survives restarts; SQLite lives in the volume)
-docker compose up -d
-# or without Docker:  MOTIF_TOKEN=<fixed-token> npx getmotif server
-
-# Each developer, once:
-npx getmotif connect https://motif.internal.yourco.dev --token <team-token> --name "Ada" --email ada@yourco.dev
-motif daemon start        # logs: ~/.motif/daemon.log (rotated at each start)
-```
-
-**Who runs what:** exactly one person runs the server (on a company box or
-their own machine); everyone else only runs `connect` once and keeps the
-daemon on. Nobody's data leaves the team's own infrastructure.
-
-**Footprint** (measured on a real workload — 130 sessions, ~10k messages):
-steady-state RSS ≈ 57 MB for server+daemon combined, SQLite file ≈ 14 MB,
-initial import of a large Cursor history ≈ 9 s. The daemon is fs-event
-driven with a 60 s sweep; idle CPU is effectively zero. Health check for
-monitoring: `GET /api/health`.
-
-**Privacy on shared machines:** connect with `--selected` to start in
-allowlist mode — nothing syncs until you `motif projects include <path>`.
-See [SECURITY.md](SECURITY.md) for the full model.
-
-To start the daemon at login, add a user LaunchAgent (macOS) or systemd user
-unit (Linux) that runs `motif sync --watch`; example units live in `docs/`.
-
-**Backups & retention:** everything lives in one SQLite file
-(`~/.motif/motif.db`, or the `/data` volume under Docker). Copy that file on
-a schedule, or point [Litestream](https://litestream.io) at it for continuous
-replication. Keep the database lean with `motif prune --older-than 90` —
-old raw sessions go, distilled memory notes stay.
+Every command has `--help`, and `motif --help` lists them all.
 
 ## Try it without touching your own history
 
@@ -214,49 +212,37 @@ npm install && npm run build
 bash scripts/demo.sh        # two members, invented sessions, a live dashboard
 ```
 
-The demo pins every reader at its own scratch directories, so it never reads
+The demo pins every reader at its own scratch directories, so it never opens
 `~/.claude`, `~/.codex` or your Cursor storage. `bash scripts/demo.sh clean`
 removes it.
-
-## Status
-
-v1. Readers for Claude Code, Codex and Cursor are live; native handoff runs in
-both directions (Claude Code ⇄ Codex) and is verified against Codex 0.150.1 —
-the handoff writes a real rollout file and registers the thread in Codex's
-state DB, so `codex resume` lists it and appends to it as its own history.
-Recall, the MCP server and ask-a-session are in. 62 tests, CI on Linux,
-macOS and Windows.
 
 ## Independence and compatibility
 
 Motif is an independent project, not affiliated with or endorsed by Anthropic,
-OpenAI or Anysphere. It reads and writes files these tools keep on **your own
-machine**, in formats that are private and undocumented, worked out by reading
-real files and the tools' own open-source code where it exists. Nothing is
-scraped and no service is called on your behalf — the only network traffic is
-between your machines and your server.
+OpenAI or Anysphere. It reads and writes files those tools keep on **your own
+machine**, in formats that are private and undocumented, worked out from real
+files and from the tools' own open-source code where it exists. Nothing is
+scraped and no service is called on your behalf.
 
-Two things follow, and you should know both before you rely on it:
+Two things follow, and you should know both before relying on it:
 
-- **Formats can change without notice.** Every reader parses tolerantly and
-  never fails the whole sync on an unknown shape, and the conformance fixtures
-  pin what we understood at the time — but an upstream release can still break
-  a handoff. A failing fixture test plus a corrected parse is the single most
-  useful pull request you can send.
-- **`ask` runs on the owning machine, under that person's own account.** When a
-  teammate asks a question of your session, _your_ daemon resumes it read-only
-  with _your_ CLI and _your_ subscription, and it only ever answers sessions you
-  own. It is off unless you run the daemon, and `motif daemon pause` stops it.
-  If you would rather approve each one, leave the daemon off and run
-  `motif asks <id>` yourself.
+- **Formats can change without notice.** Every reader parses tolerantly and never
+  fails a whole sync on an unknown shape, and conformance fixtures pin what we
+  understood at the time — but an upstream release can still break a handoff. A
+  failing fixture plus a corrected parse is the most useful pull request you can
+  send.
+- **`ask` runs under the session owner's own account.** When a teammate questions
+  your session, _your_ daemon resumes it with _your_ CLI and _your_ subscription,
+  and only ever for sessions you own. It is off unless you run the daemon, and
+  `motif daemon pause` stops it.
 
 ## Contributing
 
 New session readers are the most welcome contribution — Motif is only as useful
-as the tools it can collect from. See [CONTRIBUTING.md](CONTRIBUTING.md) for the
-setup, the DCO sign-off, and what a good pull request looks like here, and
-[CLAUDE.md](CLAUDE.md) for the invariants worth knowing before touching sync,
-handoff or scope. Changes are listed in [CHANGELOG.md](CHANGELOG.md).
+as the tools it can collect from. [CONTRIBUTING.md](CONTRIBUTING.md) has the
+setup, the DCO sign-off and what a good pull request looks like here;
+[CLAUDE.md](CLAUDE.md) has the invariants worth knowing before touching sync,
+handoff or scope. Changes are in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
