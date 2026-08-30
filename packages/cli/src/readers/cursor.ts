@@ -16,6 +16,25 @@ import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
 import { motifSessionId, type MotifMessage, type MotifSession } from '@motif/core';
 
+/**
+ * Cursor stores the workspace folder as a file URL. fileURLToPath is right for
+ * the platform we are on, but it throws on a URL from another one — a POSIX
+ * URL read on Windows, most often a synced or copied profile. Falling back to
+ * the decoded pathname keeps that workspace's sessions mapped instead of
+ * dropping every conversation in it.
+ */
+function folderFromUrl(url: string): string | undefined {
+  try {
+    return fileURLToPath(url);
+  } catch {
+    try {
+      return decodeURIComponent(new URL(url).pathname) || undefined;
+    } catch {
+      return undefined;
+    }
+  }
+}
+
 export function defaultCursorDb(): string | undefined {
   // MOTIF_CURSOR_DIR points the reader somewhere else — used by the demo and by
   // tests. When it is set, the real Cursor directory is never consulted: an
@@ -84,7 +103,8 @@ export function loadCursorProjectMap(dbPath = defaultCursorDb()): Map<string, st
         folder?: string;
       };
       if (!meta.folder?.startsWith('file://')) continue;
-      const folder = fileURLToPath(meta.folder);
+      const folder = folderFromUrl(meta.folder);
+      if (!folder) continue;
       const wsDb = openRo(path.join(storageRoot, hash, 'state.vscdb'));
       try {
         const row = wsDb.prepare('SELECT value FROM ItemTable WHERE key = ?').get('composer.composerData') as
