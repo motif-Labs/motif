@@ -1,5 +1,19 @@
 import type { MotifMessage, MotifSession } from '@motif/core';
 
+export interface AskRequest {
+  id: number;
+  session_id: string;
+  asked_by: number;
+  executor_id: number;
+  question: string;
+  status: 'pending' | 'done' | 'error';
+  answer: string | null;
+  error: string | null;
+  created_at: string;
+  asker_name?: string | null;
+  session_title?: string | null;
+}
+
 export interface ClientOptions {
   serverUrl: string;
   /** Bearer credential: the member token for writes, or the team token for read-only use. */
@@ -54,6 +68,46 @@ export class MotifClient {
 
   prune(olderThanDays: number): Promise<{ ok: boolean; sessions: number; messages: number }> {
     return this.request('POST', '/api/admin/prune', { olderThanDays });
+  }
+
+  recall(query: string, opts: { project?: string; budget?: number; markdown?: boolean } = {}): Promise<unknown> {
+    const q = new URLSearchParams({ q: query });
+    if (opts.project) q.set('project', opts.project);
+    if (opts.budget) q.set('budget', String(opts.budget));
+    if (opts.markdown) q.set('format', 'markdown');
+    return this.request('GET', `/api/recall?${q}`);
+  }
+
+  async recallMarkdown(query: string, opts: { project?: string; budget?: number } = {}): Promise<string> {
+    const q = new URLSearchParams({ q: query, format: 'markdown' });
+    if (opts.project) q.set('project', opts.project);
+    if (opts.budget) q.set('budget', String(opts.budget));
+    const res = await fetch(new URL(`/api/recall?${q}`, this.opts.serverUrl), {
+      headers: { authorization: `Bearer ${this.opts.token}` },
+    });
+    const text = await res.text();
+    if (!res.ok) throw new ApiError(res.status, text);
+    return text;
+  }
+
+  createAsk(sessionId: string, question: string): Promise<AskRequest> {
+    return this.request('POST', `/api/sessions/${encodeURIComponent(sessionId)}/asks`, { question });
+  }
+
+  getAsk(id: number): Promise<AskRequest> {
+    return this.request('GET', `/api/asks/${id}`);
+  }
+
+  listAsksForSession(sessionId: string): Promise<AskRequest[]> {
+    return this.request('GET', `/api/sessions/${encodeURIComponent(sessionId)}/asks`);
+  }
+
+  listAskRequests(status?: string): Promise<AskRequest[]> {
+    return this.request('GET', `/api/ask-requests${status ? `?status=${status}` : ''}`);
+  }
+
+  completeAskRequest(id: number, result: { status: 'done' | 'error'; answer?: string; error?: string }): Promise<unknown> {
+    return this.request('PATCH', `/api/ask-requests/${id}`, result);
   }
 
   addComment(sessionId: string, body: string, messageId?: string): Promise<{ id: number }> {

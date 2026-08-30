@@ -24,6 +24,11 @@ treats it as its own history, not a summary.
   as the memory engine through the `openai-compatible` provider.)
 - **Native handoff** — convert a Claude Code session into a real Codex rollout file.
   `codex resume` picks it up as its own session; continue exactly where you left off.
+- **Recall** — an MCP server that hands your agents the 1-2k tokens that matter
+  instead of letting them re-derive the codebase every session. Deterministic
+  (FTS + session graph + human notes), so it needs no API key.
+- **Ask a session** — resume any past session read-only on the machine that owns
+  it and get an answer from the agent that lived it, not a summary.
 - **Session memory** — the server distills sessions into entity-based notes (files,
   decisions, topics) with supersession and conflict detection, powered by a pluggable
   LLM provider (Anthropic, OpenAI, any OpenAI-compatible endpoint, or the local
@@ -33,6 +38,53 @@ treats it as its own history, not a summary.
 <p align="center">
   <img src="docs/assets/dashboard.gif" alt="The team dashboard: every member's sessions across Claude Code, Codex, and Cursor" width="820" />
 </p>
+
+## Your agents can query it
+
+Motif's real audience is not the dashboard — it is the agents themselves. One
+command registers Motif as an MCP server with Claude Code, Codex and Cursor:
+
+```bash
+motif mcp install
+```
+
+Now your agent can answer "why is this like this?" from the team's own history
+instead of grepping, and it can talk to past sessions:
+
+| tool | what it does |
+|---|---|
+| `recall` | the distilled answer — past decisions, human notes, cited excerpts, in ~1.5k tokens |
+| `search_sessions` / `list_sessions` | find the session |
+| `get_session` | read a transcript |
+| `ask_session` | **ask a past session a question** — the agent that lived it answers, with full context |
+
+Same thing from your shell:
+
+```bash
+motif recall "why did we drop the network mount"
+motif ask <session-id> "what was left to do here?"
+```
+
+### Does it actually save tokens?
+
+Retrieval is measured, not asserted. `npm run bench` runs a set of questions
+against your own corpus and reports whether the answer was in the bundle and
+how big the bundle was:
+
+```
+Corpus: 2,080,410 tokens of session history · budget 1500 tokens/answer
+hit rate 8/10 (80%) · median 1,497 tokens per answer · 1,404× smaller than the history it draws from
+```
+
+That is a *retrieval* benchmark on the maintainer's own bilingual corpus (the
+two misses are questions asked in English about decisions discussed in
+Turkish — lexical search is language-bound; distilled memory covers that gap).
+Write your own `bench/questions.json` and reproduce it on yours.
+
+**No API key, no embeddings, no vector store.** Ranking comes from FTS/bm25 over
+message text, the session graph (handoff lineage, shared memory entities,
+overlapping files) and human curation — every item in a bundle says why it was
+picked.
 
 ## Quick start
 
@@ -63,6 +115,9 @@ motif search "rclone"             # full-text search over everyone's sessions
 motif show <id>                   # read any session as a transcript
 motif handoff <id> --open         # continue a Claude Code session in Codex, natively
 motif handoff <id> --to-member "Ada"   # hand it to a teammate — lands in THEIR Codex
+motif recall "how does auth work"      # what the team already knows (agents get this over MCP)
+motif ask <id> "why did we do it this way?"   # the session answers, with its full context
+motif mcp install                 # register Motif with Claude Code / Codex / Cursor
 motif status / motif doctor       # health at a glance / diagnose with fixes
 motif daemon install              # start the daemon at every login
 motif skills                      # teach your agents to query the team memory
@@ -91,9 +146,12 @@ Two credentials, two levels:
   attributed to the token's owner; a claimed name or header changes nothing,
   so members cannot impersonate each other.
 
-Everyone on the team can *read* everyone's synced sessions — that is the
-product. Nobody can *write as* someone else, and dashboard-initiated handoffs
-only ever execute on the requester's own machine, via their own daemon.
+Joining a team never auto-shares your history: a freshly connected machine
+uploads everything as **personal** (visible only to you) until you mark
+projects team-visible with `motif projects team <path>` or promote a session
+from the dashboard. Team-visible sessions are readable by the whole team —
+that is the product. Nobody can *write as* someone else, and handoffs and
+asks only ever execute on the owning machine, via its own daemon.
 
 **Privacy controls, applied before anything leaves a machine:** `exclude`
 globs keep whole projects local; `redactPatterns` regexes scrub message text

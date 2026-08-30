@@ -383,3 +383,16 @@ input:focus { outline: 2px solid color-mix(in srgb, var(--accent) 35%, transpare
 .bubble-col .bubble { max-width: none; }
 .turn.user .bubble-col { align-items: flex-end; }
 .notes-box { margin-top: 28px; max-width: 800px; }
+
+/* ── ask a session ───────────────────────────────────── */
+.ask { border: 1px solid var(--border); border-radius: 10px; padding: 10px 13px; margin-bottom: 8px; background: var(--panel); }
+.ask-q { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; }
+.ask-q .who { font-weight: 600; margin-right: 4px; }
+.ask-q .when { color: var(--faint); font-size: 10.5px; margin-left: auto; white-space: nowrap; padding-left: 8px; }
+.ask-a {
+  margin-top: 8px; padding: 9px 12px; border-radius: 8px; font-size: 13px; line-height: 1.55;
+  background: color-mix(in srgb, var(--accent) 5%, var(--chip-bg));
+  border-left: 3px solid var(--accent); white-space: pre-wrap;
+}
+.ask-a.pending { color: var(--amber); border-left-color: var(--amber); font-style: italic; }
+.ask-a.err { color: var(--red); border-left-color: var(--red); }

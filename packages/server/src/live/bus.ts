@@ -13,6 +13,8 @@ export interface LiveEvents {
   'member-joined': { memberId: number; name: string };
   'handoff-created': { sessionId: string; memberId: number; target: string };
   'handoff-requested': { requestId: number; sessionId: string; memberId: number };
+  'ask-requested': { requestId: number; sessionId: string; executorId: number; askerName: string | null };
+  'ask-answered': { requestId: number; sessionId: string; askedBy: number; status: string };
   'comment-added': {
     sessionId: string;
     commentId: number;

@@ -185,6 +185,36 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_comments_session ON session_comments(session_pk, id);
   `,
+  // v7 — retrieval: message-level FTS (so excerpts can be cited exactly) + ask requests
+  `
+  DROP TABLE IF EXISTS messages_fts;
+  CREATE VIRTUAL TABLE messages_fts USING fts5(
+    text,
+    session_pk UNINDEXED,
+    message_id UNINDEXED,
+    tokenize = 'porter unicode61'
+  );
+  INSERT INTO messages_fts (text, session_pk, message_id)
+    SELECT json_extract(content_json, '$.text'), session_pk, id FROM messages
+    WHERE role IN ('user', 'assistant')
+      AND json_extract(content_json, '$.text') IS NOT NULL
+      AND LENGTH(json_extract(content_json, '$.text')) > 1;
+
+  CREATE TABLE ask_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    asked_by INTEGER NOT NULL REFERENCES members(id),
+    executor_id INTEGER NOT NULL REFERENCES members(id),
+    question TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','done','error')),
+    answer TEXT,
+    error TEXT,
+    created_at TEXT NOT NULL,
+    completed_at TEXT
+  );
+  CREATE INDEX idx_ask_executor ON ask_requests(executor_id, status);
+  CREATE INDEX idx_ask_session ON ask_requests(session_id, id);
+  `,
 ];
 
 export function openDb(dbPath: string): Db {

@@ -63,20 +63,35 @@ async function gatherStatus(claudeDir?: string) {
 
 const SKILL_BODY = `---
 name: motif
-description: Use the team's Motif server to recall what teammates (and their agents) already did, search prior sessions, or hand this session to another tool or teammate. Trigger when the user asks "did anyone work on X", "what did <teammate> do", "continue this in Codex", or wants team history.
+description: Query the team's past AI coding sessions (Claude Code, Codex, Cursor) before exploring unfamiliar code, and continue or hand off sessions across tools. Trigger when the user asks "did anyone work on X", "why is this like this", "what did <teammate> do", "continue this in Codex", or when you are about to grep around a codebase you have not seen this session.
 ---
 
-# Motif — team session layer
+# Motif — the team's session memory
 
-The \`motif\` CLI talks to the team's self-hosted session server.
+Your team already solved things in earlier agent sessions. Check before rediscovering.
 
-- \`motif search "<query>" --json\` — full-text search across every teammate's agent sessions.
-- \`motif list --json\` — recent sessions (all agents, all members).
-- \`motif show <id> --json\` — full transcript of one session.
-- \`motif handoff <id> --open\` — continue a session natively in Codex.
-- \`motif handoff <id> --to-member "<name>"\` — hand the session to a teammate.
+## If the Motif MCP server is connected (preferred)
+Use its tools directly:
+- \`recall\` — the distilled answer: past decisions, human notes, cited excerpts (~1.5k tokens). **Call this first.**
+- \`search_sessions\` / \`list_sessions\` — find the session itself
+- \`get_session\` — read a transcript (use \`tail\`, they are long)
+- \`ask_session\` — ask a past session a question; the agent that lived it answers with full context
 
-Prefer citing findings with the session id so humans can open them in the dashboard.
+Not connected? Run \`motif mcp install\` once.
+
+## Otherwise use the CLI
+\`\`\`bash
+motif recall "how does auth work here"     # same bundle, printed
+motif search "rclone" --json               # find sessions
+motif show <id> --json                     # read one
+motif ask <id> "why did we drop rclone?"   # the session answers
+motif handoff <id> --open                  # continue it in another agent
+\`\`\`
+
+## Rules
+- Cite session ids (\`claude-code:…\`, \`codex:…\`) so humans can open them in the dashboard.
+- Prefer recall over grep for "why" questions; prefer the codebase for "what does this code do".
+- If recall returns nothing, say so and proceed normally — do not invent history.
 `;
 
 export function registerOps(program: Command): void {

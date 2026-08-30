@@ -31,6 +31,8 @@ export interface MotifConfig {
   redactPatterns?: string[];
   /** Built-in secret patterns (API keys, JWTs, private keys) are ON by default; false disables them. */
   redactDefaults?: boolean;
+  /** Let teammates ask this machine's sessions questions (default true). */
+  allowAsks?: boolean;
 }
 
 export function motifHome(): string {

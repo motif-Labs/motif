@@ -7,6 +7,7 @@ import {
   getToken,
   openEvents,
   setToken,
+  type Ask,
   type Comment,
   type HandoffRequest,
   type Me,
@@ -545,18 +546,35 @@ function SessionNoteComposer({ onPost }: { onPost: (body: string) => void }) {
 function SessionView({ id, me }: { id: string; me: Me }) {
   const [session, setSession] = useState<SessionDetail | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
+  const [asks, setAsks] = useState<Ask[]>([]);
+  const [question, setQuestion] = useState('');
+  const [asking, setAsking] = useState(false);
   const [composerFor, setComposerFor] = useState<string | null>(null);
   const [error, setError] = useState('');
   const reload = () =>
     api<SessionDetail>(`/api/sessions/${encodeURIComponent(id)}`).then(setSession).catch((e) => setError(String(e.message)));
   const loadComments = () =>
     api<Comment[]>(`/api/sessions/${encodeURIComponent(id)}/comments`).then(setComments).catch(() => {});
+  const loadAsks = () => api<Ask[]>(`/api/sessions/${encodeURIComponent(id)}/asks`).then(setAsks).catch(() => {});
+  const askSession = async () => {
+    if (!question.trim()) return;
+    setAsking(true);
+    await api(`/api/sessions/${encodeURIComponent(id)}/asks`, {
+      method: 'POST',
+      body: JSON.stringify({ question: question.trim() }),
+    }).catch(() => {});
+    setQuestion('');
+    setAsking(false);
+    loadAsks();
+  };
   useEffect(() => {
     reload();
     loadComments();
+    loadAsks();
     return openEvents((name, data) => {
       if (name === 'session-upserted' && (data as { id?: string }).id === id) reload();
       if (name === 'comment-added' && (data as { sessionId?: string }).sessionId === id) loadComments();
+      if ((name === 'ask-requested' || name === 'ask-answered') && (data as { sessionId?: string }).sessionId === id) loadAsks();
     });
   }, [id]);
   const postComment = async (messageId: string | null, body: string) => {
@@ -606,7 +624,36 @@ function SessionView({ id, me }: { id: string; me: Me }) {
           />
         ))}
         <div class="notes-box">
-          <h2>Notes on this session</h2>
+          <h2>Ask this session</h2>
+          {asks.map((a) => (
+            <div class={`ask ${a.status}`} key={a.id}>
+              <div class="ask-q">
+                <Avatar name={a.asker_name} size={16} />
+                <span><span class="who">{a.asker_name}</span>{a.question}</span>
+                <span class="when">{ago(a.created_at)}</span>
+              </div>
+              {a.status === 'pending' && <div class="ask-a pending">…waiting for the machine that owns this session</div>}
+              {a.status === 'error' && <div class="ask-a err">{a.error}</div>}
+              {a.answer && <div class="ask-a">{a.answer}</div>}
+            </div>
+          ))}
+          {me.kind === 'member' && (
+            <div class="pin-composer" style="max-width:none">
+              <input
+                type="text"
+                placeholder="Ask the agent that lived this session… (it answers with full context)"
+                value={question}
+                disabled={asking}
+                onInput={(e) => setQuestion((e.target as HTMLInputElement).value)}
+                onKeyDown={(e) => e.key === 'Enter' && askSession()}
+              />
+              <button class="primary" onClick={askSession} disabled={asking || !question.trim()}>
+                {asking ? 'Asking…' : 'Ask'}
+              </button>
+            </div>
+          )}
+
+          <h2 style="margin-top:24px">Notes on this session</h2>
           {comments.filter((c) => c.message_id === null).map((c) => (
             <div class="pin" key={c.id} style="max-width:none;margin-bottom:6px">
               <Avatar name={c.author_name} size={16} />

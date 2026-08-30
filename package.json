@@ -10,7 +10,8 @@
   "scripts": {
     "build": "npm run build -w motif",
     "test": "vitest run",
-    "typecheck": "tsc -b packages/core packages/cli packages/server"
+    "typecheck": "tsc -b packages/core packages/cli packages/server",
+    "bench": "tsx bench/run.ts"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",
