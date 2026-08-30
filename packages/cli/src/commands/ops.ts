@@ -182,7 +182,6 @@ export function registerOps(program: Command): void {
   program
     .command('update')
     .description('Check npm for a newer motif release')
-    .option('--check', 'only check (default behavior)')
     .action(async () => {
       try {
         const res = await fetch('https://registry.npmjs.org/getmotif/latest');
