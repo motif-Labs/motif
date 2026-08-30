@@ -5,3 +5,5 @@ package-lock.json
 fixtures/
 docs/assets/
 ui/public/
+research/
+bench/results/

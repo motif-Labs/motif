@@ -170,7 +170,13 @@ export function performCodexHandoff(
  */
 export function performClaudeHandoff(
   session: MotifSession,
-  opts: { cwdOverride?: string; force?: boolean; claudeDir?: string; dryRun?: boolean } = {},
+  opts: {
+    cwdOverride?: string;
+    force?: boolean;
+    claudeDir?: string;
+    dryRun?: boolean;
+    digest?: { keepLast: number };
+  } = {},
 ): HandoffResult {
   if (session.source === 'claude-code' && session.sourcePath && fs.existsSync(session.sourcePath)) {
     throw new Error(
@@ -207,6 +213,7 @@ export function performClaudeHandoff(
     sessionId: crypto.randomUUID(),
     now: new Date(),
     toolVersion,
+    digest: opts.digest,
   });
   const target = path.join(home, result.relativePath);
   if (fs.existsSync(target)) throw new Error(`Refusing to overwrite existing session: ${target}`);
@@ -230,7 +237,7 @@ export type HandoffTarget = 'codex' | 'claude-code';
 export function performHandoff(
   target: HandoffTarget,
   session: MotifSession,
-  opts: { cwdOverride?: string; force?: boolean; digest?: { keepLast: number } } = {},
+  opts: { cwdOverride?: string; force?: boolean; digest?: { keepLast: number }; claudeDir?: string } = {},
 ): HandoffResult {
   return target === 'claude-code' ? performClaudeHandoff(session, opts) : performCodexHandoff(session, opts);
 }

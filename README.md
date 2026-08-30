@@ -26,8 +26,9 @@ treats it as its own history, not a summary.
 - **Recall** — an MCP server that hands your agents the 1-2k tokens that matter
   instead of letting them re-derive the codebase every session. Deterministic
   (FTS + session graph + human notes), so it needs no API key.
-- **Ask a session** — resume any past session read-only on the machine that owns
-  it and get an answer from the agent that lived it, not a summary.
+- **Ask a session** — resume any past Claude Code or Codex session read-only on
+  the machine that owns it and get an answer from the agent that lived it, not a
+  summary.
 - **Session memory** — the server distills sessions into entity-based notes (files,
   decisions, topics) with supersession and conflict detection, powered by a pluggable
   LLM provider (Anthropic, OpenAI, any OpenAI-compatible endpoint, or the local
@@ -179,7 +180,7 @@ docker compose up -d
 
 # Each developer, once:
 npx getmotif connect https://motif.internal.yourco.dev --token <team-token> --name "Ada" --email ada@yourco.dev
-motif daemon start        # logs: ~/.motif/daemon.log (auto-rotated)
+motif daemon start        # logs: ~/.motif/daemon.log (rotated at each start)
 ```
 
 **Who runs what:** exactly one person runs the server (on a company box or

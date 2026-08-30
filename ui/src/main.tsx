@@ -281,7 +281,9 @@ function SessionsPage({ me }: { me: Me }) {
         )}
       </div>
       <NowWorking sessions={sessions} />
-      {sessions.length === 0 ? (
+      {sessions.length > 0 && filtered.length === 0 ? (
+        <div class="empty">No sessions match these filters.</div>
+      ) : sessions.length === 0 ? (
         <div class="empty">
           {scope === 'personal' ? (
             <>
@@ -589,7 +591,10 @@ function HandoffPanel({ session, me }: { session: SessionDetail; me: Me }) {
       {state === 'done' && (
         <div class="hint status-ok">
           {sentTo ? (
-            <>Delivered — {sentTo} has it in their Codex now, with a ready-to-run resume command.</>
+            <>
+              Delivered — {sentTo} has it in their {AGENT_LABELS[target] ?? target} now, with a ready-to-run
+              resume command.
+            </>
           ) : (
             <>
               Ready on your machine. Continue with:
@@ -747,7 +752,13 @@ function SessionView({ id, me }: { id: string; me: Me }) {
               {a.answer && <div class="ask-a">{a.answer}</div>}
             </div>
           ))}
-          {me.kind === 'member' && (
+          {session.source === 'cursor' && (
+            <div class="hint">
+              Cursor sessions cannot be asked: Cursor has no resume-from-transcript command, so there is
+              nothing to put the question to. Read it here, or hand it to Claude Code or Codex first.
+            </div>
+          )}
+          {me.kind === 'member' && session.source !== 'cursor' && (
             <div class="pin-composer" style="max-width:none">
               <input
                 type="text"
@@ -1062,7 +1073,7 @@ function SetupPage({ me }: { me: Me }) {
           On their machine, with the team token you share out-of-band:
         </p>
         <div class="cmd">
-          npx motif connect {origin} --token &lt;team-token&gt; --name "Ada" --email ada@team.dev
+          npx getmotif connect {origin} --token &lt;team-token&gt; --name "Ada" --email ada@team.dev
         </div>
         <div class="cmd">motif daemon start</div>
         <div class="hint">

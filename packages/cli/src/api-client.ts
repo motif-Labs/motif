@@ -208,10 +208,13 @@ export class MotifClient {
 
   search(
     query: string,
+    opts: { project?: string } = {},
   ): Promise<
     { id: string; title: string | null; projectPath: string; snippet: string; memberName: string | null }[]
   > {
-    return this.request('GET', `/api/search?q=${encodeURIComponent(query)}`);
+    const params = new URLSearchParams({ q: query });
+    if (opts.project) params.set('project', opts.project);
+    return this.request('GET', `/api/search?${params}`);
   }
 
   postHandoff(input: {

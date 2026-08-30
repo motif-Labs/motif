@@ -2,6 +2,7 @@ import type { Command } from 'commander';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { defaultClaudeDir, defaultCodexDir, discoverCodexSessions, discoverSessions } from '@motif/core';
 import { discoverCursorConversations } from '../readers/cursor.js';
 import { loadConfig, motifHome } from '../config.js';
@@ -205,9 +206,10 @@ export function registerOps(program: Command): void {
     .argument('[agents...]', 'claude-code and/or codex (default: both)')
     .option('--force', 'overwrite an existing motif skill file')
     .action((agents: string[], opts: { force?: boolean }) => {
+      const { claudeDir } = program.opts<{ claudeDir?: string }>();
       const targets = agents.length > 0 ? agents : ['claude-code', 'codex'];
       const dirs: Record<string, string> = {
-        'claude-code': path.join(os.homedir(), '.claude', 'skills', 'motif'),
+        'claude-code': path.join(claudeDir ?? path.join(os.homedir(), '.claude'), 'skills', 'motif'),
         codex: path.join(defaultCodexDir(), 'skills', 'motif'),
       };
       for (const agent of targets) {
@@ -242,6 +244,15 @@ export function registerOps(program: Command): void {
       if (fs.existsSync(launchAgent)) {
         fs.rmSync(launchAgent);
         console.log('Removed LaunchAgent (unloads at next logout, or: launchctl remove com.motif.daemon).');
+      }
+      // the systemd unit restarts the daemon on its own, so removing it is the
+      // difference between uninstalling and briefly stopping
+      const unit = path.join(os.homedir(), '.config', 'systemd', 'user', 'motif-daemon.service');
+      if (fs.existsSync(unit)) {
+        spawnSync('systemctl', ['--user', 'disable', '--now', 'motif-daemon'], { stdio: 'ignore' });
+        fs.rmSync(unit);
+        spawnSync('systemctl', ['--user', 'daemon-reload'], { stdio: 'ignore' });
+        console.log(`Removed ${unit} and disabled the service.`);
       }
       if (opts.purge) {
         fs.rmSync(motifHome(), { recursive: true, force: true });

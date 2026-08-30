@@ -43,7 +43,7 @@ const DEDUPE_MEMBERS_SQL = `
   DROP TABLE dup_keepers;
 `;
 
-/** Exposed for register-time reuse and tests; migration v3 runs the same SQL once. */
+/** Used by migration v3 and tests; migration v3 runs the same SQL once. */
 export function dedupeMembers(db: Db): void {
   db.exec(DEDUPE_MEMBERS_SQL);
 }

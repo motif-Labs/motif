@@ -475,6 +475,7 @@ export function searchSessions(
   q: string,
   limit = 30,
   viewerId?: number,
+  project?: string,
 ): (SessionListItem & { snippet: string })[] {
   const rows = db
     .prepare(
@@ -490,11 +491,12 @@ export function searchSessions(
        JOIN sessions s ON s.pk = f.session_pk
        LEFT JOIN members m ON m.id = s.member_id
        WHERE (s.visibility = 'team' OR s.member_id = ?)
+         AND (? IS NULL OR s.project_path = ?)
        GROUP BY s.pk
        ORDER BY best_rank
        LIMIT ?`,
     )
-    .all(ftsQuery(q), viewerId ?? -1, limit) as {
+    .all(ftsQuery(q), viewerId ?? -1, project ?? null, project ?? null, limit) as {
     id: string;
     source: string;
     member_id: number;

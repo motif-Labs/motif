@@ -46,7 +46,8 @@ motif projects exclude ~/personal --purge                # block + withdraw alre
 
 `redactPatterns` in `~/.motif/config.json` scrub secrets from message
 text _and_ tool inputs before upload. In `selected` mode, Cursor
-conversations (which carry no project path) stay local too.
+conversations Motif cannot map to a project stay local too; ones it can map
+follow the same include/exclude rules as any other session.
 
 ## Transport
 

@@ -244,7 +244,9 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   app.get('/api/search', (c) => {
     const q = c.req.query('q');
     if (!q?.trim()) return c.json({ error: 'q required' }, 400);
-    return c.json(searchSessions(db, q, Number(c.req.query('limit') ?? 30), memberId(c)));
+    return c.json(
+      searchSessions(db, q, Number(c.req.query('limit') ?? 30), memberId(c), c.req.query('project')),
+    );
   });
 
   app.get('/api/sessions/:id/export', (c) => {
@@ -626,6 +628,13 @@ function serveUi(app: Hono): void {
     '.css': 'text/css',
     '.svg': 'image/svg+xml',
     '.ico': 'image/x-icon',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp',
+    '.woff2': 'font/woff2',
+    '.json': 'application/json',
+    '.map': 'application/json',
   };
   app.get('*', (c) => {
     // never let an unknown API path fall through to index.html: the client

@@ -11,6 +11,7 @@
  */
 
 import type { MotifMessage, MotifSession } from '../schema.js';
+import { buildDigest } from '../digest.js';
 
 export interface ClaudeLine {
   [key: string]: unknown;
@@ -19,6 +20,8 @@ export interface ClaudeLine {
 export interface ClaudeConvertOptions {
   sessionId: string;
   now: Date;
+  /** Condense all but the last n messages into one summary turn, as the Codex writer does. */
+  digest?: { keepLast: number };
   /** Mirrors the locally installed Claude Code version string. */
   toolVersion?: string;
   provenance?: string;
@@ -107,6 +110,19 @@ export function toClaudeSessionLines(session: MotifSession, opts: ClaudeConvertO
     `[Handed off from ${session.source} session ${session.sourceSessionId} via Motif on ${nowIso.slice(0, 10)}. The conversation below is the prior history of this task; continue where it left off.]`;
   pushUser(provenance, nowIso);
 
+  // With --digest, everything before the tail becomes one condensed turn so the
+  // resumed session starts light instead of replaying thousands of messages.
+  let toConvert = session.messages;
+  if (opts.digest && session.messages.length > opts.digest.keepLast) {
+    const earlier = session.messages.slice(0, -opts.digest.keepLast);
+    toConvert = session.messages.slice(-opts.digest.keepLast);
+    pushUser(
+      `[Condensed history — the first ${earlier.length} messages of this session, summarized]\n` +
+        buildDigest(earlier, { maxChars: 24_000 }),
+      earlier[0]?.timestamp ?? nowIso,
+    );
+  }
+
   // batch consecutive tool activity into single readable turns
   let toolBuffer: string[] = [];
   let toolBufferTs = '';
@@ -116,7 +132,7 @@ export function toClaudeSessionLines(session: MotifSession, opts: ClaudeConvertO
     toolBuffer = [];
   };
 
-  for (const m of session.messages) {
+  for (const m of toConvert) {
     switch (m.role) {
       case 'user':
         flushTools();

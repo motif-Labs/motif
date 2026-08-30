@@ -16,7 +16,7 @@
  * sorts by recency and a handed-off session should surface on top.
  */
 
-import type { MotifMessage, MotifSession } from '../schema.js';
+import type { MotifSession } from '../schema.js';
 import { buildDigest } from '../digest.js';
 import { translateToolCall } from './codex-tools.js';
 

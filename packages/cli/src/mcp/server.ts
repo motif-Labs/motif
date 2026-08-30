@@ -74,7 +74,7 @@ export const TOOLS = [
   {
     name: 'ask_session',
     description:
-      "Ask a past session a question and get an answer from the agent that lived it, with its full context — not a summary. The session is resumed read-only on the machine that owns it, so this can take a minute; teammates' sessions are answered by their machine. Use when recall's excerpts are not enough and you need the reasoning behind a decision.",
+      "Ask a past Claude Code or Codex session a question and get an answer from the agent that lived it, with its full context — not a summary. The session is resumed read-only on the machine that owns it, so this can take a minute; teammates' sessions are answered by their machine. Use when recall's excerpts are not enough and you need the reasoning behind a decision.",
     inputSchema: {
       type: 'object',
       properties: {

@@ -120,6 +120,8 @@ export function registerHandoff(program: Command): void {
             cwdOverride: opts.cwd,
             force: opts.force,
             dryRun: true,
+            digest,
+            claudeDir,
           });
           if (opts.json) {
             console.log(JSON.stringify({ target: preview.target, messages: preview.messageCount }, null, 2));
@@ -164,7 +166,12 @@ export function registerHandoff(program: Command): void {
           return;
         }
 
-        const result = performHandoff(target, session, { cwdOverride: opts.cwd, force: opts.force, digest });
+        const result = performHandoff(target, session, {
+          cwdOverride: opts.cwd,
+          force: opts.force,
+          digest,
+          claudeDir,
+        });
 
         if (cfg.serverUrl && cfg.memberToken) {
           const client = new MotifClient({ serverUrl: cfg.serverUrl, token: cfg.memberToken });

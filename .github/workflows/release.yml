@@ -1,4 +1,4 @@
-# Publishes the `motif` package to npm with a provenance attestation —
+# Publishes the `getmotif` package to npm with a provenance attestation —
 # the ONLY sanctioned publish path (see SECURITY.md). Trigger by pushing
 # a v* tag. Requires the NPM_TOKEN repo secret (automation token, 2FA org).
 name: Release
@@ -21,6 +21,13 @@ jobs:
           node-version: 22
           cache: npm
           registry-url: https://registry.npmjs.org
+      - name: tag must match the package version
+        run: |
+          pkg="v$(node -p "require('./packages/cli/package.json').version")"
+          if [ "$pkg" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME does not match package version $pkg" >&2
+            exit 1
+          fi
       - run: npm ci
       - run: npx tsc -b packages/core packages/cli packages/server
       - run: npx vitest run

@@ -19,7 +19,7 @@
  */
 
 import type { Db } from './db/database.js';
-import { canView, type SessionRow } from './store.js';
+import { canView } from './store.js';
 
 export const approxTokens = (text: string): number => Math.ceil(text.length / 4);
 

@@ -46,10 +46,13 @@ export function registerUp(program: Command): void {
         memberId = reg.memberId;
         memberToken = reg.memberToken;
       }
-      saveConfig({ ...cfg, serverUrl, token: server.token, memberToken, memberId, name });
+      const saved = { ...cfg, serverUrl, token: server.token, memberToken, memberId, name };
+      saveConfig(saved);
 
       const syncClient = new MotifClient({ serverUrl, token: memberToken! });
-      watchAndSync(syncClient, cfg, {
+      // pass the saved config, not the one read before registering: the daemon
+      // gates mention and ask notifications on memberId, minted just above
+      watchAndSync(syncClient, saved, {
         claudeDir,
         live: { serverUrl, token: memberToken!, log: (m) => console.log(m) },
         onReport: (r) => {

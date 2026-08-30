@@ -68,6 +68,36 @@ describe('handoff --dry-run', () => {
   });
 });
 
+describe('handoff --digest', () => {
+  it('condenses earlier messages for the claude-code target too', () => {
+    // --digest was accepted, advertised in --help, and silently ignored for
+    // claude-code: only the codex writer implemented it.
+    const base = readClaudeSession(path.join(root, 'fixtures', 'claude-code', 'minimal.jsonl'));
+    const many: MotifMessage[] = Array.from({ length: 40 }, (_, i) => ({
+      id: `m${i}`,
+      role: i % 2 === 0 ? 'user' : 'assistant',
+      timestamp: '2026-08-01T10:00:00.000Z',
+      text: `message number ${i}`,
+    }));
+    const incoming: MotifSession = {
+      ...base,
+      source: 'codex',
+      sourcePath: '/elsewhere/rollout.jsonl',
+      messages: many,
+    };
+    const claudeDir = path.join(tmp, 'claude-digest');
+    fs.mkdirSync(claudeDir, { recursive: true });
+
+    const full = performClaudeHandoff(incoming, { claudeDir });
+    const digested = performClaudeHandoff(incoming, { claudeDir, digest: { keepLast: 5 } });
+
+    const body = fs.readFileSync(digested.target, 'utf8');
+    expect(body).toContain('Condensed history');
+    expect(body).toContain('message number 39'); // the tail survives verbatim
+    expect(fs.readFileSync(full.target, 'utf8').split('\n').length).toBeGreaterThan(body.split('\n').length);
+  });
+});
+
 describe('http api', () => {
   let server: MotifServer;
   let httpServer: ReturnType<typeof startServer>;
@@ -101,6 +131,41 @@ describe('http api', () => {
     expect(res.status).toBe(404);
     expect(res.headers.get('content-type')).toContain('json');
     await expect(res.json()).resolves.toMatchObject({ error: expect.any(String) });
+  });
+
+  it('applies --project to search once a server is in the picture', async () => {
+    // the flag existed but was dropped on the server path, so it only worked
+    // while disconnected
+    const me = registerMember(server.db, { name: 'cleo', email: 'cleo@example.com' });
+    const mk = (id: string, project: string): MotifSession => ({
+      id: `claude-code:${id}`,
+      source: 'claude-code',
+      sourceSessionId: id,
+      sourcePath: `/fake/${id}.jsonl`,
+      projectPath: project,
+      title: id,
+      createdAt: '2026-08-01T10:00:00.000Z',
+      updatedAt: '2026-08-01T10:05:00.000Z',
+      messages: [
+        {
+          id: `${id}-u`,
+          role: 'user',
+          timestamp: '2026-08-01T10:00:00.000Z',
+          text: 'kafka retention question',
+        },
+      ],
+      filesTouched: [],
+      meta: { subagentCount: 0, branchCount: 0, parseErrors: 0 },
+    });
+    fullReplaceSession(server.db, me.memberId, mk('p-a', '/workspace/alpha'));
+    fullReplaceSession(server.db, me.memberId, mk('p-b', '/workspace/beta'));
+
+    const all = (await (await call('/api/search?q=kafka', {}, me.memberToken)).json()) as unknown[];
+    expect(all.length).toBe(2);
+    const scoped = (await (
+      await call('/api/search?q=kafka&project=%2Fworkspace%2Falpha', {}, me.memberToken)
+    ).json()) as { id: string }[];
+    expect(scoped.map((r) => r.id)).toEqual(['claude-code:p-a']);
   });
 
   it('does not 500 on a whitespace-only search', async () => {

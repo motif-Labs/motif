@@ -25,8 +25,8 @@ First public release.
 - **MCP server** — `motif mcp install` registers Motif with Claude Code, Codex
   and Cursor. Tools: `recall`, `search_sessions`, `list_sessions`,
   `get_session`, `ask_session`.
-- **Ask a session** — resume any past session read-only on the machine that owns
-  it and get an answer from the agent that lived it.
+- **Ask a session** — resume any past Claude Code or Codex session read-only on
+  the machine that owns it and get an answer from the agent that lived it.
 - **Session memory** — entity-based notes with supersession and conflict
   detection, via a pluggable LLM provider (Anthropic, OpenAI, any
   OpenAI-compatible endpoint, or the local `claude` CLI).
