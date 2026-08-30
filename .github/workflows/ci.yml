@@ -49,3 +49,35 @@ jobs:
       - run: npm run build -w getmotif
       - name: smoke the built binary
         run: node packages/cli/dist/index.js --version
+
+  package:
+    name: install the published artifact (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      # The suite never touches the tarball a user actually installs, and the
+      # native sqlite dependency is exactly what breaks a global install on a
+      # platform nobody tried. Install it the way a user would, on all three.
+      - name: pack
+        run: npm pack -w getmotif --pack-destination .
+      - name: install globally
+        shell: bash
+        run: |
+          tgz=$(ls getmotif-*.tgz)
+          npm i -g --prefix "$PWD/.probe" "./$tgz"
+      - name: the installed binary runs
+        shell: bash
+        run: |
+          bin="$PWD/.probe/bin/motif"
+          [ -f "$bin" ] || bin="$PWD/.probe/motif"
+          "$bin" --version
