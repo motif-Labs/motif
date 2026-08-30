@@ -29,7 +29,12 @@ const msg = (id: string, role: MotifMessage['role'], text: string): MotifMessage
   text,
 });
 
-const session = (id: string, project: string, messages: MotifMessage[], extra: Partial<MotifSession> = {}): MotifSession => ({
+const session = (
+  id: string,
+  project: string,
+  messages: MotifMessage[],
+  extra: Partial<MotifSession> = {},
+): MotifSession => ({
   id: `claude-code:${id}`,
   source: 'claude-code',
   sourceSessionId: id,
@@ -76,11 +81,23 @@ describe('chunking and windows', () => {
 
 describe('recall', () => {
   it('finds the paragraph that answers the question and cites its session', () => {
-    fullReplaceSession(db, alice, session('s1', '/w/api', [
-      msg('u1', 'user', 'the payment retries double-charge people sometimes'),
-      msg('a1', 'assistant', 'Root cause found.\n\nEvery charge now writes an idempotency key before calling the provider, so a crashed worker reconciles pending keys instead of replaying the queue.'),
-    ]));
-    fullReplaceSession(db, alice, session('s2', '/w/api', [msg('u1', 'user', 'unrelated css tweak on the marketing page')]));
+    fullReplaceSession(
+      db,
+      alice,
+      session('s1', '/w/api', [
+        msg('u1', 'user', 'the payment retries double-charge people sometimes'),
+        msg(
+          'a1',
+          'assistant',
+          'Root cause found.\n\nEvery charge now writes an idempotency key before calling the provider, so a crashed worker reconciles pending keys instead of replaying the queue.',
+        ),
+      ]),
+    );
+    fullReplaceSession(
+      db,
+      alice,
+      session('s2', '/w/api', [msg('u1', 'user', 'unrelated css tweak on the marketing page')]),
+    );
 
     const r = recall(db, { query: 'how do we avoid double charging on retries', viewerId: alice });
     const text = r.items.map((i) => i.text).join('\n');
@@ -91,15 +108,29 @@ describe('recall', () => {
   });
 
   it('puts distilled notes and human pins above raw transcript', () => {
-    const row = fullReplaceSession(db, alice, session('s3', '/w/api', [
-      msg('u1', 'user', 'what auth should we use'),
-      msg('a1', 'assistant', 'Discussion about auth options went back and forth here.'),
-    ]));
-    applyNotes(db, [{ entity: { kind: 'decision', name: 'auth-method' }, aspect: 'mechanism', body: 'Auth uses httpOnly session cookies; JWT-in-localStorage was retired.' }], {
-      projectPath: '/w/api',
-      sessionPk: row.pk,
-      memberId: alice,
-    });
+    const row = fullReplaceSession(
+      db,
+      alice,
+      session('s3', '/w/api', [
+        msg('u1', 'user', 'what auth should we use'),
+        msg('a1', 'assistant', 'Discussion about auth options went back and forth here.'),
+      ]),
+    );
+    applyNotes(
+      db,
+      [
+        {
+          entity: { kind: 'decision', name: 'auth-method' },
+          aspect: 'mechanism',
+          body: 'Auth uses httpOnly session cookies; JWT-in-localStorage was retired.',
+        },
+      ],
+      {
+        projectPath: '/w/api',
+        sessionPk: row.pk,
+        memberId: alice,
+      },
+    );
     addComment(db, bob, row.pk, null, 'auth decision still holds for mobile too');
 
     const r = recall(db, { query: 'which auth mechanism did we pick', viewerId: alice });
@@ -109,12 +140,18 @@ describe('recall', () => {
   });
 
   it('never leaks a personal session, and respects the token budget', () => {
-    fullReplaceSession(db, bob, session('secret', '/w/side', [
-      msg('u1', 'user', 'my private side project uses widgets everywhere'),
-    ], { visibility: 'personal' }));
-    fullReplaceSession(db, alice, session('open', '/w/api', [
-      msg('u1', 'user', `widgets ${'and more widgets '.repeat(400)}`),
-    ]));
+    fullReplaceSession(
+      db,
+      bob,
+      session('secret', '/w/side', [msg('u1', 'user', 'my private side project uses widgets everywhere')], {
+        visibility: 'personal',
+      }),
+    );
+    fullReplaceSession(
+      db,
+      alice,
+      session('open', '/w/api', [msg('u1', 'user', `widgets ${'and more widgets '.repeat(400)}`)]),
+    );
 
     const asAlice = recall(db, { query: 'widgets', viewerId: alice, budget: 300 });
     expect(asAlice.items.map((i) => i.sessionId)).not.toContain('claude-code:secret');

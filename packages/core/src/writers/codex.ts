@@ -92,9 +92,7 @@ export function toRolloutLines(session: MotifSession, opts: ConvertOptions): Con
     model_provider: 'openai',
     base_instructions: null,
     history_mode: 'legacy',
-    ...(session.gitBranch && session.gitBranch !== 'HEAD'
-      ? { git: { branch: session.gitBranch } }
-      : {}),
+    ...(session.gitBranch && session.gitBranch !== 'HEAD' ? { git: { branch: session.gitBranch } } : {}),
   });
 
   const provenance =

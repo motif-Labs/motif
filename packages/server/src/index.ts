@@ -69,11 +69,13 @@ export function createServer(config: ServerConfig = {}): MotifServer {
 
   const explicitTeamName = config.teamName ?? process.env.MOTIF_TEAM_NAME;
   if (explicitTeamName) {
-    db.prepare('INSERT INTO meta(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
-      .run('team_name', explicitTeamName);
+    db.prepare(
+      'INSERT INTO meta(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+    ).run('team_name', explicitTeamName);
   }
   const teamName = (): string =>
-    (db.prepare('SELECT value FROM meta WHERE key = ?').get('team_name') as { value: string } | undefined)?.value ?? 'Team';
+    (db.prepare('SELECT value FROM meta WHERE key = ?').get('team_name') as { value: string } | undefined)
+      ?.value ?? 'Team';
 
   app.get('/api/health', (c) => c.json({ ok: true, name: 'motif' }));
 
@@ -132,7 +134,8 @@ export function createServer(config: ServerConfig = {}): MotifServer {
 
   const isOwner = (id: number | undefined): boolean =>
     id !== undefined &&
-    (db.prepare('SELECT role FROM members WHERE id = ?').get(id) as { role?: string } | undefined)?.role === 'owner';
+    (db.prepare('SELECT role FROM members WHERE id = ?').get(id) as { role?: string } | undefined)?.role ===
+      'owner';
 
   app.get('/api/team', (c) =>
     c.json({
@@ -146,8 +149,9 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     if (!isOwner(memberId(c))) return c.json({ error: 'owner only' }, 403);
     const body = await c.req.json<{ name?: string }>();
     if (!body.name?.trim()) return c.json({ error: 'name required' }, 400);
-    db.prepare('INSERT INTO meta(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
-      .run('team_name', body.name.trim().slice(0, 60));
+    db.prepare(
+      'INSERT INTO meta(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+    ).run('team_name', body.name.trim().slice(0, 60));
     return c.json({ ok: true, name: teamName() });
   });
 
@@ -161,7 +165,9 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     if (!Number.isFinite(days) || days < 7) return c.json({ error: 'olderThanDays must be >= 7' }, 400);
     const cutoff = new Date(Date.now() - days * 86400000).toISOString();
     const result = db.transaction(() => {
-      const doomed = db.prepare('SELECT pk FROM sessions WHERE updated_at < ?').all(cutoff) as { pk: number }[];
+      const doomed = db.prepare('SELECT pk FROM sessions WHERE updated_at < ?').all(cutoff) as {
+        pk: number;
+      }[];
       const pks = doomed.map((r) => r.pk);
       let messages = 0;
       for (const pk of pks) {
@@ -252,8 +258,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     const row = getSessionRow(db, c.req.param('id'));
     if (!row || !canView(row, memberId(c))) return c.json({ error: 'not found' }, 404);
     const member = db.prepare('SELECT name FROM members WHERE id = ?').get(row.member_id) as
-      | { name: string }
-      | undefined;
+      { name: string } | undefined;
     return c.json({
       id: row.id,
       source: row.source,
@@ -284,9 +289,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       viewerId: memberId(c),
       budget: c.req.query('budget') ? Number(c.req.query('budget')) : undefined,
     });
-    return c.req.query('format') === 'markdown'
-      ? c.text(renderRecall(result))
-      : c.json(result);
+    return c.req.query('format') === 'markdown' ? c.text(renderRecall(result)) : c.json(result);
   });
 
   // Ask a past session a question — the owning machine answers it.
@@ -466,7 +469,10 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   app.post('/api/handoff-requests', async (c) => {
     const member = memberId(c);
     if (member === undefined) {
-      return c.json({ error: 'handoff runs on your machine via your daemon — log in with your member token' }, 403);
+      return c.json(
+        { error: 'handoff runs on your machine via your daemon — log in with your member token' },
+        403,
+      );
     }
     const body = await c.req.json<{ sessionId?: string; cwd?: string; assignee?: string; target?: string }>();
     if (!body.sessionId) return c.json({ error: 'sessionId required' }, 400);
@@ -518,7 +524,12 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   app.patch('/api/handoff-requests/:id', async (c) => {
     const member = memberId(c);
     if (member === undefined) return c.json({ error: 'member token required' }, 403);
-    const body = await c.req.json<{ status: 'done' | 'error'; outputPath?: string; targetSessionId?: string; error?: string }>();
+    const body = await c.req.json<{
+      status: 'done' | 'error';
+      outputPath?: string;
+      targetSessionId?: string;
+      error?: string;
+    }>();
     const updated = completeHandoffRequest(db, member, Number(c.req.param('id')), body);
     if (!updated) return c.json({ error: 'not found or not yours or not pending' }, 404);
     bus.publish('handoff-request-updated', {
@@ -537,12 +548,25 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   app.post('/api/handoffs', async (c) => {
     const member = memberId(c);
     if (member === undefined) return c.json({ error: 'member token required' }, 403);
-    const body = await c.req.json<{ sessionId: string; target: string; outputPath?: string; targetSessionId?: string }>();
+    const body = await c.req.json<{
+      sessionId: string;
+      target: string;
+      outputPath?: string;
+      targetSessionId?: string;
+    }>();
     const row = getSessionRow(db, body.sessionId);
     db.prepare(
       'INSERT INTO handoffs (session_pk, member_id, target, output_path, target_session_id, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-    ).run(row?.pk ?? null, member ?? null, body.target, body.outputPath ?? null, body.targetSessionId ?? null, new Date().toISOString());
-    if (member) bus.publish('handoff-created', { sessionId: body.sessionId, memberId: member, target: body.target });
+    ).run(
+      row?.pk ?? null,
+      member ?? null,
+      body.target,
+      body.outputPath ?? null,
+      body.targetSessionId ?? null,
+      new Date().toISOString(),
+    );
+    if (member)
+      bus.publish('handoff-created', { sessionId: body.sessionId, memberId: member, target: body.target });
     return c.json({ ok: true });
   });
 
@@ -610,7 +634,8 @@ function serveUi(app: Hono): void {
     const reqPath = c.req.path === '/' ? '/index.html' : c.req.path;
     const file = path.normalize(path.join(uiDir, reqPath));
     const fallback = path.join(uiDir, 'index.html'); // SPA hash-router entry
-    const target = file.startsWith(uiDir) && fs.existsSync(file) && fs.statSync(file).isFile() ? file : fallback;
+    const target =
+      file.startsWith(uiDir) && fs.existsSync(file) && fs.statSync(file).isFile() ? file : fallback;
     return c.body(fs.readFileSync(target), 200, {
       'content-type': MIME[path.extname(target)] ?? 'application/octet-stream',
     });

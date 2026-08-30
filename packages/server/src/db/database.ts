@@ -235,13 +235,13 @@ export function openDb(dbPath: string): Db {
 /** Returns the persisted team token, minting one on first run. */
 export function ensureTeamToken(db: Db, explicit?: string): string {
   if (explicit) {
-    db.prepare('INSERT INTO meta(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
-      .run('team_token', explicit);
+    db.prepare(
+      'INSERT INTO meta(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+    ).run('team_token', explicit);
     return explicit;
   }
   const row = db.prepare('SELECT value FROM meta WHERE key = ?').get('team_token') as
-    | { value: string }
-    | undefined;
+    { value: string } | undefined;
   if (row) return row.value;
   const token = crypto.randomBytes(24).toString('base64url');
   db.prepare('INSERT INTO meta(key, value) VALUES (?, ?)').run('team_token', token);

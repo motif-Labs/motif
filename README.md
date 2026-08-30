@@ -59,12 +59,12 @@ motif mcp install
 Now your agent can answer "why is this like this?" from the team's own history
 instead of grepping, and it can talk to past sessions:
 
-| tool | what it does |
-|---|---|
-| `recall` | the distilled answer — past decisions, human notes, cited excerpts, in ~1.5k tokens |
-| `search_sessions` / `list_sessions` | find the session |
-| `get_session` | read a transcript |
-| `ask_session` | **ask a past session a question** — the agent that lived it answers, with full context |
+| tool                                | what it does                                                                           |
+| ----------------------------------- | -------------------------------------------------------------------------------------- |
+| `recall`                            | the distilled answer — past decisions, human notes, cited excerpts, in ~1.5k tokens    |
+| `search_sessions` / `list_sessions` | find the session                                                                       |
+| `get_session`                       | read a transcript                                                                      |
+| `ask_session`                       | **ask a past session a question** — the agent that lived it answers, with full context |
 
 Same thing from your shell:
 
@@ -84,7 +84,7 @@ Corpus: 1,774,659 tokens of session history · budget 1500 tokens/answer
 hit rate 8/9 (89%) · median 1,496 tokens per answer · 1,186× smaller than the history it draws from
 ```
 
-That is a *retrieval* benchmark over a real 1.8M-token corpus. The miss is
+That is a _retrieval_ benchmark over a real 1.8M-token corpus. The miss is
 cross-language — the question was asked in one language about a decision
 discussed in another, and lexical search is language-bound; distilled memory
 covers that gap. Write your own `bench/questions.json` and reproduce it on
@@ -100,7 +100,7 @@ picked.
 **Solo (one machine):**
 
 ```bash
-npm i -g motifhq      # the binary is `motif`
+npm i -g getmotif      # the binary is `motif`
 motif up              # server + live sync on localhost:4680
 motif ui              # open the dashboard
 ```
@@ -109,11 +109,11 @@ motif ui              # open the dashboard
 
 ```bash
 # On your server (or: docker compose up)
-npx motifhq server --port 4680
+npx getmotif server --port 4680
 # → prints the team token
 
 # On each dev machine
-npx motifhq connect http://your-server:4680 --token <token> --name "Ada" --email ada@team.dev
+npx getmotif connect http://your-server:4680 --token <token> --name "Ada" --email ada@team.dev
 motif daemon start    # sessions now stream to the server live
 ```
 
@@ -148,7 +148,7 @@ MOTIF_LLM_PROVIDER=anthropic MOTIF_LLM_API_KEY=sk-... motif server
 
 Two credentials, two levels:
 
-- **Team token** — shared once when the server first starts. Grants *read*
+- **Team token** — shared once when the server first starts. Grants _read_
   access (dashboard, search) and lets a new teammate register. It can never
   write sessions or trigger actions: there is no identity to attribute.
 - **Member token** — minted per person/device by `motif connect`, stored in
@@ -160,12 +160,12 @@ Joining a team never auto-shares your history: a freshly connected machine
 uploads everything as **personal** (visible only to you) until you mark
 projects team-visible with `motif projects team <path>` or promote a session
 from the dashboard. Team-visible sessions are readable by the whole team —
-that is the product. Nobody can *write as* someone else, and handoffs and
+that is the product. Nobody can _write as_ someone else, and handoffs and
 asks only ever execute on the owning machine, via its own daemon.
 
 **Privacy controls, applied before anything leaves a machine:** `exclude`
 globs keep whole projects local; `redactPatterns` regexes scrub message text
-*and* tool inputs. Put TLS in front with your reverse proxy (a two-line Caddy
+_and_ tool inputs. Put TLS in front with your reverse proxy (a two-line Caddy
 config) for teams outside a trusted network.
 
 ## Running it for a team, 24/7
@@ -175,10 +175,10 @@ One server per team, one daemon per dev machine:
 ```bash
 # Company server (survives restarts; SQLite lives in the volume)
 docker compose up -d
-# or without Docker:  MOTIF_TOKEN=<fixed-token> npx motifhq server
+# or without Docker:  MOTIF_TOKEN=<fixed-token> npx getmotif server
 
 # Each developer, once:
-npx motifhq connect https://motif.internal.yourco.dev --token <team-token> --name "Ada" --email ada@yourco.dev
+npx getmotif connect https://motif.internal.yourco.dev --token <team-token> --name "Ada" --email ada@yourco.dev
 motif daemon start        # logs: ~/.motif/daemon.log (auto-rotated)
 ```
 
@@ -208,7 +208,7 @@ old raw sessions go, distilled memory notes stay.
 ## Try it without touching your own history
 
 ```bash
-git clone https://github.com/motifhq/motif && cd motif
+git clone https://github.com/motif-Labs/motif && cd motif
 npm install && npm run build
 bash scripts/demo.sh        # two members, invented sessions, a live dashboard
 ```
@@ -225,6 +225,14 @@ the handoff writes a real rollout file and registers the thread in Codex's
 state DB, so `codex resume` lists it and appends to it as its own history.
 Recall, the MCP server and ask-a-session are in. 62 tests, CI on Linux,
 macOS and Windows.
+
+## Contributing
+
+New session readers are the most welcome contribution — Motif is only as useful
+as the tools it can collect from. See [CONTRIBUTING.md](CONTRIBUTING.md) for the
+setup, the DCO sign-off, and what a good pull request looks like here, and
+[CLAUDE.md](CLAUDE.md) for the invariants worth knowing before touching sync,
+handoff or scope. Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

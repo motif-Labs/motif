@@ -21,7 +21,12 @@ afterEach(() => {
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
-const note = (name: string, aspect: string, body: string, extra: Partial<{ supersedes: boolean; contradictsCurrent: boolean }> = {}) => ({
+const note = (
+  name: string,
+  aspect: string,
+  body: string,
+  extra: Partial<{ supersedes: boolean; contradictsCurrent: boolean }> = {},
+) => ({
   entity: { kind: 'decision' as const, name },
   aspect,
   body,
@@ -33,11 +38,17 @@ describe('memory notes', () => {
     const db = openDb(path.join(tmp, 'db.sqlite'));
     const ctx = { projectPath: '/tmp/demo', sessionPk: null, memberId: null };
     applyNotes(db, [note('file-transfer', 'tool', 'We use rclone for file transfer')], ctx);
-    applyNotes(db, [note('file-transfer', 'tool', 'We replaced rclone with rsync', { supersedes: true })], ctx);
+    applyNotes(
+      db,
+      [note('file-transfer', 'tool', 'We replaced rclone with rsync', { supersedes: true })],
+      ctx,
+    );
 
-    const rows = db
-      .prepare('SELECT body, status, superseded_by FROM memory_notes ORDER BY id')
-      .all() as { body: string; status: string; superseded_by: number | null }[];
+    const rows = db.prepare('SELECT body, status, superseded_by FROM memory_notes ORDER BY id').all() as {
+      body: string;
+      status: string;
+      superseded_by: number | null;
+    }[];
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({ status: 'superseded' });
     expect(rows[0]!.superseded_by).not.toBeNull();
@@ -51,9 +62,11 @@ describe('memory notes', () => {
     applyNotes(db, [note('auth', 'method', 'JWT everywhere')], ctx);
     applyNotes(db, [note('auth', 'method', 'Session cookies everywhere', { contradictsCurrent: true })], ctx);
 
-    const rows = db
-      .prepare('SELECT body, status, conflict_with FROM memory_notes ORDER BY id')
-      .all() as { body: string; status: string; conflict_with: number | null }[];
+    const rows = db.prepare('SELECT body, status, conflict_with FROM memory_notes ORDER BY id').all() as {
+      body: string;
+      status: string;
+      conflict_with: number | null;
+    }[];
     expect(rows[0]).toMatchObject({ body: 'JWT everywhere', status: 'current' });
     expect(rows[1]).toMatchObject({ status: 'conflicted' });
     expect(rows[1]!.conflict_with).not.toBeNull();

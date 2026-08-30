@@ -4,13 +4,13 @@
 
 Motif is fully self-hosted: the server your team runs is the only place
 session data ever goes. The code makes no calls to any third party except
-the LLM provider *you* configure for the optional memory feature.
+the LLM provider _you_ configure for the optional memory feature.
 
 Two credentials, two levels:
 
-| Credential | Who has it | Can do |
-|---|---|---|
-| **Team token** | shared once, out-of-band | read dashboards/search; register a new member |
+| Credential       | Who has it                                       | Can do                                             |
+| ---------------- | ------------------------------------------------ | -------------------------------------------------- |
+| **Team token**   | shared once, out-of-band                         | read dashboards/search; register a new member      |
 | **Member token** | one per person/device, minted by `motif connect` | everything; every write is attributed to its owner |
 
 - Identity always derives from the member token — never from a claimed
@@ -20,11 +20,11 @@ Two credentials, two levels:
   rate-limited per client (20/min → 429).
 - Every synced session carries a scope, and **joining a team never
   auto-shares your history**: a freshly connected machine uploads
-  everything as `personal` — stored on the server but visible to *you
-  alone* (lists, search, detail, export all filter it) — until you mark
+  everything as `personal` — stored on the server but visible to _you
+  alone_ (lists, search, detail, export all filter it) — until you mark
   projects team-visible (`motif projects team <path>`) or promote
   individual sessions from the dashboard. Handing a personal session to
-  a teammate promotes it (handing it over *is* sharing it), and only
+  a teammate promotes it (handing it over _is_ sharing it), and only
   team-visible sessions feed the shared memory. Keeping something off
   the server entirely still happens on the source machine (below).
 - Dashboard-initiated handoffs execute only on the requester's own
@@ -45,7 +45,7 @@ motif projects exclude ~/personal --purge                # block + withdraw alre
 ```
 
 `redactPatterns` in `~/.motif/config.json` scrub secrets from message
-text *and* tool inputs before upload. In `selected` mode, Cursor
+text _and_ tool inputs before upload. In `selected` mode, Cursor
 conversations (which carry no project path) stay local too.
 
 ## Transport

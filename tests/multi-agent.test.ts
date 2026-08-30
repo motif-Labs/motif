@@ -121,7 +121,10 @@ describe('claude-code writer (reverse handoff)', () => {
 
   it('renders tool activity as readable text, batched into single turns', () => {
     const claude = readClaudeSession(path.join(root, 'fixtures', 'claude-code', 'tools.jsonl'));
-    const result = toClaudeSessionLines(claude, { sessionId: 'aaaa1111-0000-4000-8000-000000000000', now: new Date() });
+    const result = toClaudeSessionLines(claude, {
+      sessionId: 'aaaa1111-0000-4000-8000-000000000000',
+      now: new Date(),
+    });
     const all = serializeClaudeSession(result.lines);
     expect(all).toContain('[ran Edit]');
     expect(all).toContain('has been updated');
@@ -176,12 +179,18 @@ describe('cursor reader', () => {
 
     const wsDir = path.join(userDir, 'workspaceStorage', 'abc123hash');
     fs.mkdirSync(wsDir, { recursive: true });
-    fs.writeFileSync(path.join(wsDir, 'workspace.json'), JSON.stringify({ folder: 'file:///Users/me/webapp' }));
+    fs.writeFileSync(
+      path.join(wsDir, 'workspace.json'),
+      JSON.stringify({ folder: 'file:///Users/me/webapp' }),
+    );
     const wsDb = new Database(path.join(wsDir, 'state.vscdb'));
     wsDb.exec('CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value TEXT)');
     wsDb
       .prepare('INSERT INTO ItemTable VALUES (?, ?)')
-      .run('composer.composerData', JSON.stringify({ allComposers: [{ composerId: 'conv-1' }, { composerId: 'conv-2' }] }));
+      .run(
+        'composer.composerData',
+        JSON.stringify({ allComposers: [{ composerId: 'conv-1' }, { composerId: 'conv-2' }] }),
+      );
     wsDb.close();
 
     const map = loadCursorProjectMap(globalDb);

@@ -54,10 +54,14 @@ function installClaude(cmd: { command: string; args: string[] }, print: boolean)
   const shell = process.platform === 'win32';
   const cli = `claude mcp add motif --scope user -- ${cmd.command} ${cmd.args.join(' ')}`;
   if (print) return cli;
-  const run = spawnSync('claude', ['mcp', 'add', 'motif', '--scope', 'user', '--', cmd.command, ...cmd.args], {
-    encoding: 'utf8',
-    shell,
-  });
+  const run = spawnSync(
+    'claude',
+    ['mcp', 'add', 'motif', '--scope', 'user', '--', cmd.command, ...cmd.args],
+    {
+      encoding: 'utf8',
+      shell,
+    },
+  );
   if (run.error || run.status !== 0) {
     return `! Claude Code: run it yourself → ${cli}`;
   }

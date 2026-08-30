@@ -10,7 +10,11 @@ export function ClaudeMark({ size = 14 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
       {rays.map((deg) => (
-        <path d="M12 12 L10.4 3.2 Q12 1.6 13.6 3.2 Z" fill="currentColor" transform={`rotate(${deg} 12 12)`} />
+        <path
+          d="M12 12 L10.4 3.2 Q12 1.6 13.6 3.2 Z"
+          fill="currentColor"
+          transform={`rotate(${deg} 12 12)`}
+        />
       ))}
       <circle cx="12" cy="12" r="2.6" fill="currentColor" />
     </svg>
@@ -23,7 +27,18 @@ export function CodexMark({ size = 14 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
       {lobes.map((deg) => (
-        <rect x="10.6" y="2.6" width="2.8" height="11" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.7" transform={`rotate(${deg} 12 12)`} class="codex-lobe" />
+        <rect
+          x="10.6"
+          y="2.6"
+          width="2.8"
+          height="11"
+          rx="1.4"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.7"
+          transform={`rotate(${deg} 12 12)`}
+          class="codex-lobe"
+        />
       ))}
     </svg>
   );

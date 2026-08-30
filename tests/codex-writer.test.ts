@@ -54,29 +54,39 @@ describe('codex writer', () => {
     const realMeta = captured[0]!.payload as Record<string, unknown>;
     const ourMeta = ours[0]!.payload as Record<string, unknown>;
     expect(ours[0]!.type).toBe('session_meta');
-    for (const key of ['session_id', 'id', 'timestamp', 'cwd', 'originator', 'cli_version', 'source', 'model_provider']) {
+    for (const key of [
+      'session_id',
+      'id',
+      'timestamp',
+      'cwd',
+      'originator',
+      'cli_version',
+      'source',
+      'model_provider',
+    ]) {
       expect(realMeta).toHaveProperty(key);
       expect(ourMeta).toHaveProperty(key);
     }
 
     // user response_item matches the captured shape exactly (sans metadata passthrough)
     const realUser = captured.find(
-      (l) => l.type === 'response_item' && (l.payload as { role?: string }).role === 'user' &&
+      (l) =>
+        l.type === 'response_item' &&
+        (l.payload as { role?: string }).role === 'user' &&
         !JSON.stringify(l.payload).includes('environment_context'),
     )!.payload as Record<string, unknown>;
     const ourUser = ours.find(
       (l) => l.type === 'response_item' && (l.payload as { role?: string }).role === 'user',
     )!.payload as { type: string; content: { type: string }[] };
     expect(ourUser.type).toBe((realUser as { type: string }).type);
-    expect(ourUser.content[0]!.type).toBe(
-      (realUser as { content: { type: string }[] }).content[0]!.type,
-    );
+    expect(ourUser.content[0]!.type).toBe((realUser as { content: { type: string }[] }).content[0]!.type);
   });
 
   it('converts tool calls with string arguments and matching call ids', () => {
     const { lines } = convertToolsFixture();
-    const call = lines.find((l) => l.type === 'response_item' && (l.payload as { type?: string }).type === 'function_call')!
-      .payload as { name: string; arguments: string; call_id: string };
+    const call = lines.find(
+      (l) => l.type === 'response_item' && (l.payload as { type?: string }).type === 'function_call',
+    )!.payload as { name: string; arguments: string; call_id: string };
     expect(call.name).toBe('apply_patch'); // Claude Edit → apply_patch envelope
     expect(typeof call.arguments).toBe('string');
     expect(() => JSON.parse(call.arguments)).not.toThrow();
@@ -95,7 +105,9 @@ describe('codex writer', () => {
     const all = serializeRollout(result.lines);
     expect(all).not.toContain('I should look at the file first');
     expect(all).toContain('Handed off from Claude Code session');
-    const events = result.lines.filter((l) => l.type === 'event_msg').map((l) => (l.payload as { type: string }).type);
+    const events = result.lines
+      .filter((l) => l.type === 'event_msg')
+      .map((l) => (l.payload as { type: string }).type);
     expect(events).toContain('user_message');
     expect(events).toContain('agent_message');
   });

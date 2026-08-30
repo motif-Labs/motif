@@ -24,9 +24,56 @@ import { canView, type SessionRow } from './store.js';
 export const approxTokens = (text: string): number => Math.ceil(text.length / 4);
 
 const STOPWORDS = new Set([
-  'the','a','an','and','or','but','is','are','was','were','be','been','to','of','in','on','for','with',
-  'what','why','how','when','where','which','who','did','do','does','we','i','you','it','this','that',
-  'ne','neden','nasil','nasıl','nedir','icin','için','ile','bir','bu','şu','su','mi','mı','ve','veya',
+  'the',
+  'a',
+  'an',
+  'and',
+  'or',
+  'but',
+  'is',
+  'are',
+  'was',
+  'were',
+  'be',
+  'been',
+  'to',
+  'of',
+  'in',
+  'on',
+  'for',
+  'with',
+  'what',
+  'why',
+  'how',
+  'when',
+  'where',
+  'which',
+  'who',
+  'did',
+  'do',
+  'does',
+  'we',
+  'i',
+  'you',
+  'it',
+  'this',
+  'that',
+  'ne',
+  'neden',
+  'nasil',
+  'nasıl',
+  'nedir',
+  'icin',
+  'için',
+  'ile',
+  'bir',
+  'bu',
+  'şu',
+  'su',
+  'mi',
+  'mı',
+  've',
+  'veya',
 ]);
 
 export function queryTerms(query: string): string[] {
@@ -188,7 +235,11 @@ interface SessionMeta {
   visibility: 'team' | 'personal';
 }
 
-function visibleSessions(db: Db, project: string | undefined, viewerId: number | undefined): Map<number, SessionMeta> {
+function visibleSessions(
+  db: Db,
+  project: string | undefined,
+  viewerId: number | undefined,
+): Map<number, SessionMeta> {
   const rows = db
     .prepare(
       `SELECT s.pk, s.id, s.title, s.member_id, s.project_path, s.updated_at, s.files_touched, s.visibility,
@@ -225,7 +276,12 @@ export function recall(db: Db, opts: RecallOptions): RecallResult {
   const sessions = visibleSessions(db, opts.project, opts.viewerId);
 
   // ── 1. term matches (message-level bm25) ────────────────────────────────
-  interface Hit { sessionPk: number; messageId: string; text: string; rank: number }
+  interface Hit {
+    sessionPk: number;
+    messageId: string;
+    text: string;
+    rank: number;
+  }
   let hits: Hit[] = [];
   if (terms.length > 0) {
     try {
@@ -426,7 +482,13 @@ export function recall(db: Db, opts: RecallOptions): RecallResult {
     const s = sessions.get(pk);
     if (!s || relatedPks.has(pk)) continue;
     relatedPks.add(pk);
-    related.push({ sessionId: s.id, title: s.title, member: s.member, updatedAt: s.updated_at, why: boost.why });
+    related.push({
+      sessionId: s.id,
+      title: s.title,
+      member: s.member,
+      updatedAt: s.updated_at,
+      why: boost.why,
+    });
   }
 
   return {

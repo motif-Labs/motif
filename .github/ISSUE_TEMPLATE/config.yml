@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/motif-Labs/motif/security/advisories/new
+    about: Report privately. Please do not open a public issue for an exploitable problem.
+  - name: Question or idea
+    url: https://github.com/motif-Labs/motif/discussions
+    about: For usage questions and open-ended discussion.

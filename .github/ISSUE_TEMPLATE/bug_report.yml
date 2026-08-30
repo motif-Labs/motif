@@ -1,0 +1,70 @@
+name: Bug report
+description: Something does not work the way it says it does
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do not report a security problem here — use
+        [private reporting](https://github.com/motif-Labs/motif/security/advisories/new)
+        instead, as described in [SECURITY.md](../blob/main/SECURITY.md).
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The commands you ran, in order. A minimal path is worth more than a long one.
+      placeholder: |
+        1. motif connect http://... --token ... --name ...
+        2. motif sync
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: Error messages or relevant log lines. `motif doctor` output helps.
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: Motif version
+      description: '`motif --version`, or the commit you built from'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [macOS, Linux, Windows]
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: agents
+    attributes:
+      label: Which agent's sessions are involved?
+      options:
+        - label: Claude Code
+        - label: Codex
+        - label: Cursor
+        - label: Not agent-specific
+
+  - type: checkboxes
+    id: scrubbed
+    attributes:
+      label: Before you post
+      options:
+        - label: I removed tokens, credentials and anything private from the text above
+          required: true

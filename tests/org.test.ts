@@ -14,7 +14,12 @@ afterEach(() => {
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
-const msg = (id: string, text: string): MotifMessage => ({ id, role: 'user', timestamp: '2026-08-01T10:00:00.000Z', text });
+const msg = (id: string, text: string): MotifMessage => ({
+  id,
+  role: 'user',
+  timestamp: '2026-08-01T10:00:00.000Z',
+  text,
+});
 
 const session = (id: string, updatedAt: string): MotifSession => ({
   id: `claude-code:${id}`,
@@ -55,9 +60,9 @@ describe('member dedupe (migration v3 logic)', () => {
     const sessions = listSessions(db);
     expect(sessions).toHaveLength(2); // dup collapsed to freshest copy + solo
     expect(sessions.every((s) => s.memberId === ids[0])).toBe(true);
-    const dup = db
-      .prepare("SELECT updated_at FROM sessions WHERE source_session_id = 'dup'")
-      .all() as { updated_at: string }[];
+    const dup = db.prepare("SELECT updated_at FROM sessions WHERE source_session_id = 'dup'").all() as {
+      updated_at: string;
+    }[];
     expect(dup).toHaveLength(1);
     expect(dup[0]!.updated_at).toBe('2026-08-22T10:00:00.000Z');
     db.close();

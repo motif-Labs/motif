@@ -88,8 +88,7 @@ export function loadCursorProjectMap(dbPath = defaultCursorDb()): Map<string, st
       const wsDb = openRo(path.join(storageRoot, hash, 'state.vscdb'));
       try {
         const row = wsDb.prepare('SELECT value FROM ItemTable WHERE key = ?').get('composer.composerData') as
-          | { value: string | Buffer }
-          | undefined;
+          { value: string | Buffer } | undefined;
         if (!row) continue;
         const data = JSON.parse(String(row.value)) as { allComposers?: { composerId?: string }[] };
         for (const c of data.allComposers ?? []) {
@@ -164,9 +163,9 @@ export function readCursorSession(
   if (!dbPath) throw new Error('Cursor data directory not found');
   const db = openRo(dbPath);
   try {
-    const row = db.prepare('SELECT value FROM cursorDiskKV WHERE key = ?').get(`composerData:${composerId}`) as
-      | { value: string | Buffer }
-      | undefined;
+    const row = db
+      .prepare('SELECT value FROM cursorDiskKV WHERE key = ?')
+      .get(`composerData:${composerId}`) as { value: string | Buffer } | undefined;
     if (!row) throw new Error(`Cursor conversation ${composerId} not found`);
     const data = JSON.parse(String(row.value)) as ComposerData;
 
@@ -180,9 +179,19 @@ export function readCursorSession(
       if (!text) return;
       if (type === 1) {
         if (!firstPrompt) firstPrompt = text;
-        messages.push({ id: bubbleId, role: 'user', timestamp: iso(bubble.createdAt as number | undefined), text });
+        messages.push({
+          id: bubbleId,
+          role: 'user',
+          timestamp: iso(bubble.createdAt as number | undefined),
+          text,
+        });
       } else if (type === 2) {
-        messages.push({ id: bubbleId, role: 'assistant', timestamp: iso(bubble.createdAt as number | undefined), text });
+        messages.push({
+          id: bubbleId,
+          role: 'assistant',
+          timestamp: iso(bubble.createdAt as number | undefined),
+          text,
+        });
       }
     };
 
@@ -192,7 +201,8 @@ export function readCursorSession(
       for (const header of data.fullConversationHeadersOnly) {
         if (!header.bubbleId || seen.has(header.bubbleId)) continue;
         seen.add(header.bubbleId);
-        const b = getBubble.get(`bubbleId:${composerId}:${header.bubbleId}`) as { value: string | Buffer } | undefined;
+        const b = getBubble.get(`bubbleId:${composerId}:${header.bubbleId}`) as
+          { value: string | Buffer } | undefined;
         if (!b) continue;
         try {
           pushBubble(header.bubbleId, JSON.parse(String(b.value)) as Record<string, unknown>);

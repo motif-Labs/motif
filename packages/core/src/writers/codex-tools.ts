@@ -24,7 +24,8 @@ const quote = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
 
 export function translateToolCall(toolName: string, input: unknown): CodexCall {
   const inp = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
-  const str = (k: string): string | undefined => (typeof inp[k] === 'string' ? (inp[k] as string) : undefined);
+  const str = (k: string): string | undefined =>
+    typeof inp[k] === 'string' ? (inp[k] as string) : undefined;
 
   switch (toolName) {
     case 'Bash':

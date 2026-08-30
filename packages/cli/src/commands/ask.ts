@@ -11,7 +11,7 @@ export function registerAsk(program: Command): void {
   program
     .command('ask <id> <question...>')
     .description('Ask a past session a question — the agent that lived it answers, with full context')
-    .option('--wait <seconds>', 'how long to wait for a teammate\'s machine', '120')
+    .option('--wait <seconds>', "how long to wait for a teammate's machine", '120')
     .action(async (id: string, questionParts: string[], opts: { wait: string }) => {
       const question = questionParts.join(' ');
       const { claudeDir } = program.opts<{ claudeDir?: string }>();
@@ -42,16 +42,23 @@ export function registerAsk(program: Command): void {
         // record it for the team so the answer is not lost in a terminal
         if (client) {
           const request = await client.createAsk(local.id, question).catch(() => undefined);
-          if (request) await client.completeAskRequest(request.id, { status: 'done', answer: outcome.answer }).catch(() => {});
+          if (request)
+            await client
+              .completeAskRequest(request.id, { status: 'done', answer: outcome.answer })
+              .catch(() => {});
         }
         return;
       }
 
       // 2. otherwise the owner's machine answers it
       if (!client) {
-        throw new Error('That session is not on this machine and no server is configured (run `motif connect`).');
+        throw new Error(
+          'That session is not on this machine and no server is configured (run `motif connect`).',
+        );
       }
-      const sessionId = id.includes(':') ? id : (await client.exportSession(`claude-code:${id}`).catch(() => undefined))?.id ?? id;
+      const sessionId = id.includes(':')
+        ? id
+        : ((await client.exportSession(`claude-code:${id}`).catch(() => undefined))?.id ?? id);
       const request = await client.createAsk(sessionId, question);
       console.error(`Queued for the machine that owns "${request.session_title ?? sessionId}" — waiting…`);
       const deadline = Date.now() + (Number(opts.wait) || 120) * 1000;
@@ -78,7 +85,8 @@ export function registerAsk(program: Command): void {
     .description('Questions asked of a session, and the answers')
     .action(async (id: string) => {
       const cfg = loadConfig();
-      if (!cfg.serverUrl || !cfg.memberToken) throw new Error('Not connected (run `motif connect` or `motif up`).');
+      if (!cfg.serverUrl || !cfg.memberToken)
+        throw new Error('Not connected (run `motif connect` or `motif up`).');
       const client = new MotifClient({ serverUrl: cfg.serverUrl, token: cfg.memberToken });
       const sessionId = id.includes(':') ? id : `claude-code:${id}`;
       const asks = await client.listAsksForSession(sessionId);

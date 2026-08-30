@@ -80,21 +80,24 @@ class OpenAICompatibleProvider implements LLMProvider {
   }
 
   async completeJSON(opts: { system: string; user: string; maxTokens?: number }): Promise<unknown> {
-    const res = await fetch(new URL('chat/completions', this.baseUrl.endsWith('/') ? this.baseUrl : `${this.baseUrl}/`), {
-      method: 'POST',
-      headers: {
-        ...(this.apiKey ? { authorization: `Bearer ${this.apiKey}` } : {}),
-        'content-type': 'application/json',
+    const res = await fetch(
+      new URL('chat/completions', this.baseUrl.endsWith('/') ? this.baseUrl : `${this.baseUrl}/`),
+      {
+        method: 'POST',
+        headers: {
+          ...(this.apiKey ? { authorization: `Bearer ${this.apiKey}` } : {}),
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: this.model,
+          max_tokens: opts.maxTokens ?? 4096,
+          messages: [
+            { role: 'system', content: opts.system },
+            { role: 'user', content: opts.user },
+          ],
+        }),
       },
-      body: JSON.stringify({
-        model: this.model,
-        max_tokens: opts.maxTokens ?? 4096,
-        messages: [
-          { role: 'system', content: opts.system },
-          { role: 'user', content: opts.user },
-        ],
-      }),
-    });
+    );
     if (!res.ok) throw new Error(`${this.name} ${res.status}: ${(await res.text()).slice(0, 300)}`);
     const data = (await res.json()) as { choices: { message: { content: string } }[] };
     return extractJSON(data.choices[0]?.message.content ?? '');

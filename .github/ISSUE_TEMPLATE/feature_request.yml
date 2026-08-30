@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest something Motif should do
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the situation you are in, not the feature. The best requests start with a workflow that hurts.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would solve it?
+      description: If you have a shape in mind — a command, a flag, a screen — sketch it.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What do you do today instead?
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - label: I would be willing to work on this

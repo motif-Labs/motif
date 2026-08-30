@@ -1,5 +1,5 @@
 {
-  "name": "motifhq",
+  "name": "getmotif",
   "version": "1.0.0",
   "description": "Unification layer for AI coding agent sessions \u2014 collect, search, and natively hand off sessions across tools. Self-hosted.",
   "keywords": [
@@ -16,13 +16,13 @@
     "developer-tools"
   ],
   "license": "Apache-2.0",
-  "homepage": "https://github.com/motifhq/motif#readme",
+  "homepage": "https://github.com/motif-Labs/motif#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/motifhq/motif.git"
+    "url": "git+https://github.com/motif-Labs/motif.git"
   },
   "bugs": {
-    "url": "https://github.com/motifhq/motif/issues"
+    "url": "https://github.com/motif-Labs/motif/issues"
   },
   "type": "module",
   "bin": {
