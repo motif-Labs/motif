@@ -35,7 +35,16 @@ treats it as its own history, not a summary.
 - **Solo mode** — `motif up` runs the same server locally. No team required.
 
 <p align="center">
-  <img src="docs/assets/dashboard.gif" alt="The team dashboard: every member's sessions across Claude Code, Codex, and Cursor" width="820" />
+  <img src="docs/assets/dashboard.png" alt="The team dashboard: every member's sessions across Claude Code, Codex, and Cursor on one timeline" width="880" />
+</p>
+
+<p align="center"><i>Every teammate's sessions, from every tool, on one timeline.</i></p>
+
+Open one and you get the conversation as it happened, what it touched, and the
+one button that matters — continue it somewhere else, or hand it to someone:
+
+<p align="center">
+  <img src="docs/assets/session.png" alt="A session: the transcript, the tools it used, and the controls to continue it elsewhere or ask it a question" width="880" />
 </p>
 
 ## Your agents can query it
@@ -71,15 +80,15 @@ against your own corpus and reports whether the answer was in the bundle and
 how big the bundle was:
 
 ```
-Corpus: 2,080,410 tokens of session history · budget 1500 tokens/answer
-hit rate 8/10 (80%) · median 1,497 tokens per answer · 1,404× smaller than the history it draws from
+Corpus: 1,774,659 tokens of session history · budget 1500 tokens/answer
+hit rate 8/9 (89%) · median 1,496 tokens per answer · 1,186× smaller than the history it draws from
 ```
 
-That is a *retrieval* benchmark over a real two-million-token corpus. The two
-misses are cross-language: the question was asked in one language about a
-decision discussed in another, and lexical search is language-bound — distilled
-memory covers that gap. Write your own `bench/questions.json` and reproduce it
-on your corpus.
+That is a *retrieval* benchmark over a real 1.8M-token corpus. The miss is
+cross-language — the question was asked in one language about a decision
+discussed in another, and lexical search is language-bound; distilled memory
+covers that gap. Write your own `bench/questions.json` and reproduce it on
+your corpus.
 
 **No API key, no embeddings, no vector store.** Ranking comes from FTS/bm25 over
 message text, the session graph (handoff lineage, shared memory entities,

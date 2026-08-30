@@ -206,14 +206,23 @@ const isLoopback = (url: string): boolean => /^https?:\/\/(127\.0\.0\.1|localhos
 
 export function createBackend(dbPath?: string): Backend {
   const cfg = loadConfig();
-  if (cfg.serverUrl && !isLoopback(cfg.serverUrl) && (cfg.memberToken || cfg.token)) {
-    return new RemoteBackend(new MotifClient({ serverUrl: cfg.serverUrl, token: cfg.memberToken ?? cfg.token! }));
-  }
+  const remote = (): Backend =>
+    new RemoteBackend(new MotifClient({ serverUrl: cfg.serverUrl!, token: cfg.memberToken ?? cfg.token! }));
+  const connected = Boolean(cfg.serverUrl && (cfg.memberToken || cfg.token));
+
+  // A real team server owns the data, so it wins outright.
+  if (connected && !isLoopback(cfg.serverUrl!)) return remote();
+
   const file = dbPath ?? process.env.MOTIF_DB_PATH ?? path.join(motifHome(), 'motif.db');
-  if (!fs.existsSync(file)) {
-    throw new Error(
-      `No Motif database at ${file} and no remote server configured.\nRun \`motif up\` once (solo) or \`motif connect <url> --token …\` (team), then retry.`,
-    );
-  }
-  return new LocalBackend(openDb(file), cfg);
+  if (fs.existsSync(file)) return new LocalBackend(openDb(file), cfg);
+
+  // Reading the file directly is only an optimisation. If it is not where this
+  // machine keeps its own state — a server started elsewhere, a different
+  // MOTIF_HOME, an SSH tunnel to localhost — ask the server we are connected to
+  // rather than declaring there is no database.
+  if (connected) return remote();
+
+  throw new Error(
+    `No Motif database at ${file} and no server configured.\nRun \`motif up\` once (solo) or \`motif connect <url> --token …\` (team), then retry.`,
+  );
 }
