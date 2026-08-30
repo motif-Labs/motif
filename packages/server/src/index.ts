@@ -608,6 +608,10 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     }),
   );
 
+  // Registered after every real API route and before the static handler, so an
+  // unknown /api path always answers JSON — with or without a bundled dashboard.
+  app.all('/api/*', (c) => c.json({ error: 'not found' }, 404));
+
   serveUi(app);
 
   return { app, db, bus, token };
@@ -637,9 +641,6 @@ function serveUi(app: Hono): void {
     '.map': 'application/json',
   };
   app.get('*', (c) => {
-    // never let an unknown API path fall through to index.html: the client
-    // would parse HTML as JSON and report a syntax error instead of a 404
-    if (c.req.path.startsWith('/api/')) return c.json({ error: 'not found' }, 404);
     const reqPath = c.req.path === '/' ? '/index.html' : c.req.path;
     const file = path.normalize(path.join(uiDir, reqPath));
     const fallback = path.join(uiDir, 'index.html'); // SPA hash-router entry
