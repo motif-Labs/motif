@@ -75,9 +75,15 @@ jobs:
         run: |
           tgz=$(ls getmotif-*.tgz)
           npm i -g --prefix "$PWD/.probe" "./$tgz"
-      - name: the installed binary runs
+      - name: the installed binary runs and agrees with the manifest
         shell: bash
         run: |
           bin="$PWD/.probe/bin/motif"
           [ -f "$bin" ] || bin="$PWD/.probe/motif"
-          "$bin" --version
+          got="$("$bin" --version)"
+          want="$(node -p "require('./packages/cli/package.json').version")"
+          if [ "$got" != "$want" ]; then
+            echo "binary reports $got but the manifest says $want" >&2
+            exit 1
+          fi
+          echo "$got"

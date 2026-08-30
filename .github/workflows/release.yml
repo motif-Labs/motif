@@ -33,6 +33,13 @@ jobs:
       - run: npx vitest run
       - run: npm run build -w @motif/ui
       - run: npm run build -w getmotif
+      - name: the built binary reports the tagged version
+        run: |
+          got="$(node packages/cli/dist/index.js --version)"
+          if [ "$got" != "${GITHUB_REF_NAME#v}" ]; then
+            echo "binary reports $got but the tag is $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
       - run: npm publish -w getmotif --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

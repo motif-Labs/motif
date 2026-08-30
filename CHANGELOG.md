@@ -6,6 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.2] — 2026-08-31
+
+### Fixed
+
+- `motif --version` reported the previous release. The version was a hand-edited
+  constant that did not track the manifest, so 1.0.1 shipped announcing itself as
+  1.0.0. It is now injected from `package.json` at build time, and both CI and the
+  release workflow fail if the binary and the manifest ever disagree again.
+
 ## [1.0.1] — 2026-08-31
 
 ### Changed
@@ -60,6 +69,7 @@ First public release.
   header. Tokens are 192-bit, stored as SHA-256 hashes, compared in constant
   time, and rate-limited on failure.
 
-[Unreleased]: https://github.com/motif-Labs/motif/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/motif-Labs/motif/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/motif-Labs/motif/releases/tag/v1.0.2
 [1.0.1]: https://github.com/motif-Labs/motif/releases/tag/v1.0.1
 [1.0.0]: https://github.com/motif-Labs/motif/releases/tag/v1.0.0
