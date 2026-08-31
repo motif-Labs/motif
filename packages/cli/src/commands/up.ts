@@ -1,6 +1,12 @@
 import type { Command } from 'commander';
 import os from 'node:os';
-import { createProvider, createServer, startMemoryScheduler, startServer } from '@motif/server';
+import {
+  createProvider,
+  createServer,
+  startMemoryScheduler,
+  startServer,
+  whenListening,
+} from '@motif/server';
 import { MotifClient } from '../api-client.js';
 import { loadConfig, saveConfig } from '../config.js';
 import { watchAndSync } from '../daemon/syncer.js';
@@ -18,7 +24,8 @@ export function registerUp(program: Command): void {
       // listening server with no config written and nothing syncing
       const provider = createProvider();
       const server = createServer({ dbPath: opts.db });
-      startServer(server, { port: Number(opts.port), hostname: '127.0.0.1' });
+      const listener = startServer(server, { port: Number(opts.port), hostname: '127.0.0.1' });
+      await whenListening(listener);
       const serverUrl = `http://127.0.0.1:${opts.port}`;
       if (provider) {
         startMemoryScheduler(server.db, provider, server.bus, { log: console.log });

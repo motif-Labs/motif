@@ -652,14 +652,84 @@ function serveUi(app: Hono): void {
   });
 }
 
+/**
+ * What to print when the port is taken. Exported so a test can assert the
+ * wording without binding a port: this message is the whole fix, and an
+ * unhelpful version of it is indistinguishable from a crash.
+ */
+export function listenErrorMessage(port: number, code: string, motifAlreadyThere: boolean): string {
+  if (code === 'EADDRINUSE' && motifAlreadyThere) {
+    return [
+      `Motif is already running on port ${port}.`,
+      '',
+      `  Open the dashboard:      motif ui`,
+      `  Check on it:             motif status`,
+      `  Run a second one anyway: motif up --port ${port + 1}`,
+    ].join('\n');
+  }
+  if (code === 'EADDRINUSE') {
+    return [
+      `Port ${port} is already in use by something else.`,
+      '',
+      `  Use another port:        motif up --port ${port + 1}`,
+      `  See what is holding it:  lsof -nP -iTCP:${port} -sTCP:LISTEN`,
+    ].join('\n');
+  }
+  if (code === 'EACCES') {
+    return `Port ${port} needs elevated privileges. Pick one above 1024, for example: motif up --port ${port < 1024 ? 4680 : port + 1}`;
+  }
+  return `Could not listen on port ${port}: ${code}`;
+}
+
+/** Is the thing already on this port one of ours? Changes the advice we give. */
+async function motifRespondsOn(port: number, hostname: string): Promise<boolean> {
+  try {
+    const res = await fetch(`http://${hostname}:${port}/api/health`, {
+      signal: AbortSignal.timeout(1500),
+    });
+    return ((await res.json()) as { name?: string }).name === 'motif';
+  } catch {
+    return false;
+  }
+}
+
 export function startServer(
   server: MotifServer,
-  opts: { port?: number; hostname?: string } = {},
+  opts: { port?: number; hostname?: string; onListenError?: (err: NodeJS.ErrnoException) => void } = {},
 ): ServerType {
-  return serve({
-    fetch: server.app.fetch,
-    port: opts.port ?? Number(process.env.MOTIF_PORT ?? 4680),
-    hostname: opts.hostname ?? '127.0.0.1',
+  const port = opts.port ?? Number(process.env.MOTIF_PORT ?? 4680);
+  const hostname = opts.hostname ?? '127.0.0.1';
+  const listener = serve({ fetch: server.app.fetch, port, hostname });
+
+  // Without this, a busy port surfaces as an unhandled 'error' event and Node
+  // prints a stack trace — which is what a first-time user sees.
+  listener.on('error', (err: NodeJS.ErrnoException) => {
+    if (opts.onListenError) {
+      opts.onListenError(err);
+      return;
+    }
+    void motifRespondsOn(port, hostname).then((ours) => {
+      console.error(listenErrorMessage(port, err.code ?? 'UNKNOWN', ours));
+      process.exit(1);
+    });
+  });
+
+  return listener;
+}
+
+/**
+ * Resolves once the port is actually bound. Callers must await this before
+ * doing anything that assumes a running server — otherwise a failed bind races
+ * ahead and produces a confusing error from the *next* step instead of a clear
+ * one about the port.
+ */
+export function whenListening(listener: ServerType): Promise<void> {
+  return new Promise((resolve) => {
+    if (listener.listening) return resolve();
+    listener.once('listening', () => resolve());
+    // Deliberately never rejects. startServer's error handler already prints an
+    // actionable message and exits; rejecting here as well would make the raw
+    // errno appear above it, which is the noise this whole path exists to remove.
   });
 }
 

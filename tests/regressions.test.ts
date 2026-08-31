@@ -10,6 +10,7 @@ import type { MotifMessage, MotifSession } from '@motif/core';
 import { readClaudeSession } from '@motif/core';
 import {
   createServer,
+  listenErrorMessage,
   fullReplaceSession,
   registerMember,
   startServer,
@@ -95,6 +96,26 @@ describe('handoff --digest', () => {
     expect(body).toContain('Condensed history');
     expect(body).toContain('message number 39'); // the tail survives verbatim
     expect(fs.readFileSync(full.target, 'utf8').split('\n').length).toBeGreaterThan(body.split('\n').length);
+  });
+});
+
+describe('a busy port', () => {
+  it('explains itself instead of throwing an unhandled listen error', () => {
+    // `npx getmotif up` on a machine where 4680 was taken printed a raw Node
+    // stack trace — the first thing a new user saw.
+    const ours = listenErrorMessage(4680, 'EADDRINUSE', true);
+    expect(ours).toContain('Motif is already running');
+    expect(ours).toContain('motif ui');
+    expect(ours).toContain('--port 4681');
+    expect(ours).not.toContain('EADDRINUSE');
+
+    const theirs = listenErrorMessage(4680, 'EADDRINUSE', false);
+    expect(theirs).toContain('already in use by something else');
+    expect(theirs).toContain('lsof');
+
+    expect(listenErrorMessage(80, 'EACCES', false)).toContain('elevated privileges');
+    // an unknown code still names the port rather than disappearing
+    expect(listenErrorMessage(4680, 'EPERM', false)).toContain('4680');
   });
 });
 

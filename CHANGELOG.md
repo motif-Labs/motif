@@ -6,6 +6,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.3] — 2026-08-31
+
+### Fixed
+
+- `motif up` on a machine where the port was already taken crashed with an
+  unhandled `EADDRINUSE` and a raw Node stack trace — the first thing a new user
+  saw. It now says what is holding the port, and whether that is another Motif:
+  if so it points at `motif ui`, otherwise at `--port` and `lsof`. `EACCES` on a
+  privileged port is explained too.
+- The server commands now wait for the port to actually bind before continuing,
+  so a failed bind no longer races ahead and reports a confusing error from the
+  next step instead.
+
 ## [1.0.2] — 2026-08-31
 
 ### Fixed
@@ -69,7 +82,8 @@ First public release.
   header. Tokens are 192-bit, stored as SHA-256 hashes, compared in constant
   time, and rate-limited on failure.
 
-[Unreleased]: https://github.com/motif-Labs/motif/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/motif-Labs/motif/compare/v1.0.3...HEAD
+[1.0.3]: https://github.com/motif-Labs/motif/releases/tag/v1.0.3
 [1.0.2]: https://github.com/motif-Labs/motif/releases/tag/v1.0.2
 [1.0.1]: https://github.com/motif-Labs/motif/releases/tag/v1.0.1
 [1.0.0]: https://github.com/motif-Labs/motif/releases/tag/v1.0.0
