@@ -93,9 +93,14 @@ cat <<EOF
   export MOTIF_HOME=$DEMO/ben CODEX_HOME=$DEMO/ben/codex MOTIF_CURSOR_DIR=$DEMO/ben/cursor
   alias motif="$MOTIF --claude-dir $DEMO/ben/claude"
 
-      motif sync --watch          # leave this running: it is what receives a handoff
-      # then, once something lands:
+      motif daemon start                       # background: keeps this prompt free
+      tail -f $DEMO/ben/daemon.log &           # incoming handoffs appear here, live
+      # when one lands:
       codex resume <the id it prints>
+
+  Codex needs its credentials in the pinned home, or it answers 401:
+      ln -sf ~/.codex/auth.json $DEMO/ada/codex/auth.json
+      ln -sf ~/.codex/auth.json $DEMO/ben/codex/auth.json
 
   Each side reads only its own directories, so neither touches your real
   ~/.claude, ~/.codex or Cursor storage. Two terminals side by side is a

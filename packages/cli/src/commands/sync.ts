@@ -69,6 +69,7 @@ export function registerSync(program: Command): void {
     .command('start')
     .description('Start the sync daemon in the background')
     .action(() => {
+      const { claudeDir } = program.opts<{ claudeDir?: string }>();
       const cfg = loadConfig();
       requireConnection(cfg);
       const existing = daemonPid();
@@ -85,7 +86,16 @@ export function registerSync(program: Command): void {
         /* no log yet */
       }
       const log = fs.openSync(logPath, 'a');
-      const child = spawn(process.execPath, [process.argv[1]!, 'sync', '--watch'], {
+      // The global --claude-dir has to travel with the child, or a daemon started
+      // from a pinned shell silently reads the real ~/.claude instead. It is a
+      // global option, so it goes before the subcommand.
+      const childArgs = [
+        process.argv[1]!,
+        ...(claudeDir ? ['--claude-dir', claudeDir] : []),
+        'sync',
+        '--watch',
+      ];
+      const child = spawn(process.execPath, childArgs, {
         detached: true,
         stdio: ['ignore', log, log],
       });
