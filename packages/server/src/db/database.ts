@@ -215,6 +215,13 @@ const MIGRATIONS: string[] = [
   CREATE INDEX idx_ask_executor ON ask_requests(executor_id, status);
   CREATE INDEX idx_ask_session ON ask_requests(session_id, id);
   `,
+
+  // v8 — tell an explicit choice apart from a computed one. Visibility used to
+  // be frozen after INSERT so a re-sync could not undo a promotion made in the
+  // dashboard; the cost was that `motif projects team <path>` did nothing to
+  // sessions already synced, which is all of them. Now only a hand-made choice
+  // is sticky.
+  `ALTER TABLE sessions ADD COLUMN visibility_locked INTEGER NOT NULL DEFAULT 0;`,
 ];
 
 export function openDb(dbPath: string): Db {

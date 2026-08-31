@@ -243,8 +243,12 @@ npx getmotif connect https://motif.internal.yourco.dev \
 motif daemon install                       # start at every login
 ```
 
-Everything lives in one SQLite file, so backup is `cp`. Measured on a real
-workload of 130 sessions: **≈57 MB resident** for server and daemon combined,
+**Step by step, including the details that bite: [docs/TEAM-SETUP.md](docs/TEAM-SETUP.md).**
+
+Everything lives in one SQLite file — that file _is_ your team. Start the server
+against the same path and the team token, every member and all history survive a
+restart; start it against a different one and you have a new, empty team. Backup
+is `cp`. Measured on a real workload of 130 sessions: **≈57 MB resident** for server and daemon combined,
 **≈14 MB** database, idle CPU effectively zero. `GET /api/health` for monitoring.
 Put TLS in front with any reverse proxy for teams outside a trusted network.
 

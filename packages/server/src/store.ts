@@ -107,8 +107,10 @@ export function touchMember(db: Db, memberId: number): void {
 }
 
 function upsertSessionRow(db: Db, memberId: number, meta: SessionMetaPayload): SessionRow {
-  // visibility is set at INSERT and then owned by the server: a daemon
-  // re-sync must never undo a promotion made in the dashboard
+  // A daemon may set visibility from the project scope it was told about, but
+  // it must never undo a choice a person made by hand in the dashboard — that
+  // is what visibility_locked marks. The conflict key includes member_id, so a
+  // daemon can only ever touch rows it owns.
   db.prepare(
     `INSERT INTO sessions (id, source, source_session_id, member_id, source_path, project_path,
        git_branch, title, created_at, updated_at, tool_version, files_touched, meta_json, visibility)
@@ -119,7 +121,9 @@ function upsertSessionRow(db: Db, memberId: number, meta: SessionMetaPayload): S
        git_branch = excluded.git_branch, title = excluded.title,
        created_at = excluded.created_at, updated_at = excluded.updated_at,
        tool_version = excluded.tool_version, files_touched = excluded.files_touched,
-       meta_json = excluded.meta_json`,
+       meta_json = excluded.meta_json,
+       visibility = CASE WHEN sessions.visibility_locked = 1
+                         THEN sessions.visibility ELSE excluded.visibility END`,
   ).run({
     id: meta.id,
     source: meta.source,
@@ -684,6 +688,10 @@ export function setSessionVisibility(
 ): SessionRow | undefined {
   const row = getSessionRow(db, id);
   if (!row || row.member_id !== viewerId) return undefined;
-  db.prepare('UPDATE sessions SET visibility = ? WHERE pk = ?').run(visibility, row.pk);
+  // an explicit choice outranks whatever the daemon computes from then on
+  db.prepare('UPDATE sessions SET visibility = ?, visibility_locked = 1 WHERE pk = ?').run(
+    visibility,
+    row.pk,
+  );
   return { ...row, visibility };
 }

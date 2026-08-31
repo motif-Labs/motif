@@ -10,6 +10,7 @@ import type { MotifMessage, MotifSession } from '@motif/core';
 import { readClaudeSession } from '@motif/core';
 import {
   createServer,
+  setSessionVisibility,
   listenErrorMessage,
   fullReplaceSession,
   registerMember,
@@ -17,7 +18,7 @@ import {
   type MotifServer,
 } from '@motif/server';
 import { isExcluded } from '../packages/cli/src/daemon/syncer.js';
-import { performClaudeHandoff } from '../packages/cli/src/handoff/perform.js';
+import { performClaudeHandoff, performCodexHandoff } from '../packages/cli/src/handoff/perform.js';
 import { MotifClient } from '../packages/cli/src/api-client.js';
 
 let tmp: string;
@@ -97,6 +98,31 @@ describe('handoff --digest', () => {
     expect(body).toContain('Condensed history');
     expect(body).toContain('message number 39'); // the tail survives verbatim
     expect(fs.readFileSync(full.target, 'utf8').split('\n').length).toBeGreaterThan(body.split('\n').length);
+  });
+});
+
+describe('a handoff delivered by a teammate', () => {
+  it('is not refused by the "you already have this" guard', () => {
+    // The guard tests whether the rollout path exists locally. A delivery from
+    // a teammate exists precisely because the session is not here — and two
+    // people sharing a directory layout made the test fire falsely, so the
+    // handoff never landed and the sender was told it was on its way.
+    const session = readClaudeSession(path.join(root, 'fixtures', 'claude-code', 'minimal.jsonl'));
+    const here = path.join(tmp, 'mine.jsonl');
+    fs.writeFileSync(here, 'x');
+    const local: MotifSession = { ...session, source: 'codex', sourcePath: here };
+
+    const prev = process.env.CODEX_HOME;
+    process.env.CODEX_HOME = path.join(tmp, 'codex-home');
+    try {
+      expect(() => performCodexHandoff(local)).toThrow(/codex resume/);
+      // the same session, delivered: it must be written, not refused
+      const result = performCodexHandoff(local, { force: true });
+      expect(fs.existsSync(result.target)).toBe(true);
+    } finally {
+      if (prev === undefined) delete process.env.CODEX_HOME;
+      else process.env.CODEX_HOME = prev;
+    }
   });
 });
 
@@ -203,6 +229,46 @@ describe('http api', () => {
     // an empty FTS expression reached SQLite and threw fts5: syntax error
     expect((await call('/api/search?q=%20')).status).toBe(400);
     expect((await call('/api/sessions?q=%20')).status).toBe(200);
+  });
+
+  it('applies a scope change on re-sync, but never undoes a hand-made one', async () => {
+    // `motif projects team <path>` did nothing to sessions already synced —
+    // which is all of them — because visibility was frozen after INSERT.
+    const me = registerMember(server.db, { name: 'dana', email: 'dana@example.com' });
+    const base = {
+      source: 'claude-code' as const,
+      sourcePath: '/fake/s.jsonl',
+      projectPath: '/workspace/api',
+      title: 'scoped',
+      createdAt: '2026-08-01T10:00:00.000Z',
+      updatedAt: '2026-08-01T10:05:00.000Z',
+      filesTouched: [],
+      meta: { subagentCount: 0, branchCount: 0, parseErrors: 0 },
+      messages: [{ id: 'u1', role: 'user' as const, timestamp: '2026-08-01T10:00:00.000Z', text: 'hello' }],
+    };
+    const personal: MotifSession = {
+      ...base,
+      id: 'claude-code:vis-1',
+      sourceSessionId: 'vis-1',
+      visibility: 'personal',
+    };
+    fullReplaceSession(server.db, me.memberId, personal);
+    const read = () =>
+      (
+        server.db.prepare('SELECT visibility FROM sessions WHERE source_session_id = ?').get('vis-1') as {
+          visibility: string;
+        }
+      ).visibility;
+    expect(read()).toBe('personal');
+
+    // the daemon now says the project is team-visible: the re-sync must take
+    fullReplaceSession(server.db, me.memberId, { ...personal, visibility: 'team' });
+    expect(read()).toBe('team');
+
+    // but a choice made by hand outranks the daemon from then on
+    setSessionVisibility(server.db, me.memberId, 'claude-code:vis-1', 'personal');
+    fullReplaceSession(server.db, me.memberId, { ...personal, visibility: 'team' });
+    expect(read()).toBe('personal');
   });
 
   it('deletes a session that memory notes still point at', async () => {

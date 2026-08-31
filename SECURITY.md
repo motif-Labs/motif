@@ -15,9 +15,14 @@ Two credentials, two levels:
 
 - Identity always derives from the member token — never from a claimed
   name or header. Members cannot write as each other.
-- Tokens are 192-bit random values; only SHA-256 hashes are stored
-  server-side; comparisons are constant-time; repeated failures are
-  rate-limited per client (20/min → 429).
+- Tokens are 192-bit random values and comparisons are constant-time;
+  repeated failures are rate-limited per client (20/min → 429).
+- **Member tokens are stored as SHA-256 hashes** — the server cannot recover
+  one, so a stolen database does not yield anybody's write credential.
+- **The team token is stored in plaintext**, because the server prints it on
+  every start so a teammate can be invited. It is a read-only credential, and
+  anyone who can read the database file already has every session in it — but
+  it is stored differently from member tokens and that is worth knowing.
 - Every synced session carries a scope, and **joining a team never
   auto-shares your history**: a freshly connected machine uploads
   everything as `personal` — stored on the server but visible to _you

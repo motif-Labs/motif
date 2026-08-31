@@ -68,7 +68,15 @@ export async function fulfillPendingHandoffs(
     try {
       const target = (req.target === 'claude-code' ? 'claude-code' : 'codex') as HandoffTarget;
       const session = await client.exportSession(req.session_id);
-      const result = performHandoff(target, session, { cwdOverride: req.cwd_override ?? undefined });
+      // A request with an assignee is a delivery from someone else, so the
+      // "you already have this one, just resume it" guard is wrong by
+      // construction — and it fires falsely whenever two people happen to
+      // share a directory layout.
+      const delivered = req.assignee_id !== null;
+      const result = performHandoff(target, session, {
+        cwdOverride: req.cwd_override ?? undefined,
+        force: delivered,
+      });
       await client.completeHandoffRequest(req.id, {
         status: 'done',
         outputPath: result.target,

@@ -225,6 +225,16 @@ export class MotifClient {
     return this.request('GET', `/api/search?${params}`);
   }
 
+  getHandoffRequest(id: number): Promise<{
+    id: number;
+    status: string;
+    target_session_id?: string | null;
+    output_path?: string | null;
+    error?: string | null;
+  }> {
+    return this.request('GET', `/api/handoff-requests/${id}`);
+  }
+
   postHandoff(input: {
     sessionId: string;
     target: string;

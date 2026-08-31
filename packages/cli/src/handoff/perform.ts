@@ -119,8 +119,11 @@ export function performCodexHandoff(
   opts: { cwdOverride?: string; force?: boolean; digest?: { keepLast: number } } = {},
 ): HandoffResult {
   // A codex session whose rollout already lives on THIS machine needs no
-  // conversion; one synced from a teammate's machine does.
-  if (session.source === 'codex' && session.sourcePath && fs.existsSync(session.sourcePath)) {
+  // conversion; one synced from a teammate's machine does. `force` skips the
+  // check because a delivery from a teammate exists precisely because the
+  // session is not here — and the path test gives a false positive whenever
+  // two people share a directory layout.
+  if (!opts.force && session.source === 'codex' && session.sourcePath && fs.existsSync(session.sourcePath)) {
     throw new Error(
       `Already a Codex session on this machine — continue it with: codex resume ${session.sourceSessionId}`,
     );
@@ -178,7 +181,12 @@ export function performClaudeHandoff(
     digest?: { keepLast: number };
   } = {},
 ): HandoffResult {
-  if (session.source === 'claude-code' && session.sourcePath && fs.existsSync(session.sourcePath)) {
+  if (
+    !opts.force &&
+    session.source === 'claude-code' &&
+    session.sourcePath &&
+    fs.existsSync(session.sourcePath)
+  ) {
     throw new Error(
       `Already a Claude Code session on this machine — continue it with: claude --resume ${session.sourceSessionId}`,
     );

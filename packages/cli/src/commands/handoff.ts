@@ -36,6 +36,7 @@ export function registerHandoff(program: Command): void {
       'hand the session to a TEAMMATE — their daemon materializes it on their machine',
     )
     .option('--dry-run', 'show what would be written without writing')
+    .option('--wait <seconds>', "how long to wait for a teammate's machine", '45')
     .option('--force', 'write even if Codex does not appear to be installed')
     .option('--json', 'machine-readable output')
     .action(
@@ -47,6 +48,7 @@ export function registerHandoff(program: Command): void {
           open?: boolean;
           digest?: string | boolean;
           toMember?: string;
+          wait?: string;
           dryRun?: boolean;
           force?: boolean;
           json?: boolean;
@@ -82,9 +84,30 @@ export function registerHandoff(program: Command): void {
             target,
           });
           console.log(`Handed ${resolved} to ${opts.toMember} (request #${req.id}, target: ${target}).`);
-          console.log(
-            'Their daemon will materialize it on their machine; they get a ready-to-run resume command.',
-          );
+          // Wait for their machine to actually do it. Reporting "on its way"
+          // and exiting means a failure on the other side is never seen.
+          const deadline = Date.now() + (Number(opts.wait) || 45) * 1000;
+          let settled = false;
+          while (Date.now() < deadline) {
+            await new Promise((r) => setTimeout(r, 2000));
+            const fresh = await client.getHandoffRequest(req.id).catch(() => undefined);
+            if (fresh?.status === 'done') {
+              console.log(
+                `Delivered. ${opts.toMember} continues with: ${resumeCommandFor(target, fresh.target_session_id ?? '')}`,
+              );
+              settled = true;
+              break;
+            }
+            if (fresh?.status === 'error') {
+              console.error(`Their machine could not take it: ${fresh.error}`);
+              process.exitCode = 1;
+              settled = true;
+              break;
+            }
+          }
+          if (!settled) {
+            console.log(`Still queued — their daemon will pick it up when it is online.`);
+          }
           return;
         }
 
