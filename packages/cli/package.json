@@ -1,7 +1,7 @@
 {
   "name": "getmotif",
   "version": "1.0.4",
-  "description": "Shared memory for AI coding agents \u2014 collect Claude Code, Codex and Cursor sessions, recall them over MCP, hand one natively to another tool. Self-hosted.",
+  "description": "Coding agents are single-player. Motif makes your team's multiplayer \u2014 Claude Code, Codex and Cursor sessions on your own server, recalled by your agents over MCP. Self-hosted.",
   "keywords": [
     "ai",
     "agents",
