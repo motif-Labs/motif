@@ -6,6 +6,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.3] — 2026-08-31
+
+### Changed
+
+- **Node 22 is the minimum.** `engines` said 20, but the SQLite prebuilds now
+  start at 22, so a Node 20 install compiled from source without saying so. Node
+  20 reached end of life in April 2026.
+- The README leads with what the product does rather than with prose: the
+  cross-tool handoff is shown above the fold, install appears once instead of
+  twice, the solo story sits next to the team story, the retrieval benchmark
+  carries its real figures, and the command reference is collapsed so it no
+  longer sits between the pitch and the setup.
+
 ## [1.1.2] — 2026-08-31
 
 ### Fixed
