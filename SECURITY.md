@@ -126,7 +126,19 @@ dependencies are deliberately minimal (4 runtime packages); the package
 has no install scripts of its own. Pin versions, review diffs between
 releases, or build from source — it's all here.
 
-## Reporting
+## Reporting a vulnerability
 
-Open a GitHub security advisory or email the maintainer. Please do not
-file public issues for exploitable problems.
+**Report it privately, here:**
+<https://github.com/motif-Labs/motif/security/advisories/new>
+
+Private reporting is enabled on the repository, so that form reaches the
+maintainers without the problem becoming public first. If you cannot use
+GitHub, the contact address is on <https://www.getmotif.dev>.
+
+Please do not open a public issue for anything exploitable. Include what you
+did, what happened, and the version (`motif --version`); a proof of concept
+helps but is not required to file.
+
+Expect an acknowledgement within a few days. Fixes land on the latest release —
+there are no maintained back-branches — and the advisory is published once a
+fixed version is out, crediting you unless you would rather stay anonymous.
