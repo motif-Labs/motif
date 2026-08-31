@@ -6,6 +6,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.2] — 2026-08-31
+
+### Fixed
+
+- **Installing on Node 24 compiled SQLite from source.** The pinned
+  `better-sqlite3` line ships prebuilt binaries for Node 18, 20, 22 and 23 — but
+  not for 24, the current LTS. Anyone on it fell back to a `node-gyp` build,
+  which needs a full C++ toolchain and fails outright without one, so
+  `npx getmotif up` could break on the most common Node version. Moved to the
+  release line that carries prebuilds for Node 22 through 26.
+
+### Changed
+
+- CI runs the suite and the real global-install check on Node 22 and 24, across
+  Linux, macOS and Windows. Testing a single Node version is what let the gap
+  above through.
+
 ## [1.1.1] — 2026-08-31
 
 ### Fixed
