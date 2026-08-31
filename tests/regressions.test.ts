@@ -18,6 +18,7 @@ import {
 } from '@motif/server';
 import { isExcluded } from '../packages/cli/src/daemon/syncer.js';
 import { performClaudeHandoff } from '../packages/cli/src/handoff/perform.js';
+import { MotifClient } from '../packages/cli/src/api-client.js';
 
 let tmp: string;
 beforeEach(() => {
@@ -144,6 +145,15 @@ describe('http api', () => {
       ...init,
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', ...init.headers },
     });
+
+  it('says a session id was not found instead of reporting an HTTP status', async () => {
+    // Disconnected, the CLI said `No session matches "x"`. Connected, the same
+    // typo produced `HTTP 404: {"error":"not found"}` from six commands.
+    const client = new MotifClient({ serverUrl: base, token: memberToken });
+    await expect(client.exportSession('zzzzzzzz')).rejects.toThrow(/No session matches "zzzzzzzz"/);
+    // and the internal source prefix is not echoed back at the user
+    await expect(client.exportSession('claude-code:zzzzzzzz')).rejects.toThrow(/matches "zzzzzzzz"/);
+  });
 
   it('answers an unknown /api path with JSON 404, not the dashboard HTML', async () => {
     // the SPA catch-all used to serve index.html here, so clients JSON.parse'd

@@ -11,6 +11,9 @@ export function registerSearch(program: Command): void {
     .option('--project <path>', 'only sessions for this project path')
     .option('--json', 'machine-readable output')
     .action(async (query: string, opts: { project?: string; json?: boolean }) => {
+      if (!query.trim()) {
+        throw new Error('Nothing to search for. Try: motif search "idempotency"');
+      }
       const { claudeDir } = program.opts<{ claudeDir?: string }>();
       const cfg = loadConfig();
       if (cfg.serverUrl && cfg.token) {

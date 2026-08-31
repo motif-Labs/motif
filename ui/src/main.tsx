@@ -1280,4 +1280,19 @@ function App() {
   );
 }
 
+// `motif ui` opens the dashboard with a one-time token in the query string, so a
+// local user never copies anything. Consume it before the first render and strip
+// it from the URL so it does not linger in history or get pasted to someone.
+try {
+  const here = new URL(location.href);
+  const handed = here.searchParams.get('token');
+  if (handed) {
+    setToken(handed);
+    here.searchParams.delete('token');
+    history.replaceState(null, '', here.pathname + here.search + here.hash);
+  }
+} catch {
+  /* non-browser context, or storage unavailable */
+}
+
 render(<App />, document.getElementById('app')!);

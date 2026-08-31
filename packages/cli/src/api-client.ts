@@ -24,8 +24,9 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     readonly body: string,
+    friendly?: string,
   ) {
-    super(`HTTP ${status}: ${body.slice(0, 200)}`);
+    super(friendly ?? `HTTP ${status}: ${body.slice(0, 200)}`);
   }
 }
 
@@ -42,6 +43,13 @@ export class MotifClient {
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
     const text = await res.text();
+    if (res.status === 404 && pathName.startsWith('/api/sessions/')) {
+      // Mistyping an id is the most common way to get here. Disconnected, the
+      // CLI says so plainly; connected, it used to print a raw HTTP 404.
+      // echo back what the user typed, not the internal source prefix
+      const id = decodeURIComponent(pathName.split('/')[3] ?? '').replace(/^[a-z-]+:/, '');
+      throw new ApiError(404, text, `No session matches "${id}". Try \`motif list\`.`);
+    }
     if (!res.ok) throw new ApiError(res.status, text);
     return JSON.parse(text) as T;
   }

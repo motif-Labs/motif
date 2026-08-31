@@ -68,7 +68,12 @@ export function registerUp(program: Command): void {
       });
 
       console.log(`Motif up at ${serverUrl} (member: ${name})`);
-      console.log(`Team token (dashboard login): ${server.token}`);
+      // The member token, not the team token: whoever ran `up` owns this server,
+      // and the team token is read-only — signing in with it disables handoff,
+      // ask and notes, which is most of the product.
+      console.log(`Dashboard login: ${memberToken}`);
+      console.log(`   or just run: motif ui`);
+      console.log(`Invite a teammate: motif connect ${serverUrl} --token ${server.token} --name "…"`);
       console.log('Sessions on this machine are syncing live. Ctrl+C to stop.');
       await new Promise(() => {}); // run until killed
     });
