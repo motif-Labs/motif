@@ -6,6 +6,28 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.1] — 2026-08-31
+
+### Fixed
+
+- `motif doctor` asked the server who you were, so with the server off it
+  reported "member identity (writes enabled)" as missing and told you to re-run
+  `connect` — over a working token already on the machine. It now trusts the
+  local member token when the server cannot be reached, and the server stays the
+  authority when it answers.
+- `motif daemon start` dropped `--claude-dir`, so a backgrounded daemon read the
+  default directory instead of the one you named.
+- A handoff out of a Codex session was annotated as coming from Claude Code. The
+  marker now names the tool the session actually came from.
+
+### Changed
+
+- `motif recall` says in the terminal that what it printed is context for an
+  agent, not an answer to your question.
+- The quickstart is now the real first run — `npx getmotif up`, on your own
+  sessions, local until you connect to a team. The seeded two-member demo script
+  it replaced is no longer part of the repository.
+
 ## [1.1.0] — 2026-08-31
 
 Security release. Everyone running a shared server should upgrade.
