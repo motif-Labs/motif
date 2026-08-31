@@ -112,7 +112,7 @@ describe('claude-code writer (reverse handoff)', () => {
     const back = readClaudeSession(file);
     expect(back.projectPath).toBe(codex.projectPath);
     expect(back.title).toBe(codex.title);
-    expect(back.messages.some((m) => m.text?.includes('Handed off from codex session'))).toBe(true);
+    expect(back.messages.some((m) => m.text?.includes('Handed off from Codex session'))).toBe(true);
     expect(back.messages.some((m) => m.text === 'list the files in this directory')).toBe(true);
     expect(back.meta.parseErrors).toBe(0);
     // conversation chain is linear and complete (no dropped links)

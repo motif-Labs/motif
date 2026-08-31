@@ -73,6 +73,12 @@ export function rolloutRelativePath(threadId: string, now: Date): string {
   return `sessions/${iso.slice(0, 4)}/${iso.slice(5, 7)}/${iso.slice(8, 10)}/rollout-${utcStamp(now)}-${threadId}.jsonl`;
 }
 
+const AGENT_LABEL: Record<string, string> = {
+  'claude-code': 'Claude Code',
+  codex: 'Codex',
+  cursor: 'Cursor',
+};
+
 export function toRolloutLines(session: MotifSession, opts: ConvertOptions): ConvertResult {
   const { threadId } = opts;
   const iso = opts.now.toISOString();
@@ -97,7 +103,7 @@ export function toRolloutLines(session: MotifSession, opts: ConvertOptions): Con
 
   const provenance =
     opts.provenance ??
-    `[Handed off from Claude Code session ${session.sourceSessionId} via Motif on ${iso.slice(0, 10)}. The conversation below is the prior history of this task; continue where it left off.]`;
+    `[Handed off from ${AGENT_LABEL[session.source] ?? session.source} session ${session.sourceSessionId} via Motif on ${iso.slice(0, 10)}. The conversation below is the prior history of this task; continue where it left off.]`;
   push('response_item', {
     type: 'message',
     role: 'user',

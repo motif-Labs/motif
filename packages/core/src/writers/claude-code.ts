@@ -37,6 +37,12 @@ export interface ClaudeConvertResult {
 }
 
 /** Claude Code's project dir name: the cwd with every path separator → '-'. */
+const SOURCE_LABEL: Record<string, string> = {
+  'claude-code': 'Claude Code',
+  codex: 'Codex',
+  cursor: 'Cursor',
+};
+
 export function mangleProjectPath(cwd: string): string {
   return cwd.replace(/[\\/:]/g, '-');
 }
@@ -107,7 +113,7 @@ export function toClaudeSessionLines(session: MotifSession, opts: ClaudeConvertO
 
   const provenance =
     opts.provenance ??
-    `[Handed off from ${session.source} session ${session.sourceSessionId} via Motif on ${nowIso.slice(0, 10)}. The conversation below is the prior history of this task; continue where it left off.]`;
+    `[Handed off from ${SOURCE_LABEL[session.source] ?? session.source} session ${session.sourceSessionId} via Motif on ${nowIso.slice(0, 10)}. The conversation below is the prior history of this task; continue where it left off.]`;
   pushUser(provenance, nowIso);
 
   // With --digest, everything before the tail becomes one condensed turn so the
