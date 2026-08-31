@@ -6,6 +6,29 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.6] — 2026-08-31
+
+### Fixed
+
+- `motif projects team <path>` did nothing to sessions that were already synced,
+  which is all of them: a fresh member uploads everything as `personal` before
+  they ever set a scope. Visibility computed from project scope now applies on
+  re-sync, while a choice made by hand in the dashboard still outranks it.
+  (Migration v8.)
+- A handoff delivered by a teammate was refused by the guard that stops you
+  handing a session to the tool it already lives in — the guard fired on a path
+  that happened to exist on the receiving machine.
+- `motif handoff --to-member` reported the request as sent and exited, so a
+  failure on the recipient's machine was never seen. It waits for the outcome.
+
+### Changed
+
+- SECURITY.md now states which tokens are hashed: member tokens are, the team
+  token is not, because the server prints it on every start.
+- New guide: `docs/TEAM-SETUP.md`, including the thing that surprises people —
+  the database file _is_ the team, and starting the server against a different
+  path creates a new empty one.
+
 ## [1.0.5] — 2026-08-31
 
 ### Fixed
@@ -107,7 +130,8 @@ First public release.
   header. Tokens are 192-bit, stored as SHA-256 hashes, compared in constant
   time, and rate-limited on failure.
 
-[Unreleased]: https://github.com/motif-Labs/motif/compare/v1.0.5...HEAD
+[Unreleased]: https://github.com/motif-Labs/motif/compare/v1.0.6...HEAD
+[1.0.6]: https://github.com/motif-Labs/motif/releases/tag/v1.0.6
 [1.0.5]: https://github.com/motif-Labs/motif/releases/tag/v1.0.5
 [1.0.4]: https://github.com/motif-Labs/motif/releases/tag/v1.0.4
 [1.0.3]: https://github.com/motif-Labs/motif/releases/tag/v1.0.3
