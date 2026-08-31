@@ -1,6 +1,6 @@
 {
   "name": "getmotif",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Coding agents are single-player. Motif makes your team's multiplayer \u2014 Claude Code, Codex and Cursor sessions on your own server, recalled by your agents over MCP. Self-hosted.",
   "keywords": [
     "ai",

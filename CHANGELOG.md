@@ -6,6 +6,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.5] — 2026-08-31
+
+### Fixed
+
+- `motif up` and `motif ui` printed the **team** token as the dashboard login.
+  It is read-only, so the person running their own server signed in unable to
+  use handoff, ask or notes. Both now use the member token, and `motif ui` signs
+  the browser in directly instead of asking you to copy anything.
+- A mistyped session id printed a raw `HTTP 404` from `show`, `comment`,
+  `comments`, `asks`, `ask` and `handoff` once connected to a server, while the
+  same typo gave a readable message when disconnected.
+- `motif search ""` listed every session instead of saying what it needed.
+
+### Changed
+
+- Package description rewritten to lead with what the product is for.
+
 ## [1.0.4] — 2026-08-31
 
 ### Changed
@@ -90,7 +107,8 @@ First public release.
   header. Tokens are 192-bit, stored as SHA-256 hashes, compared in constant
   time, and rate-limited on failure.
 
-[Unreleased]: https://github.com/motif-Labs/motif/compare/v1.0.4...HEAD
+[Unreleased]: https://github.com/motif-Labs/motif/compare/v1.0.5...HEAD
+[1.0.5]: https://github.com/motif-Labs/motif/releases/tag/v1.0.5
 [1.0.4]: https://github.com/motif-Labs/motif/releases/tag/v1.0.4
 [1.0.3]: https://github.com/motif-Labs/motif/releases/tag/v1.0.3
 [1.0.2]: https://github.com/motif-Labs/motif/releases/tag/v1.0.2

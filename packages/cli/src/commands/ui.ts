@@ -21,7 +21,9 @@ export function registerUi(program: Command): void {
       }
       console.log(`Opening ${base}`);
       if (!cfg.memberToken && cfg.token) {
-        console.log(`Paste this to sign in (read-only — run \`motif connect\` for full access): ${cfg.token}`);
+        console.log(
+          `Paste this to sign in (read-only — run \`motif connect\` for full access): ${cfg.token}`,
+        );
       }
     });
 }
