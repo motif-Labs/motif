@@ -33,6 +33,8 @@ import {
   getHandoffRequestFor,
   listHandoffRequests,
   listSessions,
+  canReEnroll,
+  findExistingMember,
   registerMember,
   resolveMemberByToken,
   searchSessions,
@@ -90,12 +92,30 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   const authFailures = new Map<string, { count: number; resetAt: number }>();
   const FAIL_LIMIT = 20;
   const FAIL_WINDOW_MS = 60_000;
-  const clientKey = (c: { req: { header: (n: string) => string | undefined } }): string =>
-    c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? c.req.header('x-real-ip') ?? 'local';
+  // A forwarded-for header is written by the client, so trusting it by default
+  // let anyone rotate their own key and guess without limit — and grow this map
+  // forever while doing it. Trust it only when the operator says a proxy is in
+  // front (MOTIF_TRUST_PROXY=1).
+  const trustProxy = process.env.MOTIF_TRUST_PROXY === '1';
+  const clientKey = (c: { req: { header: (n: string) => string | undefined }; env?: unknown }): string => {
+    if (trustProxy) {
+      const fwd = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? c.req.header('x-real-ip');
+      if (fwd) return fwd;
+    }
+    const conn = (c.env as { incoming?: { socket?: { remoteAddress?: string } } } | undefined)?.incoming
+      ?.socket?.remoteAddress;
+    return conn ?? 'local';
+  };
   const failuresFor = (key: string) => {
     const now = Date.now();
+    if (authFailures.size > 5_000) {
+      for (const [k, v] of authFailures) if (v.resetAt < now) authFailures.delete(k);
+    }
     const entry = authFailures.get(key);
-    if (!entry || entry.resetAt < now) return { count: 0, resetAt: now + FAIL_WINDOW_MS };
+    if (!entry || entry.resetAt < now) {
+      authFailures.delete(key);
+      return { count: 0, resetAt: now + FAIL_WINDOW_MS };
+    }
     return entry;
   };
 
@@ -204,6 +224,25 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   app.post('/api/members/register', async (c) => {
     const body = await c.req.json<{ name?: string; email?: string; machine?: string }>();
     if (!body.name) return c.json({ error: 'name required' }, 400);
+
+    // Re-enrolling an identity that already exists returns a working token for
+    // it, so this route must not accept a bare claim: the shared team token is
+    // read-only precisely so that holding it cannot make you somebody.
+    const already = findExistingMember(db, {
+      name: body.name,
+      email: body.email,
+      machine: body.machine,
+    });
+    if (already && !canReEnroll(db, already.id, memberId(c))) {
+      return c.json(
+        {
+          error: 'a member with that identity already exists',
+          hint: 'connect with your own name and email, or ask the owner to revoke the old device first',
+        },
+        409,
+      );
+    }
+
     const res = registerMember(db, { name: body.name, email: body.email, machine: body.machine });
     if (res.created) bus.publish('member-joined', { memberId: res.memberId, name: body.name });
     return c.json(res);
@@ -217,11 +256,16 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   });
 
   app.get('/api/projects', (c) => {
+    // Absolute paths of everyone's personal projects were enumerable with any
+    // token; every other read path filters, so this one must too.
+    const viewer = memberId(c);
     const rows = db
       .prepare(
-        'SELECT project_path, COUNT(*) AS sessions, MAX(updated_at) AS last_activity FROM sessions GROUP BY project_path ORDER BY last_activity DESC',
+        `SELECT project_path, COUNT(*) AS sessions, MAX(updated_at) AS last_activity
+         FROM sessions WHERE visibility = 'team' OR member_id = ?
+         GROUP BY project_path ORDER BY last_activity DESC`,
       )
-      .all();
+      .all(viewer ?? -1);
     return c.json(rows);
   });
 
@@ -289,7 +333,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       query: q,
       project: c.req.query('project'),
       viewerId: memberId(c),
-      budget: c.req.query('budget') ? Number(c.req.query('budget')) : undefined,
+      budget: c.req.query('budget') ? Number(c.req.query('budget')) || undefined : undefined,
     });
     return c.req.query('format') === 'markdown' ? c.text(renderRecall(result)) : c.json(result);
   });
@@ -399,6 +443,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     bus.publish('session-upserted', {
       id: updated.id,
       memberId: member,
+      visibility: updated.visibility,
       title: updated.title ?? undefined,
       projectPath: updated.project_path,
       updatedAt: updated.updated_at ?? undefined,
@@ -428,12 +473,42 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   app.put('/api/sessions/:id', async (c) => {
     const member = memberId(c);
     if (member === undefined) return c.json({ error: 'writes require a member token (motif connect)' }, 403);
+    const allowShrink = c.req.query('allowShrink') === '1';
     const session = await c.req.json<MotifSession>();
     if (session.id !== c.req.param('id')) return c.json({ error: 'id mismatch' }, 400);
+
+    // A full replace deletes the stored messages and writes what arrived. If a
+    // client's local copy got shorter — a truncated file, or a reader that
+    // stopped understanding a format after an upstream release — that would
+    // silently destroy the team's record. Shrinking is legitimate (rewinding a
+    // session onto another branch re-linearises it shorter), so it is allowed,
+    // but only when the client says it meant to.
+    const existing = getSessionRow(db, session.id);
+    if (existing && existing.member_id === member) {
+      const stored = (
+        db.prepare('SELECT COUNT(*) AS n FROM messages WHERE session_pk = ?').get(existing.pk) as {
+          n: number;
+        }
+      ).n;
+      const incoming = session.messages.length;
+      if (incoming < stored && !allowShrink) {
+        return c.json(
+          {
+            error: 'refusing to replace a session with a shorter one',
+            stored,
+            incoming,
+            hint: 'retry with ?allowShrink=1 if the session really was rewound',
+          },
+          409,
+        );
+      }
+    }
+
     const row = fullReplaceSession(db, member, session);
     bus.publish('session-upserted', {
       id: row.id,
       memberId: member,
+      visibility: row.visibility,
       title: session.title,
       projectPath: session.projectPath,
       updatedAt: session.updatedAt,
@@ -457,6 +532,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     bus.publish('session-upserted', {
       id: result.row.id,
       memberId: member,
+      visibility: result.row.visibility,
       title: body.session.title,
       projectPath: body.session.projectPath,
       updatedAt: body.session.updatedAt,
@@ -557,6 +633,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       targetSessionId?: string;
     }>();
     const row = getSessionRow(db, body.sessionId);
+    if (row && !canView(row, member)) return c.json({ error: 'not found' }, 404);
     db.prepare(
       'INSERT INTO handoffs (session_pk, member_id, target, output_path, target_session_id, created_at) VALUES (?, ?, ?, ?, ?, ?)',
     ).run(
@@ -596,7 +673,13 @@ export function createServer(config: ServerConfig = {}): MotifServer {
 
   app.get('/api/events', (c) =>
     streamSSE(c, async (stream) => {
+      // Session titles are the first user prompt, and project paths are absolute.
+      // Publishing them unfiltered handed every token holder a live feed of
+      // everyone's personal work — the one thing canView exists to withhold.
+      const viewer = memberId(c);
       const unsubscribe = bus.subscribe((e) => {
+        const d = e.data as { memberId?: number; visibility?: string } | undefined;
+        if (d && d.visibility === 'personal' && d.memberId !== viewer) return;
         void stream.writeSSE({ event: e.event, data: JSON.stringify(e.data) });
       });
       stream.onAbort(unsubscribe);

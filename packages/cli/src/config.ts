@@ -53,7 +53,14 @@ export function loadConfig(): MotifConfig {
 
 export function saveConfig(cfg: MotifConfig): void {
   fs.mkdirSync(motifHome(), { recursive: true });
-  fs.writeFileSync(configPath(), JSON.stringify(cfg, null, 2) + '\n');
+  // This file holds the member token, which is a write credential for the whole
+  // team server. It should not be readable by other accounts on the machine.
+  fs.writeFileSync(configPath(), JSON.stringify(cfg, null, 2) + '\n', { mode: 0o600 });
+  try {
+    fs.chmodSync(configPath(), 0o600);
+  } catch {
+    /* filesystem without POSIX modes */
+  }
 }
 
 export function requireConnection(cfg: MotifConfig): asserts cfg is MotifConfig & {

@@ -44,6 +44,35 @@ function hashToken(token: string): string {
  * Identity on every later request comes from that token — never from a
  * client-claimed header. The first member becomes the owner.
  */
+/**
+ * Registering against an identity that already exists used to return a fresh,
+ * fully valid token for that member — so anyone holding the shared read-only
+ * team token could read `GET /api/members`, repeat a name and email back, and
+ * receive the owner's credential. Re-enrolling an existing member now requires
+ * proof: either that member's own current token, or the owner's.
+ */
+export function canReEnroll(db: Db, existingMemberId: number, callerMemberId: number | undefined): boolean {
+  if (callerMemberId === undefined) return false;
+  if (callerMemberId === existingMemberId) return true;
+  const caller = db.prepare('SELECT role FROM members WHERE id = ?').get(callerMemberId) as
+    { role: string } | undefined;
+  return caller?.role === 'owner';
+}
+
+export function findExistingMember(
+  db: Db,
+  input: { name: string; email?: string; machine?: string },
+): { id: number; role: string } | undefined {
+  if (input.email) {
+    const byEmail = db.prepare('SELECT id, role FROM members WHERE email = ?').get(input.email) as
+      { id: number; role: string } | undefined;
+    if (byEmail) return byEmail;
+  }
+  return db
+    .prepare('SELECT id, role FROM members WHERE email IS NULL AND name = ? AND machine IS ?')
+    .get(input.name, input.machine ?? null) as { id: number; role: string } | undefined;
+}
+
 export function registerMember(
   db: Db,
   input: { name: string; email?: string; machine?: string },

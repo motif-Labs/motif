@@ -280,7 +280,26 @@ export async function syncOnce(
         }
       }
       if (confirmedCount === 0) {
-        await client.putSession(session);
+        try {
+          await client.putSession(session);
+        } catch (err) {
+          // The server refuses to shrink a session unless we say we meant it.
+          // Rewinding onto another branch legitimately produces a shorter
+          // linearisation, so most of the time we did. A parse that collapsed
+          // to almost nothing is a broken reader, not a rewind, and replacing
+          // the team's record with it would destroy history no one can recover.
+          if (!(err instanceof ApiError && err.status === 409)) throw err;
+          const detail = JSON.parse(err.body) as { stored?: number; incoming?: number };
+          const stored = detail.stored ?? 0;
+          const incoming = detail.incoming ?? ids.length;
+          if (stored >= 20 && incoming < stored * 0.25) {
+            throw new Error(
+              `local copy has ${incoming} messages but the server has ${stored}; refusing to overwrite. ` +
+                'The source file may be truncated, or a reader may have stopped understanding its format.',
+            );
+          }
+          await client.putSession(session, { allowShrink: true });
+        }
         confirmedCount = ids.length;
         report.replaced++;
       }

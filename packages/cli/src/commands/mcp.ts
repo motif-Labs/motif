@@ -21,11 +21,19 @@ function installCursor(cmd: { command: string; args: string[] }, print: boolean)
   const snippet = { mcpServers: { motif: cmd } };
   if (print) return `${file}:\n${JSON.stringify(snippet, null, 2)}`;
   let existing: { mcpServers?: Record<string, unknown> } = {};
-  try {
-    existing = JSON.parse(fs.readFileSync(file, 'utf8')) as typeof existing;
+  if (fs.existsSync(file)) {
+    // Back up before parsing: a config we cannot read is exactly the one we must
+    // not replace. Parsing first meant that JSONC or a trailing comma produced
+    // no backup and silently deleted every other MCP server the user had.
     fs.copyFileSync(file, `${file}.motif-backup`);
-  } catch {
-    /* first time */
+    try {
+      existing = JSON.parse(fs.readFileSync(file, 'utf8')) as typeof existing;
+    } catch {
+      throw new Error(
+        `${file} exists but is not valid JSON. A copy is at ${file}.motif-backup — ` +
+          'fix or move it, then run this again.',
+      );
+    }
   }
   existing.mcpServers = { ...(existing.mcpServers ?? {}), motif: cmd };
   fs.mkdirSync(path.dirname(file), { recursive: true });

@@ -32,11 +32,61 @@ Two credentials, two levels:
   a teammate promotes it (handing it over _is_ sharing it), and only
   team-visible sessions feed the shared memory. Keeping something off
   the server entirely still happens on the source machine (below).
-- Dashboard-initiated handoffs execute only on the requester's own
-  machine via their own daemon; requests are invisible to other members.
+- Handoffs and asks execute on the machine that **owns** the session, through
+  its own daemon — which for a handoff you were sent means a teammate's request
+  runs on yours. That is the feature, and the section below states exactly what
+  it can and cannot do.
 - The owner (first member) can rename the team and revoke any member's
   device tokens; to keep a revoked member out permanently, also rotate
   the team token (restart with a new `MOTIF_TOKEN`).
+
+## What a teammate can cause on your machine
+
+Motif is a team tool, and two of its features let someone else's request reach
+your computer. Neither is a loophole — they are the product — but you should
+know their exact shape before you leave the daemon running.
+
+**A teammate can:**
+
+- Read your **team-visible** sessions. That is what marking a project
+  team-visible means.
+- Hand you a session. Your daemon writes it as a new transcript under
+  `~/.claude/projects` or `~/.codex/sessions`, and it shows up in that tool's
+  resume list. The content is theirs, so treat a handed-over session the way you
+  would treat any text a colleague sent you: it is context, not instruction.
+- Ask one of your sessions a question. Your daemon resumes it on your machine,
+  under your own CLI and your own subscription, and returns the answer.
+
+**A teammate cannot:**
+
+- Read your personal sessions, or any excerpt, snippet, memory note or live
+  event derived from them.
+- Write, change, delete or re-scope anything of yours on the server.
+- Act as you: identity comes from your member token and nothing else, and
+  registering against an existing identity is refused without proof.
+- Cause a write anywhere except inside your agent directories, or overwrite or
+  delete any file you already have.
+
+**The bounds on the ask.** The question is delivered on standard input, never on
+a command line, so its text cannot become a command. It runs with read-only
+tools (`Read`, `Grep`, `Glob` for Claude Code; `sandbox_mode="read-only"` for
+Codex) and is fenced so the model is told it is quoted text rather than
+instructions. What remains, and is worth being clear about: the answer is
+produced by a model reading your files within that session's directory, and
+whatever it prints goes back to the person who asked. **A question is therefore
+a request to read something on your machine and report it.** Ask yourself
+whether you would answer it if a colleague walked over and asked out loud.
+
+**The levers you hold.** The daemon is opt-in — nothing arrives if it is not
+running. `motif daemon pause` stops delivery while keeping everything else.
+Every request is logged to `~/.motif/daemon.log`. If you would rather answer by
+hand, leave the daemon off and run `motif asks <id>` yourself.
+
+This is a trust model, not a sandbox. It assumes your teammates are your
+teammates — the same assumption you already make by sharing a repository with
+them. Do not hand the team token to anyone you would not give read access to
+your work, and rotate it (restart the server with a new `MOTIF_TOKEN`, and
+revoke the member) when someone leaves.
 
 ## Keeping personal work personal
 
@@ -50,9 +100,11 @@ motif projects exclude ~/personal --purge                # block + withdraw alre
 ```
 
 `redactPatterns` in `~/.motif/config.json` scrub secrets from message
-text _and_ tool inputs before upload. In `selected` mode, Cursor
-conversations Motif cannot map to a project stay local too; ones it can map
-follow the same include/exclude rules as any other session.
+text _and_ tool inputs before upload. Cursor conversations that Motif can map to a project follow the same
+include/exclude rules as any other session. Ones it **cannot** map have no
+project path, so a path-based `exclude` cannot match them: in the default mode
+they upload (as `personal`, visible only to you), and in `selected` mode they
+stay local. If that matters to you, use `--selected`.
 
 ## Transport
 

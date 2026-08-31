@@ -4,6 +4,8 @@ export interface LiveEvents {
   'session-upserted': {
     id: string;
     memberId: number;
+    /** Subscribers are filtered on this: a personal session reaches only its owner. */
+    visibility: 'team' | 'personal';
     title?: string;
     projectPath: string;
     updatedAt?: string;

@@ -19,6 +19,7 @@ import {
 } from '@motif/server';
 import { isExcluded } from '../packages/cli/src/daemon/syncer.js';
 import { performClaudeHandoff, performCodexHandoff } from '../packages/cli/src/handoff/perform.js';
+import { canAnswerLocally } from '../packages/cli/src/ask/perform.js';
 import { MotifClient } from '../packages/cli/src/api-client.js';
 
 let tmp: string;
@@ -98,6 +99,70 @@ describe('handoff --digest', () => {
     expect(body).toContain('Condensed history');
     expect(body).toContain('message number 39'); // the tail survives verbatim
     expect(fs.readFileSync(full.target, 'utf8').split('\n').length).toBeGreaterThan(body.split('\n').length);
+  });
+});
+
+describe('answering a question only ever resumes our own session', () => {
+  it('rejects a transcript path outside the agent directories', () => {
+    // The check was `fs.existsSync(sourcePath)`, which is true of any file that
+    // happens to exist. A teammate can upload a session row, so that let them
+    // choose which path the resume pointed at — and the working directory.
+    const base: MotifSession = {
+      ...readClaudeSession(path.join(root, 'fixtures', 'claude-code', 'minimal.jsonl')),
+      source: 'claude-code',
+      sourceSessionId: '11111111-2222-4333-8444-555555555555',
+    };
+    expect(canAnswerLocally({ ...base, sourcePath: '/etc/hosts' })).toBe(false);
+    expect(canAnswerLocally({ ...base, sourcePath: os.homedir() })).toBe(false);
+    expect(canAnswerLocally({ ...base, sourcePath: undefined })).toBe(false);
+  });
+
+  it('rejects a session id that is not shaped like an id', () => {
+    // sourceSessionId becomes an argv element next to --resume. A value like a
+    // flag name would be read as a flag by the CLI.
+    const base: MotifSession = {
+      ...readClaudeSession(path.join(root, 'fixtures', 'claude-code', 'minimal.jsonl')),
+      source: 'claude-code',
+      sourcePath: '/etc/hosts',
+    };
+    for (const bad of ['--dangerously-skip-permissions', '-p', 'a b', '../../x', '']) {
+      expect(canAnswerLocally({ ...base, sourceSessionId: bad })).toBe(false);
+    }
+  });
+
+  it('never answers a Cursor session', () => {
+    const base = readClaudeSession(path.join(root, 'fixtures', 'claude-code', 'minimal.jsonl'));
+    expect(canAnswerLocally({ ...base, source: 'cursor' })).toBe(false);
+  });
+});
+
+describe('a handoff writes only where it is supposed to', () => {
+  it('refuses a target outside the agent directory, whatever the project path says', () => {
+    // The write target is derived from session data, and for a delivery from a
+    // teammate that data arrived over the network. Separator mangling makes
+    // traversal hard; this makes containment explicit so a change to the
+    // mangling cannot quietly open a write elsewhere.
+    const session = readClaudeSession(path.join(root, 'fixtures', 'claude-code', 'minimal.jsonl'));
+    const claudeDir = path.join(tmp, 'claude');
+    fs.mkdirSync(path.join(claudeDir, 'projects'), { recursive: true });
+    const incoming = (projectPath: string): MotifSession => ({
+      ...session,
+      source: 'codex',
+      sourcePath: '/elsewhere/rollout.jsonl',
+      projectPath,
+    });
+
+    // this one used to land in the root of ~/.claude, beside Claude Code's own files
+    expect(() => performClaudeHandoff(incoming('..'), { claudeDir, force: true })).toThrow(/outside/);
+
+    // separators never survive mangling, so a traversal string stays a directory name
+    const hostile = performClaudeHandoff(incoming('/../../../tmp/PWNED'), { claudeDir, force: true });
+    expect(hostile.target.startsWith(path.join(claudeDir, 'projects') + path.sep)).toBe(true);
+    expect(fs.existsSync('/tmp/PWNED')).toBe(false);
+
+    // and an ordinary path still works
+    const normal = performClaudeHandoff(incoming('/workspace/api'), { claudeDir, force: true });
+    expect(fs.existsSync(normal.target)).toBe(true);
   });
 });
 
@@ -269,6 +334,58 @@ describe('http api', () => {
     setSessionVisibility(server.db, me.memberId, 'claude-code:vis-1', 'personal');
     fullReplaceSession(server.db, me.memberId, { ...personal, visibility: 'team' });
     expect(read()).toBe('personal');
+  });
+
+  it('refuses to replace a session with a shorter one unless told to', async () => {
+    // A full replace deletes what is stored and writes what arrived. A reader
+    // that stopped understanding a format after an upstream release would send
+    // a nearly empty session and silently destroy the team's record.
+    const me = registerMember(server.db, { name: 'eli', email: 'eli@example.com' });
+    const msg = (n: number): MotifMessage[] =>
+      Array.from({ length: n }, (_, i) => ({
+        id: `m${i}`,
+        role: 'user' as const,
+        timestamp: '2026-08-01T10:00:00.000Z',
+        text: `message ${i}`,
+      }));
+    const session = (n: number): MotifSession => ({
+      id: 'claude-code:shrink-1',
+      source: 'claude-code',
+      sourceSessionId: 'shrink-1',
+      sourcePath: '/fake/s.jsonl',
+      projectPath: '/workspace/api',
+      title: 'long',
+      createdAt: '2026-08-01T10:00:00.000Z',
+      updatedAt: '2026-08-01T10:05:00.000Z',
+      messages: msg(n),
+      filesTouched: [],
+      meta: { subagentCount: 0, branchCount: 0, parseErrors: 0 },
+    });
+    const put = (n: number, allow = false) =>
+      call(
+        `/api/sessions/claude-code:shrink-1${allow ? '?allowShrink=1' : ''}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(session(n)),
+        },
+        me.memberToken,
+      );
+
+    expect((await put(200)).status).toBe(200);
+    const refused = await put(3);
+    expect(refused.status).toBe(409);
+    await expect(refused.json()).resolves.toMatchObject({ stored: 200, incoming: 3 });
+
+    // the record is untouched
+    const still = server.db
+      .prepare(
+        'SELECT COUNT(*) AS n FROM messages WHERE session_pk = (SELECT pk FROM sessions WHERE source_session_id = ?)',
+      )
+      .get('shrink-1') as { n: number };
+    expect(still.n).toBe(200);
+
+    // a deliberate rewind still goes through
+    expect((await put(150, true)).status).toBe(200);
   });
 
   it('deletes a session that memory notes still point at', async () => {

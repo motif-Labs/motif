@@ -37,6 +37,12 @@ export async function fulfillPendingAsks(
     }
     try {
       const session = await client.exportSession(req.session_id);
+      // Session ids resolve by string, and a teammate can upload a row that
+      // shadows one. Answering means resuming a transcript and spawning an
+      // agent, so refuse anything that is not exactly what was asked for.
+      if (session.id !== req.session_id) {
+        throw new Error(`session ${req.session_id} resolved to ${session.id}; refusing`);
+      }
       if (looksLive(session)) throw new Error('that session is running right now; try again once it is idle');
       log(`💬 @${req.asker_name ?? 'someone'} asked ${req.session_id} — answering…`);
       const outcome = askSessionLocally(session, req.question);

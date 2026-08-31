@@ -138,6 +138,7 @@ export function performCodexHandoff(
   const now = new Date();
   const result = toRolloutLines(session, { threadId: uuidv7(now), now, digest: opts.digest });
   const target = path.join(home, result.relativePath);
+  assertInside(path.join(home, 'sessions'), target, 'a Codex rollout');
   if (fs.existsSync(target)) throw new Error(`Refusing to overwrite existing rollout: ${target}`);
   fs.mkdirSync(path.dirname(target), { recursive: true });
   fs.writeFileSync(target, serializeRollout(result.lines));
@@ -224,6 +225,7 @@ export function performClaudeHandoff(
     digest: opts.digest,
   });
   const target = path.join(home, result.relativePath);
+  assertInside(path.join(home, 'projects'), target, 'a Claude Code session');
   if (fs.existsSync(target)) throw new Error(`Refusing to overwrite existing session: ${target}`);
   if (!opts.dryRun) {
     fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -238,6 +240,20 @@ export function performClaudeHandoff(
     messageCount: session.messages.length,
     projectPath: session.projectPath,
   };
+}
+
+/**
+ * A handoff writes a file at a path derived from session data, and for a
+ * delivery from a teammate that data came off the network. Path mangling
+ * already strips separators, but the containment guarantee should be stated
+ * rather than left to emerge from a regex — a future change to the mangling
+ * must not be able to open a write outside the directory silently.
+ */
+function assertInside(root: string, target: string, what: string): void {
+  const base = path.resolve(root) + path.sep;
+  if (!path.resolve(target).startsWith(base)) {
+    throw new Error(`Refusing to write ${what} outside ${root}: ${target}`);
+  }
 }
 
 export type HandoffTarget = 'codex' | 'claude-code';

@@ -37,7 +37,7 @@ export function registerAsk(program: Command): void {
           return;
         }
         console.error(`Asking ${local.title ?? local.id} …`);
-        const outcome = askSessionLocally(local, question);
+        const outcome = askSessionLocally(local, question, { allowNpxFallback: true });
         console.log(outcome.answer);
         // record it for the team so the answer is not lost in a terminal
         if (client) {

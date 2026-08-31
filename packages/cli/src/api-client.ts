@@ -171,8 +171,12 @@ export class MotifClient {
     return this.request('PATCH', `/api/handoff-requests/${id}`, result);
   }
 
-  putSession(session: MotifSession): Promise<{ ok: boolean; lastId: string | null }> {
-    return this.request('PUT', `/api/sessions/${encodeURIComponent(session.id)}`, session);
+  putSession(
+    session: MotifSession,
+    opts: { allowShrink?: boolean } = {},
+  ): Promise<{ ok: boolean; lastId: string | null }> {
+    const q = opts.allowShrink ? '?allowShrink=1' : '';
+    return this.request('PUT', `/api/sessions/${encodeURIComponent(session.id)}${q}`, session);
   }
 
   postMessages(
