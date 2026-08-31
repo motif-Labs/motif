@@ -285,13 +285,13 @@ describe('http api', () => {
     const alice = (await (
       await call('/api/members/register', {
         method: 'POST',
-        body: JSON.stringify({ name: 'ayse', email: 'ayse@example.com' }),
+        body: JSON.stringify({ name: 'nora', email: 'nora@example.com' }),
       })
     ).json()) as { memberToken: string };
     const bob = (await (
       await call('/api/members/register', {
         method: 'POST',
-        body: JSON.stringify({ name: 'burak', email: 'burak@example.com' }),
+        body: JSON.stringify({ name: 'omar', email: 'omar@example.com' }),
       })
     ).json()) as { memberToken: string };
 
@@ -302,20 +302,20 @@ describe('http api', () => {
       alice.memberToken,
     );
 
-    // ayse hands the session to burak (by @name)
+    // nora hands the session to omar (by @name)
     const created = (await (
       await call(
         '/api/handoff-requests',
         {
           method: 'POST',
-          body: JSON.stringify({ sessionId: session.id, assignee: '@burak' }),
+          body: JSON.stringify({ sessionId: session.id, assignee: '@omar' }),
         },
         alice.memberToken,
       )
     ).json()) as { id: number; assignee_id: number | null };
     expect(created.assignee_id).not.toBeNull();
 
-    // burak's daemon sees it (with the requester's name); ayse's does not
+    // omar's daemon sees it (with the requester's name); nora's does not
     const bobPending = (await (
       await call('/api/handoff-requests?status=pending', {}, bob.memberToken)
     ).json()) as {
@@ -323,13 +323,13 @@ describe('http api', () => {
       requester_name: string;
     }[];
     expect(bobPending.map((r) => r.id)).toContain(created.id);
-    expect(bobPending.find((r) => r.id === created.id)!.requester_name).toBe('ayse');
+    expect(bobPending.find((r) => r.id === created.id)!.requester_name).toBe('nora');
     const alicePending = (await (
       await call('/api/handoff-requests?status=pending', {}, alice.memberToken)
     ).json()) as { id: number }[];
     expect(alicePending.map((r) => r.id)).not.toContain(created.id);
 
-    // burak (the executor) completes it; unknown assignee is rejected upfront
+    // omar (the executor) completes it; unknown assignee is rejected upfront
     const done = await call(
       `/api/handoff-requests/${created.id}`,
       {
@@ -369,7 +369,7 @@ describe('http api', () => {
     expect(owner.role).toBe('owner');
     expect(guest.role).toBe('member');
 
-    // non-owner cannot rename; owner can
+    // non-owner cannot rename; owner liam
     expect(
       (
         await call(
@@ -438,7 +438,7 @@ describe('http api', () => {
     ).json()) as unknown[];
     expect(kaiSearch).toHaveLength(0);
 
-    // owner promotes it → team can see it; a daemon re-sync must NOT demote it
+    // owner promotes it → team liam see it; a daemon re-sync must NOT demote it
     await call(
       `/api/sessions/${encodeURIComponent(secret.id)}/visibility`,
       {
@@ -457,16 +457,16 @@ describe('http api', () => {
   });
 
   it('comments pin onto sessions without touching the transcript; mentions resolve; scope respected', async () => {
-    const eda = (await (
+    const iris = (await (
       await call('/api/members/register', {
         method: 'POST',
-        body: JSON.stringify({ name: 'eda', email: 'eda@example.com' }),
+        body: JSON.stringify({ name: 'iris', email: 'iris@example.com' }),
       })
     ).json()) as { memberToken: string; memberId: number };
-    const can = (await (
+    const liam = (await (
       await call('/api/members/register', {
         method: 'POST',
-        body: JSON.stringify({ name: 'can', email: 'can@example.com' }),
+        body: JSON.stringify({ name: 'liam', email: 'liam@example.com' }),
       })
     ).json()) as { memberToken: string; memberId: number };
 
@@ -474,45 +474,45 @@ describe('http api', () => {
     await call(
       `/api/sessions/${encodeURIComponent(session.id)}`,
       { method: 'PUT', body: JSON.stringify(session) },
-      eda.memberToken,
+      iris.memberToken,
     );
 
-    // can pins a note on a specific message, mentioning eda
+    // liam pins a note on a specific message, mentioning iris
     const posted = (await (
       await call(
         `/api/sessions/${encodeURIComponent(session.id)}/comments`,
         {
           method: 'POST',
-          body: JSON.stringify({ body: '@eda can we talk through this retry logic', messageId: 'u1' }),
+          body: JSON.stringify({ body: '@iris liam we talk through this retry logic', messageId: 'u1' }),
         },
-        can.memberToken,
+        liam.memberToken,
       )
     ).json()) as { id: number; mentions: number[]; message_id: string };
-    expect(posted.mentions).toContain(eda.memberId);
+    expect(posted.mentions).toContain(iris.memberId);
     expect(posted.message_id).toBe('u1');
 
     // transcript untouched; comment listed with author
     const detail = (await (
-      await call(`/api/sessions/${encodeURIComponent(session.id)}`, {}, eda.memberToken)
+      await call(`/api/sessions/${encodeURIComponent(session.id)}`, {}, iris.memberToken)
     ).json()) as {
       messages: unknown[];
     };
     expect(detail.messages).toHaveLength(1);
     const list = (await (
-      await call(`/api/sessions/${encodeURIComponent(session.id)}/comments`, {}, eda.memberToken)
+      await call(`/api/sessions/${encodeURIComponent(session.id)}/comments`, {}, iris.memberToken)
     ).json()) as {
       author_name: string;
     }[];
     expect(list).toHaveLength(1);
-    expect(list[0]!.author_name).toBe('can');
+    expect(list[0]!.author_name).toBe('liam');
 
-    // only the author deletes; team token can read but not write
+    // only the author deletes; team token liam read but not write
     expect(
       (
         await call(
           `/api/sessions/${encodeURIComponent(session.id)}/comments/${posted.id}`,
           { method: 'DELETE' },
-          eda.memberToken,
+          iris.memberToken,
         )
       ).status,
     ).toBe(404);
@@ -530,10 +530,10 @@ describe('http api', () => {
     await call(
       `/api/sessions/${encodeURIComponent(priv.id)}`,
       { method: 'PUT', body: JSON.stringify(priv) },
-      eda.memberToken,
+      iris.memberToken,
     );
     expect(
-      (await call(`/api/sessions/${encodeURIComponent(priv.id)}/comments`, {}, can.memberToken)).status,
+      (await call(`/api/sessions/${encodeURIComponent(priv.id)}/comments`, {}, liam.memberToken)).status,
     ).toBe(404);
   });
 
@@ -581,7 +581,7 @@ describe('http api', () => {
     ).json()) as { id: number }[];
     expect(askerQueue.map((r) => r.id)).not.toContain(ask.id);
 
-    // the asker cannot fabricate an answer; the owner can
+    // the asker cannot fabricate an answer; the owner liam
     expect(
       (
         await call(
@@ -603,7 +603,7 @@ describe('http api', () => {
     ).json()) as { status: string; answer: string };
     expect(done.status).toBe('done');
 
-    // both sides can read the answered thread on the session
+    // both sides liam read the answered thread on the session
     const thread = (await (
       await call(`/api/sessions/${encodeURIComponent(s.id)}/asks`, {}, asker.memberToken)
     ).json()) as {

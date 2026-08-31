@@ -76,7 +76,7 @@ describe('memory notes', () => {
   it('pipeline processes only idle sessions with new messages, incrementally', async () => {
     const db = openDb(path.join(tmp, 'db.sqlite'));
     const bus = new LiveBus();
-    const { memberId } = registerMember(db, { name: 'mert' });
+    const { memberId } = registerMember(db, { name: 'ada' });
 
     const messages: MotifMessage[] = [
       { id: 'u1', role: 'user', timestamp: '2026-08-01T10:00:00.000Z', text: 'switch storage to sqlite' },
@@ -120,7 +120,7 @@ describe('memory notes', () => {
   it('skips gracefully when the model returns garbage', async () => {
     const db = openDb(path.join(tmp, 'db.sqlite'));
     const bus = new LiveBus();
-    const { memberId } = registerMember(db, { name: 'mert' });
+    const { memberId } = registerMember(db, { name: 'ada' });
     fullReplaceSession(db, memberId, {
       id: 'claude-code:mem2',
       source: 'claude-code',
