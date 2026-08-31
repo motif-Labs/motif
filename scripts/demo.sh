@@ -72,20 +72,34 @@ done
 
 ADA_TOKEN="$(node -e "process.stdout.write(require('$DEMO/ada/config.json').memberToken)")"
 
+BEN_TOKEN="$(node -e "process.stdout.write(require('$DEMO/ben/config.json').memberToken)")"
+
 cat <<EOF
 
   Northwind Engineering is up — 2 members, sessions across Claude Code and Codex.
 
-  Dashboard   http://127.0.0.1:$PORT
-  Sign in as Ada with
-              $ADA_TOKEN
+  Dashboard   http://127.0.0.1:$PORT   (or: motif ui — signs you in)
+  Ada's token $ADA_TOKEN
 
-  Try from the shell:
-              export MOTIF_HOME=$DEMO/ada
-              alias motif="$MOTIF"
-              motif list
-              motif search "idempotency"
-              motif recall "how do we handle retries"
+  ── Terminal 1 · Ada ────────────────────────────────────────────────────────
+  export MOTIF_HOME=$DEMO/ada CODEX_HOME=$DEMO/ada/codex MOTIF_CURSOR_DIR=$DEMO/ada/cursor
+  alias motif="$MOTIF --claude-dir $DEMO/ada/claude"
+
+      motif list
+      motif recall "how do we handle retries"
+      motif handoff <id> --to-member "Ben"
+
+  ── Terminal 2 · Ben's machine ──────────────────────────────────────────────
+  export MOTIF_HOME=$DEMO/ben CODEX_HOME=$DEMO/ben/codex MOTIF_CURSOR_DIR=$DEMO/ben/cursor
+  alias motif="$MOTIF --claude-dir $DEMO/ben/claude"
+
+      motif sync --watch          # leave this running: it is what receives a handoff
+      # then, once something lands:
+      codex resume <the id it prints>
+
+  Each side reads only its own directories, so neither touches your real
+  ~/.claude, ~/.codex or Cursor storage. Two terminals side by side is a
+  convincing two-machine demo; the only thing they share is the server.
 
   Tear it down: bash scripts/demo.sh clean
 
