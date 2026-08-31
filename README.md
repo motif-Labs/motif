@@ -24,10 +24,10 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/motif-Labs/motif/main/docs/assets/handoff.gif" alt="A Claude Code session being continued in Codex, natively" width="820" />
+  <img src="https://raw.githubusercontent.com/motif-Labs/motif/main/docs/assets/handoff.gif" alt="Handing a live Claude Code session to a teammate, who picks it up in Codex" width="820" />
 </p>
 
-<p align="center"><sub>A Claude Code session continued in Codex. Motif writes the target tool's own<br />session file and registers the thread, so it opens as history — not as a paste.</sub></p>
+<p align="center"><sub>One command hands a live Claude Code session to a teammate. Her daemon materialises it as a Codex<br />thread on her own machine, and <code>codex resume</code> opens it as history — not as a paste.</sub></p>
 
 ---
 
@@ -64,7 +64,7 @@ sessions to your server as they happen, attributed to the person and the tool
 that produced them. Nothing leaves your infrastructure, and there is no telemetry.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/motif-Labs/motif/main/docs/assets/dashboard.png" alt="The dashboard: every member's sessions across Claude Code, Codex and Cursor on one timeline" width="880" />
+  <img src="https://raw.githubusercontent.com/motif-Labs/motif/main/docs/assets/dashboard.png" alt="The dashboard: every member's sessions across Claude Code and Codex, on one timeline" width="880" />
 </p>
 
 Joining a team shares nothing by default — everything uploads as `personal` until
@@ -88,10 +88,6 @@ motif ask 4f2a9c "what did we rule out here, and why?"
 It works on your own sessions and, with a teammate's daemon running, on theirs.
 Claude Code and Codex sessions can be asked; Cursor has no resume command, so
 Cursor sessions are collected and searchable but not askable.
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/motif-Labs/motif/main/docs/assets/session.png" alt="A session: the transcript, what it touched, and the controls to continue it elsewhere or ask it a question" width="880" />
-</p>
 
 ### 03 · Recall — and your agents query it themselves
 
@@ -168,6 +164,12 @@ the thread in its state database, so the tool opens it as its own history.
 motif handoff 4f2a9c --open                # continue it here, in the other tool
 motif handoff 4f2a9c --to-member "Ada"     # hand it over — lands in THEIR tool
 ```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/motif-Labs/motif/main/docs/assets/codex-takeover.png" alt="The Claude Code conversation, resumed inside Codex on another machine, answering a teammate's question about it" width="880" />
+</p>
+
+<p align="center"><sub>The same conversation inside Codex on the other machine — including the question asked<br />a minute earlier in Claude Code. Codex answers about work it never did.</sub></p>
 
 Claude Code ⇄ Codex in both directions, verified against Codex 0.151.0. Cursor
 sessions convert into either. The tool is a preference; the memory is shared.
