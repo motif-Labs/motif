@@ -6,6 +6,43 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-08-31
+
+Security release. Everyone running a shared server should upgrade.
+
+### Security
+
+- **Identity takeover (critical).** `POST /api/members/register` returned a
+  valid token for an identity that already existed, so the shared read-only team
+  token could be exchanged for the owner's credential. Re-enrollment now requires
+  that member's own token or the owner's.
+- **Personal sessions leaked through the event stream.** Session titles are the
+  first user prompt and project paths are absolute; both were published to every
+  subscriber. Events now carry visibility and personal ones reach only their
+  owner. `GET /api/projects` had the same hole.
+- **The ask path trusted its input.** Ownership of a transcript is now checked
+  against the agent directories rather than by `existsSync`, session ids must be
+  shaped like ids before they reach argv, and the daemon refuses a session that
+  is not the one the request named. The question travels on stdin instead of a
+  command line — on Windows a shell would have interpreted it — and runs with
+  read-only tools, fenced as quoted text.
+- A handoff could write one level outside `~/.claude/projects`.
+- The rate-limit key was a client-supplied header; it is now the socket address
+  unless `MOTIF_TRUST_PROXY=1`.
+- `~/.motif/config.json`, which holds the member token, is created 0600.
+- Handoff lineage rows could be attached to sessions the caller cannot see.
+
+### Fixed
+
+- `motif mcp install` replaced a config it had failed to parse, without taking
+  the backup it takes on success — deleting other MCP servers.
+- A non-numeric `budget` disabled the recall cap and returned everything.
+
+### Changed
+
+- SECURITY.md now states what a teammate can and cannot cause on your machine,
+  and that this is a trust model rather than a sandbox.
+
 ## [1.0.6] — 2026-08-31
 
 ### Fixed
@@ -130,7 +167,8 @@ First public release.
   header. Tokens are 192-bit, stored as SHA-256 hashes, compared in constant
   time, and rate-limited on failure.
 
-[Unreleased]: https://github.com/motif-Labs/motif/compare/v1.0.6...HEAD
+[Unreleased]: https://github.com/motif-Labs/motif/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/motif-Labs/motif/releases/tag/v1.1.0
 [1.0.6]: https://github.com/motif-Labs/motif/releases/tag/v1.0.6
 [1.0.5]: https://github.com/motif-Labs/motif/releases/tag/v1.0.5
 [1.0.4]: https://github.com/motif-Labs/motif/releases/tag/v1.0.4
