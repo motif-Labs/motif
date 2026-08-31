@@ -47,7 +47,6 @@ packages/cli      the `motif` binary, the sync daemon, the MCP server, Cursor re
 packages/server   Hono API + better-sqlite3 store, retrieval, memory distillation
 ui/               Preact dashboard (no framework beyond Preact; hand-rolled CSS)
 bench/            retrieval benchmark — `npm run bench`
-scripts/demo.sh   two-member team with invented sessions, for trying it out
 ```
 
 ## Commands
@@ -57,7 +56,6 @@ npm install && npm run build     # build ui then the CLI bundle
 npx vitest run                   # 62 tests
 npm run typecheck                # tsc -b across the three packages
 npm run bench                    # retrieval hit rate and token size
-bash scripts/demo.sh             # a populated dashboard in ~30 seconds
 ```
 
 The published npm package is **`getmotif`**; the binary it installs is `motif`

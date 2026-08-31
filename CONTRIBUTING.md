@@ -15,13 +15,6 @@ npx vitest run                 # the suite should pass (62 tests)
 npm run typecheck              # tsc -b across the three packages
 ```
 
-To see the product with data in it, without touching your own agent history:
-
-```bash
-bash scripts/demo.sh           # two members, invented sessions, live dashboard
-bash scripts/demo.sh clean     # remove everything it created
-```
-
 To run the CLI from source instead of the bundle:
 
 ```bash

@@ -7,6 +7,7 @@ dist/
 .env.*
 research/
 .private/
+/scripts/
 .types/
 
 # local databases and runtime state — never publish a developer's own sessions

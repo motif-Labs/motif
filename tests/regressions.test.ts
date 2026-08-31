@@ -21,6 +21,7 @@ import { isExcluded } from '../packages/cli/src/daemon/syncer.js';
 import { performClaudeHandoff, performCodexHandoff } from '../packages/cli/src/handoff/perform.js';
 import { canAnswerLocally } from '../packages/cli/src/ask/perform.js';
 import { MotifClient } from '../packages/cli/src/api-client.js';
+import { writesEnabled } from '../packages/cli/src/commands/ops.js';
 
 let tmp: string;
 beforeEach(() => {
@@ -421,5 +422,17 @@ describe('http api', () => {
     const res = await call('/api/sessions/claude-code:del-1', { method: 'DELETE' }, me.memberToken);
     expect(res.status).toBe(200);
     expect((await call('/api/sessions/claude-code:del-1', {}, me.memberToken)).status).toBe(404);
+  });
+
+  // `motif doctor` used to ask the server who you are and, when the server was
+  // simply off, report "member identity" as missing — sending someone to mint a
+  // second identity over the working token already on their machine.
+  it('reports writes enabled from the local token when the server is unreachable', () => {
+    expect(writesEnabled({ reachable: false }, true)).toBe(true);
+    expect(writesEnabled({ reachable: false }, false)).toBe(false);
+    // when the server does answer it stays the authority, so a read-only team
+    // token is still reported as unable to write
+    expect(writesEnabled({ reachable: true, identity: 'team token (read-only)' }, true)).toBe(false);
+    expect(writesEnabled({ reachable: true, identity: 'ada (member)' }, true)).toBe(true);
   });
 });

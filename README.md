@@ -265,17 +265,24 @@ members cannot write as each other.
 machine. Handoffs and asks only ever execute on the machine that owns the session,
 through its own daemon. Full model in [SECURITY.md](SECURITY.md).
 
-## Try it without touching your own history
+## Try it on your own sessions, offline
 
 ```bash
-git clone https://github.com/motif-Labs/motif && cd motif
-npm install && npm run build
-bash scripts/demo.sh        # two members, invented sessions, a live dashboard
+npx getmotif up
 ```
 
-The demo pins every reader at its own scratch directories, so it never opens
-`~/.claude`, `~/.codex` or your Cursor storage. `bash scripts/demo.sh clean`
-removes it.
+That reads the transcripts your agents already wrote, indexes them locally and
+opens a dashboard. There is no account, no upload and no network call — the
+database is a single SQLite file under `~/.motif`, and it stays there until you
+run `motif connect` against a team server.
+
+Nothing is shared even then: every session uploads as `personal` until you name
+a project with `motif projects team <path>`. To keep a tree out entirely, before
+anything is read:
+
+```bash
+motif projects exclude ~/personal --purge
+```
 
 ## Independence and compatibility
 

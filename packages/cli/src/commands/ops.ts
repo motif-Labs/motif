@@ -21,6 +21,19 @@ function daemonPid(): number | undefined {
   }
 }
 
+/**
+ * Whether writes are enabled. When the server answers, it is the authority. When
+ * it does not, fall back to what this machine holds: telling someone to re-run
+ * `connect` over a member token they already have sends them to mint a second
+ * identity for a problem that is only an unreachable server.
+ */
+export function writesEnabled(
+  server: { reachable: boolean; identity?: string },
+  hasMemberToken: boolean,
+): boolean {
+  return server.reachable ? (server.identity?.includes('member') ?? false) : hasMemberToken;
+}
+
 async function gatherStatus(claudeDir?: string) {
   const cfg = loadConfig();
   const pid = daemonPid();
@@ -53,6 +66,7 @@ async function gatherStatus(claudeDir?: string) {
     version: CLI_VERSION,
     serverUrl: cfg.serverUrl ?? null,
     server,
+    hasMemberToken: !!cfg.memberToken,
     daemon: { running: pid !== undefined, pid: pid ?? null, paused: fs.existsSync(pausedPath()) },
     lastSyncAgeSeconds: stateAgeSec ?? null,
     syncMode: cfg.syncMode ?? 'all',
@@ -143,8 +157,10 @@ export function registerOps(program: Command): void {
         },
         {
           name: 'member identity (writes enabled)',
-          ok: s.server.identity?.includes('member') ?? false,
-          fix: 're-run motif connect to mint a member token',
+          ok: writesEnabled(s.server, s.hasMemberToken),
+          fix: s.hasMemberToken
+            ? 'this machine holds a read-only team token — re-run motif connect with your name'
+            : 're-run motif connect to mint a member token',
         },
         {
           name: 'daemon running',
