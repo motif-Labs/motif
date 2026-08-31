@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.4] — 2026-08-31
+
+### Changed
+
+- README restructured around the five things Motif does — collect, ask, recall,
+  decide, move — each with the command that does it, plus a usage reference
+  grouped by task. Published so the npm package page carries it too.
+
 ## [1.0.3] — 2026-08-31
 
 ### Fixed
@@ -82,7 +90,8 @@ First public release.
   header. Tokens are 192-bit, stored as SHA-256 hashes, compared in constant
   time, and rate-limited on failure.
 
-[Unreleased]: https://github.com/motif-Labs/motif/compare/v1.0.3...HEAD
+[Unreleased]: https://github.com/motif-Labs/motif/compare/v1.0.4...HEAD
+[1.0.4]: https://github.com/motif-Labs/motif/releases/tag/v1.0.4
 [1.0.3]: https://github.com/motif-Labs/motif/releases/tag/v1.0.3
 [1.0.2]: https://github.com/motif-Labs/motif/releases/tag/v1.0.2
 [1.0.1]: https://github.com/motif-Labs/motif/releases/tag/v1.0.1
