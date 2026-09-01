@@ -55,7 +55,12 @@ export function registerDemo(program: Command): void {
     Memory      distilled decisions, one human-verified, one flagged stale
     Search      try: idempotency
 
-  From another terminal (server stays in this one):
+  Drive it from a second terminal (server stays in this one):
+    motif connect ${base} --token ${server.token} --name you
+    motif memory review          # the conflict, both sides cited
+    motif memory prefer <a> --over <b>   # rule — and recall obeys
+
+  Or raw:
     curl -s '${base}/api/recall?q=why+do+we+fail+open+when+redis+is+down&format=markdown' \\
       -H 'authorization: Bearer ${ada.token}'
 
