@@ -88,7 +88,9 @@ export function listReviewQueue(db: Db, viewerId: number | undefined): ReviewIte
 
   const stale = db
     .prepare(
-      `${NOTE_SELECT} WHERE n.stale = 1 AND n.status = 'current' AND n.verification NOT IN ('retired') ORDER BY n.created_at ASC`,
+      `${NOTE_SELECT} WHERE n.stale = 1 AND n.status = 'current' AND n.verification NOT IN ('retired')
+         AND NOT EXISTS (SELECT 1 FROM memory_notes c WHERE c.conflict_with = n.id AND c.status = 'conflicted')
+       ORDER BY n.created_at ASC`,
     )
     .all() as ReviewNote[];
   for (const note of stale) if (viewable(note, viewerId)) items.push({ type: 'stale', note });
