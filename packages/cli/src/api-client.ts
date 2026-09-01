@@ -89,6 +89,21 @@ export class MotifClient {
     return this.request('GET', `/api/recall?${q}`);
   }
 
+  async listWeaverJobs(status?: string): Promise<{ jobs: WeaverJobDto[] }> {
+    return this.request('GET', `/api/weaver/jobs${status ? `?status=${status}` : ''}`);
+  }
+
+  async claimWeaverJob(id: number): Promise<void> {
+    await this.request('POST', `/api/weaver/jobs/${id}/claim`, {});
+  }
+
+  async completeWeaverJob(
+    id: number,
+    outcome: { status: 'done' | 'error'; prUrl?: string; result?: string },
+  ): Promise<void> {
+    await this.request('POST', `/api/weaver/jobs/${id}/complete`, outcome);
+  }
+
   async sessionsByFile(rel: string, project?: string): Promise<SessionByFile[]> {
     const q = new URLSearchParams({ path: rel });
     if (project) q.set('project', project);
@@ -302,4 +317,14 @@ export interface SessionByFile {
   updated_at: string | null;
   matched: string;
   exact: boolean;
+}
+
+export interface WeaverJobDto {
+  id: number;
+  project_path: string;
+  payload: string;
+  status: 'pending' | 'running' | 'done' | 'error';
+  pr_url: string | null;
+  result: string | null;
+  created_at: string;
 }

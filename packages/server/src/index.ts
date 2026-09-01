@@ -13,6 +13,13 @@ import { recall, renderRecall } from './retrieval.js';
 import { applyVerdict, listReviewQueue } from './memory/review.js';
 import { startWebhooks } from './webhooks.js';
 import {
+  claimWeaverJob,
+  completeWeaverJob,
+  createWeaverJob,
+  listWeaverJobs,
+  type WeaverPayload,
+} from './weaver.js';
+import {
   addComment,
   appendMessages,
   canView,
@@ -743,6 +750,44 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     return c.json({ entity, notes });
   });
 
+  app.get('/api/weaver/jobs', (c) => {
+    const status = c.req.query('status') as 'pending' | 'running' | 'done' | 'error' | undefined;
+    return c.json({ jobs: listWeaverJobs(db, status) });
+  });
+
+  app.post('/api/weaver/jobs/:id/claim', (c) => {
+    const member = memberId(c);
+    if (member === undefined) return c.json({ error: 'a member token is required' }, 403);
+    const won = claimWeaverJob(db, Number(c.req.param('id')), member);
+    if (!won) return c.json({ error: 'already claimed' }, 409);
+    return c.json({ ok: true });
+  });
+
+  app.post('/api/weaver/jobs/:id/complete', async (c) => {
+    const member = memberId(c);
+    if (member === undefined) return c.json({ error: 'a member token is required' }, 403);
+    const body = (await c.req.json().catch(() => ({}))) as {
+      status?: string;
+      prUrl?: string;
+      result?: string;
+    };
+    if (body.status !== 'done' && body.status !== 'error') {
+      return c.json({ error: 'status must be done | error' }, 400);
+    }
+    const row = completeWeaverJob(db, Number(c.req.param('id')), member, {
+      status: body.status,
+      prUrl: body.prUrl,
+      result: body.result,
+    });
+    if (!row) return c.json({ error: 'not yours to complete, or not running' }, 409);
+    bus.publish('weaver-completed', {
+      jobId: row.id,
+      status: row.status,
+      prUrl: row.pr_url ?? undefined,
+    });
+    return c.json({ job: row });
+  });
+
   app.get('/api/memory/review', (c) => {
     return c.json({ items: listReviewQueue(db, memberId(c)) });
   });
@@ -760,14 +805,55 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       return c.json({ error: 'verdict must be confirm | prefer | retire | dispute' }, 400);
     }
     try {
+      const noteId = Number(c.req.param('id'));
+      // capture the loser BEFORE the verdict rewires conflict_with
+      const loserId =
+        body.verdict === 'prefer'
+          ? (body.overNoteId ??
+            (
+              db.prepare('SELECT conflict_with FROM memory_notes WHERE id = ?').get(noteId) as
+                { conflict_with: number | null } | undefined
+            )?.conflict_with ??
+            null)
+          : null;
       const note = applyVerdict(db, {
-        noteId: Number(c.req.param('id')),
+        noteId,
         reviewerId: reviewer,
         verdict: body.verdict as 'confirm' | 'prefer' | 'retire' | 'dispute',
         overNoteId: body.overNoteId,
         reason: body.reason,
       });
       bus.publish('memory-reviewed', { noteId: note.id, verdict: body.verdict!, reviewerId: reviewer });
+
+      // A ruling can imply work in the repo: docs and code may still say what
+      // the losing claim said. Queue it for the Weaver — unless either side's
+      // evidence is personal, because a job broadcast to daemons must never
+      // carry what a stranger could not read.
+      if (body.verdict === 'prefer' && loserId !== null) {
+        const loser = db
+          .prepare(
+            `SELECT n.body, s.id AS session_id, s.visibility
+             FROM memory_notes n LEFT JOIN sessions s ON s.pk = n.source_session_pk
+             WHERE n.id = ?`,
+          )
+          .get(loserId) as { body: string; session_id: string | null; visibility: string | null } | undefined;
+        const bothTeamVisible = note.session_visibility !== 'personal' && loser?.visibility !== 'personal';
+        if (loser && bothTeamVisible && note.project_path) {
+          const payload: WeaverPayload = {
+            kind: 'ruling',
+            entity: note.entity,
+            aspect: note.aspect,
+            winnerBody: note.body,
+            loserBody: loser.body,
+            reason: body.reason ?? null,
+            reviewerName: null,
+            winnerSessionId: note.session_id,
+            loserSessionId: loser.session_id,
+          };
+          const job = createWeaverJob(db, note.project_path, payload);
+          bus.publish('weaver-job', { jobId: job.id, projectPath: job.project_path });
+        }
+      }
       return c.json({ note });
     } catch (err) {
       return c.json({ error: (err as Error).message }, 400);
@@ -933,3 +1019,11 @@ export {
   type ReviewNote,
 } from './memory/review.js';
 export { startWebhooks, type WebhookOptions } from './webhooks.js';
+export {
+  claimWeaverJob,
+  completeWeaverJob,
+  createWeaverJob,
+  listWeaverJobs,
+  type WeaverJobRow,
+  type WeaverPayload,
+} from './weaver.js';

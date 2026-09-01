@@ -23,7 +23,12 @@ import {
 import { discoverCursorConversations, loadCursorProjectMap, readCursorSession } from '../readers/cursor.js';
 import { ApiError, MotifClient } from '../api-client.js';
 import { motifHome, type MotifConfig } from '../config.js';
-import { fulfillPendingAsks, fulfillPendingHandoffs, listenEvents } from './requests.js';
+import {
+  fulfillPendingAsks,
+  fulfillPendingHandoffs,
+  fulfillPendingWeaves,
+  listenEvents,
+} from './requests.js';
 
 interface SyncedState {
   count: number;
@@ -388,6 +393,7 @@ export function watchAndSync(
     if (opts.live) {
       void fulfillPendingHandoffs(client, opts.live.log);
       void fulfillPendingAsks(client, config, opts.live.log);
+      void fulfillPendingWeaves(client, config, opts.live.log);
     }
   }, sweepMs);
   void run();
@@ -397,8 +403,10 @@ export function watchAndSync(
     const log = opts.live.log ?? (() => {});
     void fulfillPendingHandoffs(client, log); // clear any backlog on start
     void fulfillPendingAsks(client, config, log);
+    void fulfillPendingWeaves(client, config, log);
     events = listenEvents(opts.live.serverUrl, opts.live.token, (event, data) => {
       if (event === 'handoff-requested') void fulfillPendingHandoffs(client, log);
+      if (event === 'weaver-job') void fulfillPendingWeaves(client, config, log);
       if (event === 'ask-requested') {
         const d = data as { executorId?: number };
         if (config.memberId === undefined || d.executorId === config.memberId) {

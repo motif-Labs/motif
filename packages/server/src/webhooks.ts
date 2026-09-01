@@ -48,6 +48,22 @@ export function startWebhooks(
         opts.log,
       );
     }
+    if (e.event === 'weaver-completed') {
+      const d = e.data as { jobId: number; status: string; prUrl?: string };
+      if (d.prUrl) {
+        post(
+          url,
+          {
+            text: `🧵 Motif: the Weaver aligned the repo with a ruling — draft PR ready: ${d.prUrl}`,
+            event: 'weaver-completed',
+            jobId: d.jobId,
+            prUrl: d.prUrl,
+            at: new Date().toISOString(),
+          },
+          opts.log,
+        );
+      }
+    }
     if (e.event === 'memory-reviewed') {
       const d = e.data as { noteId: number; verdict: string };
       post(

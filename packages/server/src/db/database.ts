@@ -246,6 +246,24 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_reviews_note ON memory_reviews(note_id);
   `,
+  // v10 — the Weaver's queue. A ruling on memory can imply work in the repo
+  // (docs that state the losing claim, code that follows it). Jobs are queued
+  // server-side and claimed atomically by a daemon that has the project and
+  // the owner's opt-in; the server never runs an agent itself.
+  `
+  CREATE TABLE weaver_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_path TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','running','done','error')),
+    claimed_by INTEGER REFERENCES members(id),
+    pr_url TEXT,
+    result TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_weaver_status ON weaver_jobs(status, created_at);
+  `,
 ];
 
 export function openDb(dbPath: string): Db {

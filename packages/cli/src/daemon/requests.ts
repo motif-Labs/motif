@@ -10,6 +10,12 @@ import { MotifClient } from '../api-client.js';
 import { performHandoff, resumeCommandFor, type HandoffTarget } from '../handoff/perform.js';
 import { askSessionLocally, looksLive } from '../ask/perform.js';
 import type { MotifConfig } from '../config.js';
+import {
+  defaultPublishBranch,
+  defaultRunAgent,
+  performWeaverJob,
+  type WeaverDeps,
+} from '../weaver/perform.js';
 
 /**
  * Answer the questions teammates asked of sessions this machine owns. Only
@@ -161,4 +167,50 @@ export function listenEvents(
       controller?.abort();
     },
   };
+}
+
+/**
+ * Weave rulings into repositories this machine holds — but only where the
+ * owner said so. A job for a project not in `weaverProjects` is simply left
+ * for a machine that opted in; claiming is atomic on the server, so two
+ * daemons never take the same one.
+ */
+export async function fulfillPendingWeaves(
+  client: MotifClient,
+  config: MotifConfig,
+  log: (msg: string) => void = () => {},
+  deps: WeaverDeps = { runAgent: defaultRunAgent, publishBranch: defaultPublishBranch, log },
+): Promise<number> {
+  const enabled = config.weaverProjects ?? [];
+  if (enabled.length === 0) return 0;
+  let jobs;
+  try {
+    jobs = (await client.listWeaverJobs('pending')).jobs;
+  } catch {
+    return 0;
+  }
+  let woven = 0;
+  for (const job of jobs) {
+    if (!enabled.includes(job.project_path)) continue;
+    try {
+      await client.claimWeaverJob(job.id);
+    } catch {
+      continue; // someone else won it — that is the point of claiming
+    }
+    const outcome = performWeaverJob(job, deps);
+    await client
+      .completeWeaverJob(job.id, {
+        status: outcome.status,
+        prUrl: outcome.prUrl,
+        result: outcome.result,
+      })
+      .catch(() => {});
+    log(
+      outcome.prUrl
+        ? `🧵 wove ruling #${job.id} — draft PR: ${outcome.prUrl}`
+        : `🧵 ruling #${job.id}: ${outcome.result}`,
+    );
+    woven++;
+  }
+  return woven;
 }

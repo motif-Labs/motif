@@ -14,6 +14,8 @@ export interface LiveEvents {
   'memory-updated': { entityId: number; kind: string; name: string };
   'memory-reviewed': { noteId: number; verdict: string; reviewerId: number };
   'memory-conflict': { entity: string; aspect: string };
+  'weaver-job': { jobId: number; projectPath: string };
+  'weaver-completed': { jobId: number; status: string; prUrl?: string };
   'member-joined': { memberId: number; name: string };
   'handoff-created': { sessionId: string; memberId: number; target: string };
   'handoff-requested': { requestId: number; sessionId: string; memberId: number };

@@ -33,6 +33,12 @@ export interface MotifConfig {
   redactDefaults?: boolean;
   /** Let teammates ask this machine's sessions questions (default true). */
   allowAsks?: boolean;
+  /**
+   * Projects (absolute paths) where the Weaver may act on this machine:
+   * when a ruling lands, it aligns the repo in a throwaway worktree and opens
+   * a DRAFT PR. Off unless a path is listed — `motif weaver enable <path>`.
+   */
+  weaverProjects?: string[];
 }
 
 export function motifHome(): string {
