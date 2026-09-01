@@ -1065,3 +1065,17 @@ input:focus {
   color: var(--red);
   border-left-color: var(--red);
 }
+
+/* ── memory review inbox ─────────────────────────────── */
+.review-item {
+  margin: 18px 0 26px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.review-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}

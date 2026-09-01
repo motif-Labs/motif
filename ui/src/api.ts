@@ -63,6 +63,28 @@ export interface MemoryNote {
   created_at: string;
 }
 
+export interface ReviewNote {
+  id: number;
+  kind: string;
+  entity: string;
+  project_path: string;
+  aspect: string;
+  body: string;
+  status: string;
+  verification: string;
+  stale: number;
+  stale_reason: string | null;
+  author_name: string | null;
+  session_id: string | null;
+  created_at: string;
+}
+
+export interface ReviewItem {
+  type: 'conflict' | 'stale' | 'disputed';
+  note: ReviewNote;
+  against?: ReviewNote;
+}
+
 export interface Comment {
   id: number;
   message_id: string | null;

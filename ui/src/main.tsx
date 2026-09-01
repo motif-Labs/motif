@@ -14,6 +14,8 @@ import {
   type MemberRow,
   type MemoryEntity,
   type MemoryNote,
+  type ReviewItem,
+  type ReviewNote,
   type Message,
   type SessionDetail,
   type SessionRow,
@@ -915,6 +917,121 @@ function PeoplePage({ me }: { me: Me }) {
 
 /* ── memory ──────────────────────────────────────────── */
 
+function ReviewNoteCard({ n, label }: { n: ReviewNote; label?: string }) {
+  return (
+    <div class={`note ${n.status}`}>
+      <div class="aspect">
+        {label && <strong>{label} · </strong>}[{n.kind}] {n.entity} · {n.aspect}
+        {n.stale ? ` · stale: ${n.stale_reason ?? 'its files moved on'}` : ''}
+      </div>
+      <div>{n.body}</div>
+      <div class="aspect" style="margin-top:6px">
+        {n.author_name ? `@${n.author_name}` : 'unknown'} · {ago(n.created_at)}
+        {n.session_id && (
+          <>
+            {' · '}
+            <a href={`#/sessions/${encodeURIComponent(n.session_id)}`}>source session</a>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ReviewPage({ me }: { me: Me }) {
+  const [items, setItems] = useState<ReviewItem[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const reload = () =>
+    api<{ items: ReviewItem[] }>('/api/memory/review')
+      .then((r) => setItems(r.items))
+      .catch(() => setItems([]));
+  useEffect(() => {
+    reload();
+    return openEvents((name) => {
+      if (name === 'memory-updated' || name === 'memory-reviewed') reload();
+    });
+  }, []);
+
+  const canRule = me.kind === 'member';
+  const rule = async (noteId: number, verdict: 'confirm' | 'prefer' | 'retire', overNoteId?: number) => {
+    setBusy(true);
+    try {
+      await api(`/api/memory/notes/${noteId}/verdict`, {
+        method: 'POST',
+        body: JSON.stringify({ verdict, overNoteId }),
+      });
+      await reload();
+    } catch (err) {
+      alert(String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!items) return <div class="empty">Loading…</div>;
+  return (
+    <div style="max-width:760px">
+      <h1>Review</h1>
+      {items.length === 0 && <div class="empty">Nothing waits for a ruling — the memory is at peace.</div>}
+      {!canRule && items.length > 0 && (
+        <div class="empty">Signed in with the team token — rulings need a member token.</div>
+      )}
+      {items.map((item) =>
+        item.type === 'conflict' && item.against ? (
+          <div key={item.note.id} class="review-item">
+            <div class="aspect" style="margin-bottom:6px">
+              <span class="chip conflict">conflict</span> two sessions disagree — agents see both sides until
+              someone rules
+            </div>
+            <ReviewNoteCard n={item.against} label="standing" />
+            <ReviewNoteCard n={item.note} label="challenger" />
+            <div class="review-actions">
+              <button
+                disabled={!canRule || busy}
+                onClick={() => rule(item.against!.id, 'prefer', item.note.id)}
+              >
+                Keep the standing note
+              </button>
+              <button
+                class="primary"
+                disabled={!canRule || busy}
+                onClick={() => rule(item.note.id, 'prefer', item.against!.id)}
+              >
+                The challenger is right
+              </button>
+              <button disabled={!canRule || busy} onClick={() => rule(item.note.id, 'retire')}>
+                Retire the challenge
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div key={item.note.id} class="review-item">
+            <div class="aspect" style="margin-bottom:6px">
+              <span class="chip">{item.type}</span>{' '}
+              {item.type === 'stale'
+                ? 'the files this note came from have moved on since'
+                : 'someone flagged this note as wrong'}
+            </div>
+            <ReviewNoteCard n={item.note} />
+            <div class="review-actions">
+              <button
+                class="primary"
+                disabled={!canRule || busy}
+                onClick={() => rule(item.note.id, 'confirm')}
+              >
+                Still true
+              </button>
+              <button disabled={!canRule || busy} onClick={() => rule(item.note.id, 'retire')}>
+                Retire it
+              </button>
+            </div>
+          </div>
+        ),
+      )}
+    </div>
+  );
+}
+
 function MemoryPage() {
   const [entities, setEntities] = useState<MemoryEntity[] | null>(null);
   const reload = () =>
@@ -1186,12 +1303,26 @@ function App() {
     });
   }, [authed]);
 
+  const [reviewCount, setReviewCount] = useState(0);
+  useEffect(() => {
+    if (!authed) return;
+    const loadCount = () =>
+      api<{ items: unknown[] }>('/api/memory/review')
+        .then((r) => setReviewCount(r.items.length))
+        .catch(() => setReviewCount(0));
+    loadCount();
+    return openEvents((name) => {
+      if (name === 'memory-updated' || name === 'memory-reviewed') loadCount();
+    });
+  }, [authed]);
+
   if (!authed) return <TokenGate onDone={() => setAuthed(true)} />;
 
   const nav = [
     ['#/', 'Sessions', /^\/(sessions.*)?$/],
     ['#/people', 'People', /^\/people/],
     ['#/memory', 'Memory', /^\/memory/],
+    ['#/review', 'Review', /^\/review/],
     ['#/search', 'Search', /^\/search/],
     ['#/setup', 'Setup', /^\/setup/],
   ] as const;
@@ -1212,6 +1343,9 @@ function App() {
   } else if (hash.startsWith('/memory')) {
     view = <MemoryPage />;
     crumb = 'Memory';
+  } else if (hash.startsWith('/review')) {
+    view = <ReviewPage me={me} />;
+    crumb = 'Review';
   } else if (hash.startsWith('/search')) {
     view = <SearchPage />;
     crumb = 'Search';
@@ -1259,6 +1393,11 @@ function App() {
           {nav.map(([href, label, re]) => (
             <a key={href} class={`nav-item ${re.test(hash) ? 'active' : ''}`} href={href}>
               {label}
+              {href === '#/review' && reviewCount > 0 && (
+                <span class="chip conflict" style="margin-left:6px">
+                  {reviewCount}
+                </span>
+              )}
             </a>
           ))}
           {members.length > 0 && (
