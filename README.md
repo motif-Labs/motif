@@ -140,6 +140,15 @@ motif mcp install
 `ask_session` is the unusual one: your Claude Code agent can question a Codex
 session from three weeks ago, and the machine that owns it answers.
 
+And in the other direction — from the code back to the conversation:
+
+```bash
+motif blame src/limiter.ts     # which sessions produced this file, freshest first
+```
+
+"Why is this like this" starts from the file itself: each hit names the person,
+the tool, the session — and `motif show` opens the conversation.
+
 **Measured, not asserted.** Against **1.77M tokens** of real session history,
 `recall` answers **8 of 9** questions inside a 1,500-token budget — a median
 bundle of 1,496 tokens, **1,186× smaller** than the history it searched.
@@ -282,6 +291,7 @@ its own daemon. Full model in [SECURITY.md](SECURITY.md).
 | `motif search "idempotency"`                 | full-text search over everyone's sessions            |
 | `motif show <id>`                            | read a session as a transcript (`--tools`, `--json`) |
 | `motif recall "how does auth work"`          | the distilled answer, with citations                 |
+| `motif blame src/limiter.ts`                 | the sessions that produced a file, freshest first    |
 
 **Working with a session**
 

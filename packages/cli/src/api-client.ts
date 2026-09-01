@@ -89,6 +89,13 @@ export class MotifClient {
     return this.request('GET', `/api/recall?${q}`);
   }
 
+  async sessionsByFile(rel: string, project?: string): Promise<SessionByFile[]> {
+    const q = new URLSearchParams({ path: rel });
+    if (project) q.set('project', project);
+    const res = await this.request<{ sessions: SessionByFile[] }>('GET', `/api/sessions/by-file?${q}`);
+    return res.sessions;
+  }
+
   async listMemoryReview(): Promise<{
     items: {
       type: 'conflict' | 'stale' | 'disputed';
@@ -285,4 +292,14 @@ export interface MemoryReviewNote {
   author_name: string | null;
   session_id: string | null;
   created_at: string;
+}
+
+export interface SessionByFile {
+  id: string;
+  source: string;
+  title: string | null;
+  member_name: string | null;
+  updated_at: string | null;
+  matched: string;
+  exact: boolean;
 }
