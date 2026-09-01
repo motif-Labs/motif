@@ -218,6 +218,11 @@ export async function runMemoryTick(
       sessionPk: s.pk,
       memberId: s.member_id,
     });
+    for (const note of notes) {
+      if (note.contradictsCurrent) {
+        bus.publish('memory-conflict', { entity: note.entity.name, aspect: note.aspect });
+      }
+    }
     db.prepare('UPDATE sessions SET last_extracted_seq = ? WHERE pk = ?').run(s.max_seq + 1, s.pk);
     processed++;
     opts.log?.(`memory: ${notes.length} note(s) from ${s.id}`);
