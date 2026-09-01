@@ -6,6 +6,33 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **The Review loop.** Distilled memory notes now carry a human axis next to the
+  machine one: a person can `confirm`, `prefer` (resolving a conflict),
+  `retire` or `dispute` a claim — from `motif memory review` or the dashboard's
+  new Review inbox, which counts what waits on a live badge. Rulings never
+  delete and are themselves recorded with who, over what, and why. Recall
+  serves the outcome: retired notes disappear, human-verified ones outrank
+  machine-only ones, unresolved conflicts are shown with both sides and a
+  warning.
+- **Staleness.** A machine-made note whose source files were reworked by later
+  sessions, with nothing refreshing the entity, is flagged "possibly stale" —
+  computed deterministically when the queue is read, no model call involved.
+  Human-verified notes are exempt.
+- **`motif demo`.** An invented four-person team written straight into a
+  throwaway database — sessions across two tools, an open conflict to rule on,
+  a stale note, a verified one. No reader runs; nothing real can be touched.
+- **Webhooks.** With `MOTIF_WEBHOOK_URL` set, the server POSTs when memory
+  catches a new conflict and digests the open queue daily; the `text` field
+  renders as-is in a Slack incoming webhook.
+
+### Fixed
+
+- Entity names and notes distilled from personal sessions were listed for every
+  token holder by the memory endpoints. Notes now inherit the visibility of
+  their evidence, the same rule sessions follow.
+
 ## [1.1.3] — 2026-08-31
 
 ### Changed

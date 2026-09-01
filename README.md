@@ -1,10 +1,11 @@
 <h1 align="center">Motif</h1>
 
-<p align="center"><b>Agents are single-player. Motif makes your team's multiplayer.</b></p>
+<p align="center"><b>Software that maintains itself starts with software that remembers.</b></p>
 
 <p align="center">
-  Every session, every tool, every teammate — on a server you host,<br />
-  so your agents stop re-deriving what your team already worked out.
+  Your team's AI sessions know things your repo doesn't — what was decided, what was tried, what broke.<br />
+  Motif turns them into shared memory your agents use, keeps that memory honest, and moves live<br />
+  sessions between tools and teammates. On a server you host.
 </p>
 
 <p align="center">
@@ -53,9 +54,18 @@ agents can query them immediately — no account, no cloud, no API key, and noth
 leaves the machine. Prefer not to install anything? `npx getmotif up` does the
 same thing. Node 22 or newer.
 
+Want to see it populated before pointing it at anything real?
+
+```bash
+npx getmotif demo        # an invented team: sessions, memory, one conflict to rule on
+```
+
+No reader runs in the demo — it writes a throwaway database and serves it, so
+your own history is never opened.
+
 ## How it works
 
-Five verbs. Each one is a command you can run today.
+Six verbs. Each one is a command you can run today.
 
 ### 01 · Collect — one memory for the whole team
 
@@ -154,7 +164,31 @@ MOTIF_LLM_PROVIDER=claude-code motif server      # uses your local CLI, no key
 This is the one part that calls a model, and it is off unless you configure a
 provider.
 
-### 05 · Move — any agent, any teammate
+### 05 · Verify — memory that earns its trust
+
+Distilled memory is a machine's claim about what your team decided. Claims age,
+and sessions contradict each other. Motif refuses to paper over either: a
+contradiction is **flagged**, a note whose source files were reworked without it
+is marked **possibly stale**, and both wait for a person in the Review inbox —
+in the dashboard, or:
+
+```bash
+motif memory review                    # conflicts, both sides cited; stale notes
+motif memory prefer 47 --over 12       # rule: this claim wins, that one is superseded
+motif memory confirm 31                # vouch for a claim — verified beats machine-only
+motif memory retire 8                  # out of service, never out of the record
+```
+
+Rulings never delete, and the ruling itself is recorded — who ruled, over what,
+and why. Recall serves the outcome: retired notes disappear, human-verified
+ones outrank machine-only ones, and an unresolved conflict is shown to agents
+with both sides and a warning, never as one quiet wrong answer.
+
+Set `MOTIF_WEBHOOK_URL` and the server tells a channel the moment a new
+conflict lands, plus a daily digest while anything still waits — the payload's
+`text` field renders as-is in a Slack incoming webhook.
+
+### 06 · Move — any agent, any teammate
 
 None of this asks anyone to change tools. A session started in one agent continues
 natively in another: Motif writes the target tool's own session file and registers
@@ -269,6 +303,16 @@ its own daemon. Full model in [SECURITY.md](SECURITY.md).
 | `motif projects personal <path>`        | keep it to yourself                          |
 | `motif projects exclude <path> --purge` | never sync it, and withdraw what did         |
 | `motif projects mode selected`          | allowlist mode: nothing syncs until included |
+
+**Ruling on memory**
+
+| command                                | what it does                                      |
+| -------------------------------------- | ------------------------------------------------- |
+| `motif memory review`                  | everything waiting for a human, evidence cited    |
+| `motif memory prefer <id> --over <id>` | resolve a conflict; the loser is kept, superseded |
+| `motif memory confirm <id>`            | vouch for a claim — it outranks machine-only ones |
+| `motif memory retire <id>`             | out of recall, still in the record                |
+| `motif demo`                           | an invented team to try all of this on            |
 
 **Running it**
 
