@@ -56,7 +56,9 @@ export interface WeaverOutcome {
 }
 
 const git = (cwd: string, ...args: string[]): string =>
-  execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8' }).trim();
+  // stderr is piped, not inherited — git narrates worktree creation on stderr,
+  // and that narration does not belong in the daemon's (or the demo's) output
+  execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 
 export function buildPrompt(p: WeaverRulingPayload): string {
   return [

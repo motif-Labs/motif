@@ -20,9 +20,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   sessions, with nothing refreshing the entity, is flagged "possibly stale" —
   computed deterministically when the queue is read, no model call involved.
   Human-verified notes are exempt.
-- **`motif demo`.** An invented four-person team written straight into a
-  throwaway database — sessions across two tools, an open conflict to rule on,
-  a stale note, a verified one. No reader runs; nothing real can be touched.
+- **`motif demo`.** Not a museum — a show: a team's week replays live in five
+  acts. Sessions stream in, memory catches two of them contradicting each
+  other, YOU rule on the conflict from the terminal, the Weaver aligns a real
+  throwaway git repository with your ruling (diff on screen; rule the other way
+  and it refuses to invent work), and recall answers with your verdict marked
+  verified. No reader runs; nothing real can be touched.
 - **`motif blame <file>`.** From the code back to the conversation: the
   sessions that touched a file, exact match beating loose and fresh beating
   old, drawn from the team server and this machine's own history. Attribution
