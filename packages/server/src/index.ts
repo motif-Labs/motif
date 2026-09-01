@@ -650,25 +650,40 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     return c.json({ ok: true });
   });
 
+  // An entity's name and notes are distilled from sessions — they inherit the
+  // visibility of their evidence. A note from a personal session reaches only
+  // its owner, exactly as the session itself would.
+  const NOTE_VISIBLE = `(s.pk IS NULL OR s.visibility != 'personal' OR s.member_id = ?)`;
+
   app.get('/api/memory/entities', (c) => {
+    const viewer = memberId(c) ?? -1;
     const rows = db
       .prepare(
         `SELECT e.id, e.kind, e.name, e.project_path,
                 SUM(CASE WHEN n.status = 'current' THEN 1 ELSE 0 END) AS current_notes,
                 SUM(CASE WHEN n.status = 'conflicted' THEN 1 ELSE 0 END) AS conflicts
-         FROM memory_entities e LEFT JOIN memory_notes n ON n.entity_id = e.id
+         FROM memory_entities e
+         JOIN memory_notes n ON n.entity_id = e.id
+         LEFT JOIN sessions s ON s.pk = n.source_session_pk
+         WHERE ${NOTE_VISIBLE}
          GROUP BY e.id ORDER BY e.kind, e.name`,
       )
-      .all();
+      .all(viewer);
     return c.json(rows);
   });
 
   app.get('/api/memory/entities/:id', (c) => {
+    const viewer = memberId(c) ?? -1;
     const entity = db.prepare('SELECT * FROM memory_entities WHERE id = ?').get(c.req.param('id'));
     if (!entity) return c.json({ error: 'not found' }, 404);
     const notes = db
-      .prepare('SELECT * FROM memory_notes WHERE entity_id = ? ORDER BY created_at DESC')
-      .all(c.req.param('id'));
+      .prepare(
+        `SELECT n.* FROM memory_notes n LEFT JOIN sessions s ON s.pk = n.source_session_pk
+         WHERE n.entity_id = ? AND ${NOTE_VISIBLE} ORDER BY n.created_at DESC`,
+      )
+      .all(c.req.param('id'), viewer);
+    // an entity whose every note is out of view does not exist for this viewer
+    if (notes.length === 0) return c.json({ error: 'not found' }, 404);
     return c.json({ entity, notes });
   });
 
@@ -854,4 +869,10 @@ export * from './store.js';
 export { LiveBus } from './live/bus.js';
 export { createProvider, type LLMProvider } from './memory/providers.js';
 export { applyNotes, runMemoryTick, startMemoryScheduler } from './memory/pipeline.js';
-export { applyVerdict, listReviewQueue, type ReviewItem, type ReviewNote } from './memory/review.js';
+export {
+  applyVerdict,
+  listReviewQueue,
+  markStaleNotes,
+  type ReviewItem,
+  type ReviewNote,
+} from './memory/review.js';

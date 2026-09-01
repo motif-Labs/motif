@@ -65,6 +65,8 @@ function viewable(note: ReviewNote, viewerId: number | undefined): boolean {
  * age — the oldest doubt is the most expensive one.
  */
 export function listReviewQueue(db: Db, viewerId: number | undefined): ReviewItem[] {
+  // freshness is computed lazily on read: cheap, deterministic, and needs no scheduler
+  markStaleNotes(db);
   const noteById = (id: number): ReviewNote | undefined =>
     db.prepare(`${NOTE_SELECT} WHERE n.id = ?`).get(id) as ReviewNote | undefined;
 
@@ -99,6 +101,72 @@ export function listReviewQueue(db: Db, viewerId: number | undefined): ReviewIte
   for (const note of disputed) if (viewable(note, viewerId)) items.push({ type: 'disputed', note });
 
   return items;
+}
+
+export interface StaleOptions {
+  /** How many later sessions must touch a note's source files before doubt is raised. */
+  threshold?: number;
+}
+
+/**
+ * Deterministic staleness: a machine-made note whose source files have since
+ * been worked on repeatedly, with no newer note on the same entity, is probably
+ * describing code that no longer exists that way. No model call — this reads
+ * only what the sync already stored, so it works with no LLM configured.
+ *
+ * Human-verified notes are exempt: a person's word is not overruled by a
+ * heuristic. If the world really changed, distillation will eventually raise a
+ * conflict, and that goes back through a person.
+ */
+export function markStaleNotes(db: Db, opts: StaleOptions = {}): number {
+  const threshold = opts.threshold ?? 3;
+  const candidates = db
+    .prepare(
+      `SELECT n.id, n.entity_id, n.created_at, n.source_session_pk,
+              s.project_path, s.updated_at AS src_updated, s.files_touched
+       FROM memory_notes n JOIN sessions s ON s.pk = n.source_session_pk
+       WHERE n.status = 'current' AND n.verification = 'unverified' AND n.stale = 0`,
+    )
+    .all() as {
+    id: number;
+    entity_id: number;
+    created_at: string;
+    source_session_pk: number;
+    project_path: string;
+    src_updated: string;
+    files_touched: string;
+  }[];
+
+  const newerNote = db.prepare(
+    'SELECT 1 FROM memory_notes WHERE entity_id = ? AND created_at > ? AND id != ? LIMIT 1',
+  );
+  const laterSessions = db.prepare(
+    'SELECT files_touched FROM sessions WHERE project_path = ? AND updated_at > ? AND pk != ?',
+  );
+
+  let marked = 0;
+  for (const n of candidates) {
+    const files = JSON.parse(n.files_touched || '[]') as string[];
+    if (files.length === 0) continue;
+    // distillation kept up with this entity — the note is contested or refreshed, not stale
+    if (newerNote.get(n.entity_id, n.created_at, n.id)) continue;
+    let touching = 0;
+    for (const later of laterSessions.all(n.project_path, n.src_updated, n.source_session_pk) as {
+      files_touched: string;
+    }[]) {
+      const lf = JSON.parse(later.files_touched || '[]') as string[];
+      if (lf.some((f) => files.includes(f))) touching++;
+      if (touching >= threshold) break;
+    }
+    if (touching >= threshold) {
+      db.prepare('UPDATE memory_notes SET stale = 1, stale_reason = ? WHERE id = ?').run(
+        `${touching} later session(s) worked on its source files and produced no newer note`,
+        n.id,
+      );
+      marked++;
+    }
+  }
+  return marked;
 }
 
 export interface VerdictInput {

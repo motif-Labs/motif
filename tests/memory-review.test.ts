@@ -2,14 +2,20 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import type { MotifSession } from '@motif/core';
 import {
   applyNotes,
   applyVerdict,
+  createServer,
+  fullReplaceSession,
   listReviewQueue,
+  markStaleNotes,
   openDb,
   recall,
   registerMember,
+  startServer,
   type Db,
+  type MotifServer,
 } from '@motif/server';
 
 let tmp: string;
@@ -165,5 +171,181 @@ describe('memory review — the human loop over distilled claims', () => {
     };
     expect(standing.status).toBe('current');
     expect(listReviewQueue(db, memberId)).toHaveLength(0);
+  });
+});
+
+function makeSession(id: string, files: string[], updatedAt: string, project = PROJECT): MotifSession {
+  return {
+    id: `claude-code:${id}`,
+    source: 'claude-code',
+    sourceSessionId: id,
+    sourcePath: `/fake/${id}.jsonl`,
+    projectPath: project,
+    gitBranch: 'main',
+    title: 'work',
+    createdAt: updatedAt,
+    updatedAt,
+    messages: [{ id: `${id}-u1`, role: 'user', timestamp: updatedAt, text: 'do the thing' }],
+    filesTouched: files,
+    meta: { subagentCount: 0, branchCount: 0, parseErrors: 0 },
+  };
+}
+
+describe('staleness — doubt raised when the ground moves under a note', () => {
+  it('marks a note stale after enough later sessions touch its files, and the queue shows it', () => {
+    const { memberId } = registerMember(db, { name: 'ada' });
+    const src = fullReplaceSession(
+      db,
+      memberId,
+      makeSession('src', ['src/limiter.js'], '2026-08-01T10:00:00.000Z'),
+    );
+    applyNotes(
+      db,
+      [
+        {
+          entity: { kind: 'file', name: 'src/limiter.js' },
+          aspect: 'design',
+          body: 'A token bucket lives here.',
+        },
+      ],
+      { projectPath: PROJECT, sessionPk: src.pk, memberId },
+    );
+
+    for (let i = 0; i < 3; i++) {
+      fullReplaceSession(
+        db,
+        memberId,
+        makeSession(`later${i}`, ['src/limiter.js'], `2026-08-0${2 + i}T10:00:00.000Z`),
+      );
+    }
+    expect(markStaleNotes(db)).toBe(1);
+
+    const queue = listReviewQueue(db, memberId);
+    expect(queue).toHaveLength(1);
+    expect(queue[0]!.type).toBe('stale');
+    expect(queue[0]!.note.stale_reason).toContain('later session');
+
+    // recall still serves it, but says the ground moved
+    const out = recall(db, { query: 'token bucket limiter', budget: 1500 });
+    expect(out.items.find((i) => i.text.includes('token bucket'))!.why).toContain('possibly stale');
+  });
+
+  it('leaves alone: verified notes, refreshed entities, and quiet files', () => {
+    const { memberId } = registerMember(db, { name: 'ada' });
+    const src = fullReplaceSession(
+      db,
+      memberId,
+      makeSession('src', ['src/a.js', 'src/b.js'], '2026-08-01T10:00:00.000Z'),
+    );
+    applyNotes(
+      db,
+      [
+        { entity: { kind: 'file', name: 'src/a.js' }, aspect: 'design', body: 'Verified claim about a.' },
+        { entity: { kind: 'file', name: 'src/b.js' }, aspect: 'design', body: 'Refreshed claim about b.' },
+      ],
+      { projectPath: PROJECT, sessionPk: src.pk, memberId },
+    );
+    const verified = db.prepare("SELECT id FROM memory_notes WHERE body LIKE '%Verified%'").get() as {
+      id: number;
+    };
+    applyVerdict(db, { noteId: verified.id, reviewerId: memberId, verdict: 'confirm' });
+
+    for (let i = 0; i < 3; i++) {
+      fullReplaceSession(
+        db,
+        memberId,
+        makeSession(`later${i}`, ['src/a.js', 'src/b.js'], `2026-08-0${2 + i}T10:00:00.000Z`),
+      );
+    }
+    // the refreshed entity got a newer note — distillation kept up
+    applyNotes(
+      db,
+      [{ entity: { kind: 'file', name: 'src/b.js' }, aspect: 'design', body: 'Newer claim about b.' }],
+      { projectPath: PROJECT, sessionPk: null, memberId },
+    );
+
+    expect(markStaleNotes(db)).toBe(0);
+    expect(listReviewQueue(db, memberId)).toHaveLength(0);
+  });
+});
+
+describe('memory visibility — notes inherit the visibility of their evidence', () => {
+  let server: MotifServer;
+  let httpServer: ReturnType<typeof startServer>;
+  let base: string;
+
+  beforeEach(async () => {
+    server = createServer({ dbPath: path.join(tmp, 'http.sqlite'), token: 'test-token' });
+    httpServer = startServer(server, { port: 0 });
+    if (!httpServer.listening) await new Promise((r) => httpServer.once('listening', r));
+    const addr = httpServer.address();
+    if (addr === null || typeof addr === 'string') throw new Error('no port');
+    base = `http://127.0.0.1:${addr.port}`;
+  });
+  afterEach(() => {
+    httpServer.close();
+    server.db.close();
+  });
+
+  const call = (p: string, token: string) =>
+    fetch(base + p, { headers: { authorization: `Bearer ${token}` } });
+
+  it('an entity distilled from a personal session exists only for its owner', async () => {
+    const owner = registerMember(server.db, { name: 'ada', email: 'ada@example.com' });
+    const other = registerMember(server.db, { name: 'bob', email: 'bob@example.com' });
+    const src = fullReplaceSession(
+      server.db,
+      owner.memberId,
+      makeSession('private', ['src/secret-feature.ts'], '2026-08-01T10:00:00.000Z', '/workspace/private-app'),
+    );
+    server.db.prepare('UPDATE sessions SET visibility = ? WHERE pk = ?').run('personal', src.pk);
+    applyNotes(
+      server.db,
+      [
+        {
+          entity: { kind: 'topic', name: 'secret feature plan' },
+          aspect: 'decision',
+          body: 'The unannounced feature ships in October.',
+        },
+      ],
+      { projectPath: '/workspace/private-app', sessionPk: src.pk, memberId: owner.memberId },
+    );
+
+    const forOwner = (await (await call('/api/memory/entities', owner.memberToken)).json()) as {
+      name: string;
+    }[];
+    expect(forOwner.map((e) => e.name)).toContain('secret feature plan');
+
+    const forOther = (await (await call('/api/memory/entities', other.memberToken)).json()) as {
+      name: string;
+    }[];
+    expect(forOther.map((e) => e.name)).not.toContain('secret feature plan');
+
+    // the detail endpoint agrees: for the outsider the entity does not exist
+    const id = (forOwner.find((e) => e.name === 'secret feature plan') as { id?: number }).id;
+    expect((await call(`/api/memory/entities/${id}`, other.memberToken)).status).toBe(404);
+    expect((await call(`/api/memory/entities/${id}`, owner.memberToken)).status).toBe(200);
+
+    // and the review queue keeps the same promise for conflicts born of personal work
+    applyNotes(
+      server.db,
+      [
+        {
+          entity: { kind: 'topic', name: 'secret feature plan' },
+          aspect: 'decision',
+          body: 'The feature slipped to November.',
+          contradictsCurrent: true,
+        },
+      ],
+      { projectPath: '/workspace/private-app', sessionPk: src.pk, memberId: owner.memberId },
+    );
+    const ownerQueue = (await (await call('/api/memory/review', owner.memberToken)).json()) as {
+      items: unknown[];
+    };
+    const otherQueue = (await (await call('/api/memory/review', other.memberToken)).json()) as {
+      items: unknown[];
+    };
+    expect(ownerQueue.items).toHaveLength(1);
+    expect(otherQueue.items).toHaveLength(0);
   });
 });

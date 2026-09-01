@@ -360,7 +360,7 @@ export function recall(db: Db, opts: RecallOptions): RecallResult {
   // ── 3. curated knowledge: memory notes ──────────────────────────────────
   const noteRows = db
     .prepare(
-      `SELECT n.body, n.aspect, n.created_at, n.status, n.verification, e.name AS entity, e.kind, e.project_path
+      `SELECT n.body, n.aspect, n.created_at, n.status, n.verification, n.stale, e.name AS entity, e.kind, e.project_path
        FROM memory_notes n JOIN memory_entities e ON e.id = n.entity_id
        WHERE n.status IN ('current','conflicted') AND n.verification != 'retired'
        ${opts.project ? 'AND e.project_path = ?' : ''}`,
@@ -371,6 +371,7 @@ export function recall(db: Db, opts: RecallOptions): RecallResult {
     created_at: string;
     status: string;
     verification: string;
+    stale: number;
     entity: string;
     kind: string;
     project_path: string;
@@ -381,10 +382,16 @@ export function recall(db: Db, opts: RecallOptions): RecallResult {
     const cov = termCoverage(`${n.entity} ${n.aspect} ${n.body}`, terms);
     if (cov === 0 && terms.length > 0) continue;
     // a claim a person vouched for outranks one only a model produced
-    const authority = n.verification === 'verified' ? 0.2 : n.status === 'conflicted' ? 0.1 : 0.15;
+    const authority = n.verification === 'verified' ? 0.2 : n.status === 'conflicted' || n.stale ? 0.1 : 0.15;
     const score = 0.65 * cov + 0.2 * recencyScore(n.created_at) + authority;
     const mark =
-      n.status === 'conflicted' ? ' (CONFLICTED)' : n.verification === 'verified' ? ' (verified)' : '';
+      n.status === 'conflicted'
+        ? ' (CONFLICTED)'
+        : n.verification === 'verified'
+          ? ' (verified)'
+          : n.stale
+            ? ' (possibly stale)'
+            : '';
     const text = `[${n.kind}] ${n.entity} · ${n.aspect}${mark}\n${n.body}`;
     items.push({
       kind: 'note',
@@ -394,7 +401,9 @@ export function recall(db: Db, opts: RecallOptions): RecallResult {
           ? 'team memory — unresolved conflict'
           : n.verification === 'verified'
             ? 'team memory (human-verified)'
-            : 'team memory (current)',
+            : n.stale
+              ? 'team memory — possibly stale, its files moved on'
+              : 'team memory (current)',
       score,
       tokens: approxTokens(text),
       priority: 0,
