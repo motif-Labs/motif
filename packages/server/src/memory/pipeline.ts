@@ -67,9 +67,12 @@ export function applyNotes(
   db: Db,
   notes: ExtractedNote[],
   ctx: { projectPath: string; sessionPk: number | null; memberId: number | null },
-): { entityIds: number[] } {
+): { entityIds: number[]; conflicts: { entity: string; aspect: string }[] } {
   const now = new Date().toISOString();
   const entityIds: number[] = [];
+  // the model may claim contradictsCurrent with nothing to contradict; only a
+  // conflict that actually LANDED is worth telling anyone about
+  const conflicts: { entity: string; aspect: string }[] = [];
   db.transaction(() => {
     for (const note of notes) {
       db.prepare(
@@ -90,6 +93,7 @@ export function applyNotes(
           `INSERT INTO memory_notes (entity_id, aspect, body, status, conflict_with, source_session_pk, member_id, created_at)
            VALUES (?, ?, ?, 'conflicted', ?, ?, ?, ?)`,
         ).run(entity.id, note.aspect, note.body, current.id, ctx.sessionPk, ctx.memberId, now);
+        conflicts.push({ entity: note.entity.name, aspect: note.aspect });
         continue;
       }
 
@@ -108,7 +112,7 @@ export function applyNotes(
       }
     }
   })();
-  return { entityIds };
+  return { entityIds, conflicts };
 }
 
 export interface MemoryPipelineOptions {
@@ -213,16 +217,12 @@ export async function runMemoryTick(
       continue;
     }
 
-    const { entityIds } = applyNotes(db, notes, {
+    const { entityIds, conflicts } = applyNotes(db, notes, {
       projectPath: s.project_path,
       sessionPk: s.pk,
       memberId: s.member_id,
     });
-    for (const note of notes) {
-      if (note.contradictsCurrent) {
-        bus.publish('memory-conflict', { entity: note.entity.name, aspect: note.aspect });
-      }
-    }
+    for (const conflict of conflicts) bus.publish('memory-conflict', conflict);
     db.prepare('UPDATE sessions SET last_extracted_seq = ? WHERE pk = ?').run(s.max_seq + 1, s.pk);
     processed++;
     opts.log?.(`memory: ${notes.length} note(s) from ${s.id}`);

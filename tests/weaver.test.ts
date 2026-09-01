@@ -19,6 +19,7 @@ import {
 } from '@motif/server';
 import type { MotifMessage, MotifSession } from '@motif/core';
 import { performWeaverJob } from '../packages/cli/src/weaver/perform.js';
+import { requeueStaleClaims } from '@motif/server';
 
 const PAYLOAD = {
   kind: 'ruling' as const,
@@ -56,6 +57,21 @@ describe('the weaver queue', () => {
     const done = completeWeaverJob(db, job.id, a, { status: 'done', prUrl: 'https://example.com/pr/1' });
     expect(done?.status).toBe('done');
     expect(listWeaverJobs(db, 'pending')).toHaveLength(0);
+  });
+
+  it('a claim is a lease: a job stranded in running comes back to pending', () => {
+    const a = registerMember(db, { name: 'ada' }).memberId;
+    const job = createWeaverJob(db, '/workspace/app', PAYLOAD);
+    claimWeaverJob(db, job.id, a);
+    // the daemon died mid-weave; nothing will ever complete this claim
+    db.prepare('UPDATE weaver_jobs SET updated_at = ? WHERE id = ?').run(
+      new Date(Date.now() - 60 * 60_000).toISOString(),
+      job.id,
+    );
+    expect(requeueStaleClaims(db)).toBe(1);
+    const back = listWeaverJobs(db, 'pending');
+    expect(back.map((j) => j.id)).toContain(job.id);
+    expect(back[0]!.claimed_by).toBeNull();
   });
 });
 
@@ -177,9 +193,9 @@ describe('performWeaverJob — the rails, against a real git repository', () => 
 
   const job = (id: number) => ({ id, project_path: repo, payload: JSON.stringify(PAYLOAD) });
 
-  it('weaves in a worktree, commits on a motif/ branch, publishes, and never touches the checkout', () => {
+  it('weaves in a worktree, commits on a motif/ branch, publishes, and never touches the checkout', async () => {
     let published: { branch: string; body: string } | undefined;
-    const outcome = performWeaverJob(job(7), {
+    const outcome = await performWeaverJob(job(7), {
       runAgent: (prompt, cwd) => {
         expect(prompt).toContain('RULED CORRECT: ADR-014 says fail CLOSED');
         expect(cwd).not.toBe(repo); // a worktree, not the owner's checkout
@@ -202,9 +218,9 @@ describe('performWeaverJob — the rails, against a real git repository', () => 
     expect(onBranch).toContain('Fail CLOSED');
   });
 
-  it('an agreeing repository produces no branch, no PR, no noise', () => {
+  it('an agreeing repository produces no branch, no PR, no noise', async () => {
     let publishCalled = false;
-    const outcome = performWeaverJob(job(8), {
+    const outcome = await performWeaverJob(job(8), {
       runAgent: () => {}, // the agent finds nothing to change
       publishBranch: () => {
         publishCalled = true;
@@ -219,8 +235,8 @@ describe('performWeaverJob — the rails, against a real git repository', () => 
     expect(branches.trim()).toBe('');
   });
 
-  it('a failing publish rolls everything back and reports the error', () => {
-    const outcome = performWeaverJob(job(9), {
+  it('a failing publish rolls everything back and reports the error', async () => {
+    const outcome = await performWeaverJob(job(9), {
       runAgent: (_p, cwd) => fs.writeFileSync(path.join(cwd, 'ADR.md'), 'changed\n'),
       publishBranch: () => {
         throw new Error('no remote named origin');

@@ -11,16 +11,7 @@
  * crosses people and tools.
  */
 import type { MotifMessage, MotifSession } from '@motif/core';
-import {
-  applyNotes,
-  applyVerdict,
-  claimWeaverJob,
-  completeWeaverJob,
-  createWeaverJob,
-  fullReplaceSession,
-  registerMember,
-  type Db,
-} from '@motif/server';
+import { applyNotes, applyVerdict, fullReplaceSession, registerMember, type Db } from '@motif/server';
 
 const DAY = 24 * 3600_000;
 const base = Date.now() - 6 * DAY;
@@ -178,51 +169,51 @@ const SESSIONS: SeedSession[] = [
   },
 ];
 
-export interface DemoSeedResult {
-  members: { name: string; token: string }[];
-  sessions: number;
-  reviewItems: number;
+export { SESSIONS };
+
+export interface DemoMembers {
+  byName: Map<string, { memberId: number; memberToken: string }>;
 }
 
-export function seedDemo(db: Db): DemoSeedResult {
-  const members = new Map<string, { memberId: number; memberToken: string }>();
-  for (const name of ['ada', 'ben', 'cleo', 'iris']) {
-    members.set(name, registerMember(db, { name, email: `${name}@example.com` }));
+export function seedMembers(db: Db): DemoMembers {
+  const byName = new Map<string, { memberId: number; memberToken: string }>();
+  for (const name of ['ada', 'ben', 'cleo', 'iris', 'you']) {
+    byName.set(name, registerMember(db, { name, email: `${name}@example.com` }));
   }
+  return { byName };
+}
 
-  for (const s of SESSIONS) {
-    const started = at(s.day, 10);
-    const messages: MotifMessage[] = [];
-    for (const [user, assistant] of s.turns) {
-      messages.push(msg('user', user, at(s.day, 10)));
-      messages.push(msg('assistant', assistant, at(s.day, 11)));
-    }
-    const session: MotifSession = {
-      id: `${s.source}:${s.id}`,
-      source: s.source,
-      sourceSessionId: s.id,
-      sourcePath: `/workspace/.demo/${s.id}.jsonl`,
-      projectPath: s.project,
-      gitBranch: 'main',
-      title: s.turns[0]![0],
-      createdAt: started,
-      updatedAt: at(s.day, 12),
-      messages,
-      filesTouched: s.files,
-      meta: { subagentCount: 0, branchCount: 0, parseErrors: 0 },
-    };
-    fullReplaceSession(db, members.get(s.member)!.memberId, session);
+export function insertSession(db: Db, members: DemoMembers, s: SeedSession): void {
+  const started = at(s.day, 10);
+  const messages: MotifMessage[] = [];
+  for (const [user, assistant] of s.turns) {
+    messages.push(msg('user', user, at(s.day, 10)));
+    messages.push(msg('assistant', assistant, at(s.day, 11)));
   }
+  const session: MotifSession = {
+    id: `${s.source}:${s.id}`,
+    source: s.source,
+    sourceSessionId: s.id,
+    sourcePath: `/workspace/.demo/${s.id}.jsonl`,
+    projectPath: s.project,
+    gitBranch: 'main',
+    title: s.turns[0]![0],
+    createdAt: started,
+    updatedAt: at(s.day, 12),
+    messages,
+    filesTouched: s.files,
+    meta: { subagentCount: 0, branchCount: 0, parseErrors: 0 },
+  };
+  fullReplaceSession(db, members.byName.get(s.member)!.memberId, session);
+}
 
-  const pk = (id: string): number =>
-    (db.prepare('SELECT pk FROM sessions WHERE source_session_id = ?').get(id) as { pk: number }).pk;
+const sessionPk = (db: Db, id: string): number =>
+  (db.prepare('SELECT pk FROM sessions WHERE source_session_id = ?').get(id) as { pk: number }).pk;
 
-  // ── distilled memory: enough for recall, Review and authority ranking ─────
-  const ada = members.get('ada')!.memberId;
-  const iris = members.get('iris')!.memberId;
-  const ben = members.get('ben')!.memberId;
-
-  // a clean, current claim — and a human vouches for it, so recall shows rank
+/** The verified note and the stale one — quiet background for recall. */
+export function seedBackgroundMemory(db: Db, members: DemoMembers): void {
+  const ada = members.byName.get('ada')!.memberId;
+  const ben = members.byName.get('ben')!.memberId;
   applyNotes(
     db,
     [
@@ -232,13 +223,28 @@ export function seedDemo(db: Db): DemoSeedResult {
         body: 'Payment retries replay the stored response for 24h; a reused key with a different body gets a 422.',
       },
     ],
-    { projectPath: '/workspace/payments-api', sessionPk: pk('demo-idempotency'), memberId: ben },
+    { projectPath: '/workspace/payments-api', sessionPk: sessionPk(db, 'demo-idempotency'), memberId: ben },
   );
   const idem = db.prepare("SELECT id FROM memory_notes WHERE body LIKE '%422%'").get() as { id: number };
   applyVerdict(db, { noteId: idem.id, reviewerId: ben, verdict: 'confirm' });
 
-  // the OPEN CONFLICT the Review inbox exists for: two sessions remember
-  // ADR-014 in opposite directions, and nobody has ruled yet
+  applyNotes(
+    db,
+    [
+      {
+        entity: { kind: 'file', name: 'src/limiter/bucket.ts' },
+        aspect: 'design',
+        body: 'One Redis client per request keeps the bucket simple; connection churn is negligible.',
+      },
+    ],
+    { projectPath: '/workspace/payments-api', sessionPk: sessionPk(db, 'demo-rate-limit'), memberId: ada },
+  );
+}
+
+/** The star of the show: two sessions remember ADR-014 in opposite directions. */
+export function seedConflict(db: Db, members: DemoMembers): { standingId: number; challengerId: number } {
+  const ada = members.byName.get('ada')!.memberId;
+  const iris = members.byName.get('iris')!.memberId;
   applyNotes(
     db,
     [
@@ -248,7 +254,7 @@ export function seedDemo(db: Db): DemoSeedResult {
         body: 'The limiter fails open when Redis is unreachable — rejecting payments over a cache is worse. (ADR-014)',
       },
     ],
-    { projectPath: '/workspace/payments-api', sessionPk: pk('demo-rate-limit'), memberId: ada },
+    { projectPath: '/workspace/payments-api', sessionPk: sessionPk(db, 'demo-rate-limit'), memberId: ada },
   );
   applyNotes(
     db,
@@ -260,48 +266,38 @@ export function seedDemo(db: Db): DemoSeedResult {
         contradictsCurrent: true,
       },
     ],
-    { projectPath: '/workspace/payments-api', sessionPk: pk('demo-runbook'), memberId: iris },
+    { projectPath: '/workspace/payments-api', sessionPk: sessionPk(db, 'demo-runbook'), memberId: iris },
   );
+  const rows = db
+    .prepare(
+      `SELECT id, status FROM memory_notes WHERE entity_id =
+         (SELECT id FROM memory_entities WHERE name = 'redis outage policy') ORDER BY id`,
+    )
+    .all() as { id: number; status: string }[];
+  return {
+    standingId: rows.find((r) => r.status === 'current')!.id,
+    challengerId: rows.find((r) => r.status === 'conflicted')!.id,
+  };
+}
 
-  // a claim whose ground moved: three later sessions reworked bucket.ts and
-  // nothing refreshed the entity — the queue raises it as possibly stale
-  applyNotes(
-    db,
-    [
-      {
-        entity: { kind: 'file', name: 'src/limiter/bucket.ts' },
-        aspect: 'design',
-        body: 'One Redis client per request keeps the bucket simple; connection churn is negligible.',
-      },
-    ],
-    { projectPath: '/workspace/payments-api', sessionPk: pk('demo-rate-limit'), memberId: ada },
-  );
+export interface DemoSeedResult {
+  members: { name: string; token: string }[];
+  sessions: number;
+  reviewItems: number;
+}
 
-  // one already-woven ruling, so `motif weaver status` has a story to tell:
-  // an earlier conflict was ruled on, and the Weaver aligned the runbook
-  const woven = createWeaverJob(db, '/workspace/ops-runbooks', {
-    kind: 'ruling',
-    entity: 'redis outage policy',
-    aspect: 'runbook wording',
-    winnerBody: 'ADR-014: the limiter fails CLOSED when Redis is unreachable.',
-    loserBody: 'An early draft said the limiter fails open.',
-    reason: 'ruled by ben — the ADR is the written decision',
-    reviewerName: 'ben',
-    winnerSessionId: 'codex:demo-runbook',
-    loserSessionId: 'claude-code:demo-rate-limit',
-  });
-  claimWeaverJob(db, woven.id, ben);
-  completeWeaverJob(db, woven.id, ben, {
-    status: 'done',
-    result: 'changed: runbooks/redis-outage.md — repository aligned with the ruling',
-  });
+export function seedDemo(db: Db): DemoSeedResult {
+  const members = seedMembers(db);
+  for (const sd of SESSIONS) insertSession(db, members, sd);
+  seedBackgroundMemory(db, members);
+  seedConflict(db, members);
 
   const reviewItems = db
     .prepare("SELECT COUNT(*) AS n FROM memory_notes WHERE status = 'conflicted'")
     .get() as { n: number };
 
   return {
-    members: [...members.entries()].map(([name, m]) => ({ name, token: m.memberToken })),
+    members: [...members.byName.entries()].map(([name, m]) => ({ name, token: m.memberToken })),
     sessions: SESSIONS.length,
     reviewItems: reviewItems.n,
   };

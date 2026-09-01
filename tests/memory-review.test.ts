@@ -171,6 +171,56 @@ describe('memory review — the human loop over distilled claims', () => {
     };
     expect(standing.status).toBe('current');
     expect(listReviewQueue(db, memberId)).toHaveLength(0);
+    // and it stops COUNTING as a conflict — a retired challenge left
+    // 'conflicted' would show the dashboard a conflict nothing could clear
+    const challenger = db.prepare('SELECT status FROM memory_notes WHERE id = ?').get(challengerId) as {
+      status: string;
+    };
+    expect(challenger.status).toBe('superseded');
+  });
+
+  it("'prefer' refuses notes that are not in conflict with each other", () => {
+    const { memberId } = registerMember(db, { name: 'ada' });
+    const { challengerId } = seedConflict(memberId);
+    applyNotes(
+      db,
+      [{ entity: { kind: 'decision', name: 'unrelated' }, aspect: 'x', body: 'an innocent bystander' }],
+      { projectPath: PROJECT, sessionPk: null, memberId },
+    );
+    const bystander = db.prepare("SELECT id FROM memory_notes WHERE body LIKE '%bystander%'").get() as {
+      id: number;
+    };
+    // a typo'd --over id must not silently supersede a live unrelated note
+    expect(() =>
+      applyVerdict(db, {
+        noteId: challengerId,
+        reviewerId: memberId,
+        verdict: 'prefer',
+        overNoteId: bystander.id,
+      }),
+    ).toThrow(/not in conflict/);
+    const untouched = db.prepare('SELECT status FROM memory_notes WHERE id = ?').get(bystander.id) as {
+      status: string;
+    };
+    expect(untouched.status).toBe('current');
+  });
+
+  it('a contradictsCurrent note with nothing to contradict lands as current and reports no conflict', () => {
+    const { memberId } = registerMember(db, { name: 'ada' });
+    const { conflicts } = applyNotes(
+      db,
+      [
+        {
+          entity: { kind: 'decision', name: 'brand new topic' },
+          aspect: 'a',
+          body: 'first claim ever',
+          contradictsCurrent: true,
+        },
+      ],
+      { projectPath: PROJECT, sessionPk: null, memberId },
+    );
+    expect(conflicts).toHaveLength(0);
+    expect(listReviewQueue(db, memberId)).toHaveLength(0);
   });
 });
 
@@ -347,5 +397,27 @@ describe('memory visibility — notes inherit the visibility of their evidence',
     };
     expect(ownerQueue.items).toHaveLength(1);
     expect(otherQueue.items).toHaveLength(0);
+
+    // recall keeps the same promise — the MCP path must not leak what the
+    // dashboard hides
+    const ownerRecall = recall(server.db, { query: 'secret feature ships', viewerId: owner.memberId });
+    const otherRecall = recall(server.db, { query: 'secret feature ships', viewerId: other.memberId });
+    expect(ownerRecall.items.some((i) => i.text.includes('secret'))).toBe(true);
+    expect(otherRecall.items.some((i) => i.text.includes('secret'))).toBe(false);
+
+    // and the WRITE path: a stranger can neither read nor rule on the note
+    const secretNote = server.db.prepare("SELECT id FROM memory_notes WHERE body LIKE '%October%'").get() as {
+      id: number;
+    };
+    const strangerVerdict = await fetch(`${base}/api/memory/notes/${secretNote.id}/verdict`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${other.memberToken}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ verdict: 'retire' }),
+    });
+    expect(strangerVerdict.status).toBe(404); // not 403 — its existence is not theirs to learn
+    const untouched = server.db
+      .prepare('SELECT verification FROM memory_notes WHERE id = ?')
+      .get(secretNote.id) as { verification: string };
+    expect(untouched.verification).toBe('unverified');
   });
 });

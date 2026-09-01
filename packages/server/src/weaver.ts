@@ -47,7 +47,24 @@ export function createWeaverJob(db: Db, projectPath: string, payload: WeaverPayl
   return db.prepare('SELECT * FROM weaver_jobs WHERE id = ?').get(id) as WeaverJobRow;
 }
 
+/** A claim is a lease, not a deed. A daemon that died mid-weave must not
+ * strand the job in 'running' forever — completion only matches the claimer,
+ * and claiming only matches 'pending', so without this nothing could ever
+ * retry it. */
+const CLAIM_LEASE_MS = 30 * 60_000;
+
+export function requeueStaleClaims(db: Db, leaseMs = CLAIM_LEASE_MS): number {
+  const cutoff = new Date(Date.now() - leaseMs).toISOString();
+  return db
+    .prepare(
+      `UPDATE weaver_jobs SET status = 'pending', claimed_by = NULL, updated_at = ?
+       WHERE status = 'running' AND updated_at < ?`,
+    )
+    .run(new Date().toISOString(), cutoff).changes;
+}
+
 export function listWeaverJobs(db: Db, status?: WeaverJobRow['status']): WeaverJobRow[] {
+  if (status === 'pending') requeueStaleClaims(db);
   return (
     status
       ? db.prepare('SELECT * FROM weaver_jobs WHERE status = ? ORDER BY created_at ASC').all(status)

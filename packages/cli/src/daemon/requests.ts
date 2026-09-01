@@ -197,7 +197,7 @@ export async function fulfillPendingWeaves(
     } catch {
       continue; // someone else won it — that is the point of claiming
     }
-    const outcome = performWeaverJob(job, deps);
+    const outcome = await performWeaverJob(job, deps);
     await client
       .completeWeaverJob(job.id, {
         status: outcome.status,

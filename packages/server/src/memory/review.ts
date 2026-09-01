@@ -183,8 +183,10 @@ export interface VerdictInput {
 export function applyVerdict(db: Db, input: VerdictInput): ReviewNote {
   const now = new Date().toISOString();
   const note = db
-    .prepare('SELECT id, status, conflict_with FROM memory_notes WHERE id = ?')
-    .get(input.noteId) as { id: number; status: string; conflict_with: number | null } | undefined;
+    .prepare('SELECT id, status, conflict_with, entity_id, aspect FROM memory_notes WHERE id = ?')
+    .get(input.noteId) as
+    | { id: number; status: string; conflict_with: number | null; entity_id: number; aspect: string }
+    | undefined;
   if (!note) throw new Error(`no note #${input.noteId}`);
 
   db.transaction(() => {
@@ -204,8 +206,19 @@ export function applyVerdict(db: Db, input: VerdictInput): ReviewNote {
         const loserId = input.overNoteId ?? note.conflict_with;
         if (!loserId) throw new Error(`'prefer' needs the losing note (--over <id>)`);
         if (loserId === input.noteId) throw new Error('a note cannot win over itself');
-        const loser = db.prepare('SELECT id FROM memory_notes WHERE id = ?').get(loserId);
+        const loser = db
+          .prepare('SELECT id, entity_id, aspect, conflict_with FROM memory_notes WHERE id = ?')
+          .get(loserId) as
+          { id: number; entity_id: number; aspect: string; conflict_with: number | null } | undefined;
         if (!loser) throw new Error(`no note #${loserId}`);
+        // A ruling resolves a CONFLICT. Two notes are in conflict only when one
+        // challenges the other on the same claim — anything else is a typo'd
+        // id, and superseding an unrelated live note over a typo is how memory
+        // gets quietly corrupted.
+        const linked = note.conflict_with === loserId || loser.conflict_with === input.noteId;
+        if (!linked || loser.entity_id !== note.entity_id || loser.aspect !== note.aspect) {
+          throw new Error(`notes #${input.noteId} and #${loserId} are not in conflict with each other`);
+        }
         db.prepare(
           `UPDATE memory_notes SET status = 'current', conflict_with = NULL,
                   verification = 'verified', verified_by = ?, verified_at = ?, stale = 0, stale_reason = NULL
@@ -226,9 +239,13 @@ export function applyVerdict(db: Db, input: VerdictInput): ReviewNote {
         db.prepare(
           `UPDATE memory_notes SET verification = 'retired', verified_by = ?, verified_at = ? WHERE id = ?`,
         ).run(input.reviewerId, now, input.noteId);
-        if (note.status === 'conflicted' && note.conflict_with) {
-          // the challenge is withdrawn; the incumbent stands
-          db.prepare('UPDATE memory_notes SET conflict_with = NULL WHERE id = ?').run(input.noteId);
+        if (note.status === 'conflicted') {
+          // the challenge is withdrawn: the incumbent stands, and the challenger
+          // stops COUNTING as a conflict — left 'conflicted', the dashboard
+          // would show a conflict no ruling could ever clear
+          db.prepare(
+            `UPDATE memory_notes SET status = 'superseded', superseded_by = ?, conflict_with = NULL WHERE id = ?`,
+          ).run(note.conflict_with, input.noteId);
         }
         break;
       }

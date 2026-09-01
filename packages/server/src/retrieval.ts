@@ -362,10 +362,12 @@ export function recall(db: Db, opts: RecallOptions): RecallResult {
     .prepare(
       `SELECT n.body, n.aspect, n.created_at, n.status, n.verification, n.stale, e.name AS entity, e.kind, e.project_path
        FROM memory_notes n JOIN memory_entities e ON e.id = n.entity_id
+       LEFT JOIN sessions s ON s.pk = n.source_session_pk
        WHERE n.status IN ('current','conflicted') AND n.verification != 'retired'
+         AND (s.pk IS NULL OR s.visibility != 'personal' OR s.member_id = ?)
        ${opts.project ? 'AND e.project_path = ?' : ''}`,
     )
-    .all(...(opts.project ? [opts.project] : [])) as {
+    .all(...[opts.viewerId ?? -1, ...(opts.project ? [opts.project] : [])]) as {
     body: string;
     aspect: string;
     created_at: string;

@@ -25,9 +25,13 @@ export interface BlameCandidate {
   exact: boolean;
 }
 
-/** Suffix-match both ways: stored paths may be absolute, asked paths relative. */
+/** Suffix-match both ways: stored paths may be absolute, asked paths relative.
+ * Slashes are normalized first — readers store raw platform paths, and on
+ * Windows path.relative() answers with backslashes. */
 function fileMatches(stored: string, rel: string): boolean {
-  return stored === rel || stored.endsWith(`/${rel}`) || rel.endsWith(`/${stored}`);
+  const s = stored.replace(/\\/g, '/');
+  const r = rel.replace(/\\/g, '/');
+  return s === r || s.endsWith(`/${r}`) || r.endsWith(`/${s}`);
 }
 
 export function rankForFile(

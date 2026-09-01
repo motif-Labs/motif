@@ -37,7 +37,7 @@ export interface WeaverJob {
 
 export interface WeaverDeps {
   /** Run an agent over the worktree. Must only touch files under `cwd`. */
-  runAgent: (prompt: string, cwd: string) => void;
+  runAgent: (prompt: string, cwd: string) => Promise<void> | void;
   /** Push the branch and open a draft PR; returns its URL. */
   publishBranch: (opts: {
     repo: string;
@@ -45,7 +45,7 @@ export interface WeaverDeps {
     branch: string;
     title: string;
     body: string;
-  }) => string;
+  }) => Promise<string> | string;
   log?: (msg: string) => void;
 }
 
@@ -76,7 +76,7 @@ export function buildPrompt(p: WeaverRulingPayload): string {
     .join('\n');
 }
 
-export function performWeaverJob(job: WeaverJob, deps: WeaverDeps): WeaverOutcome {
+export async function performWeaverJob(job: WeaverJob, deps: WeaverDeps): Promise<WeaverOutcome> {
   const log = deps.log ?? (() => {});
   const payload = JSON.parse(job.payload) as WeaverRulingPayload;
   const repo = job.project_path;
@@ -116,7 +116,7 @@ export function performWeaverJob(job: WeaverJob, deps: WeaverDeps): WeaverOutcom
 
   try {
     log(`🧵 weaving ruling #${job.id} for ${payload.entity} · ${payload.aspect}…`);
-    deps.runAgent(buildPrompt(payload), worktree);
+    await deps.runAgent(buildPrompt(payload), worktree);
 
     git(worktree, 'add', '-A');
     const staged = git(worktree, 'diff', '--cached', '--name-only');
@@ -139,7 +139,7 @@ export function performWeaverJob(job: WeaverJob, deps: WeaverDeps): WeaverOutcom
       `Align with the team ruling on ${payload.entity}\n\n${payload.winnerBody}\n\n${receipts}`,
     );
 
-    const prUrl = deps.publishBranch({
+    const prUrl = await deps.publishBranch({
       repo,
       worktree,
       branch,
@@ -172,23 +172,38 @@ export function performWeaverJob(job: WeaverJob, deps: WeaverDeps): WeaverOutcom
 
 /* ── default dependencies: the real agent and the real PR ─────────────────── */
 
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 
-export function defaultRunAgent(prompt: string, cwd: string): void {
+export function defaultRunAgent(prompt: string, cwd: string): Promise<void> {
   // Non-interactive Claude Code with an explicit tool allowlist: it may read
   // and edit inside the worktree, and nothing else. No Bash — the Weaver
-  // aligns text with a ruling; it does not get a shell.
-  const run = spawnSync('claude', ['-p', '--allowedTools', 'Read', 'Grep', 'Glob', 'Edit', 'Write'], {
-    cwd,
-    input: prompt,
-    encoding: 'utf8',
-    timeout: 10 * 60_000,
-    maxBuffer: 32 * 1024 * 1024,
+  // aligns text with a ruling; it does not get a shell. Async on purpose: a
+  // ten-minute agent run must not freeze the daemon that also answers asks,
+  // delivers handoffs and syncs sessions.
+  return new Promise((resolve, reject) => {
+    const child = spawn('claude', ['-p', '--allowedTools', 'Read', 'Grep', 'Glob', 'Edit', 'Write'], {
+      cwd,
+      // on Windows the agent CLIs are .cmd shims that need a shell to resolve
+      shell: process.platform === 'win32',
+    });
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(new Error('agent timed out after 10 minutes'));
+    }, 10 * 60_000);
+    let stderr = '';
+    child.stderr?.on('data', (d: Buffer) => (stderr += d.toString()));
+    child.stdout?.resume(); // drain, or a chatty agent blocks on a full pipe
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      reject(new Error(`claude CLI unavailable: ${err.message}`));
+    });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (code === 0) resolve();
+      else reject(new Error(`agent exited ${code}: ${stderr.slice(0, 200)}`));
+    });
+    child.stdin?.end(prompt);
   });
-  if (run.error) throw new Error(`claude CLI unavailable: ${run.error.message}`);
-  if (run.status !== 0) {
-    throw new Error(`agent exited ${run.status}: ${(run.stderr ?? '').slice(0, 200)}`);
-  }
 }
 
 export function defaultPublishBranch(opts: {

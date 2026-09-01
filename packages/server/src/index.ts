@@ -329,7 +329,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
                 m.name AS member_name
          FROM sessions s LEFT JOIN members m ON m.id = s.member_id
          ${project ? 'WHERE s.project_path = ?' : ''}
-         ORDER BY s.updated_at DESC LIMIT 500`,
+         ORDER BY s.updated_at DESC LIMIT 5000`,
       )
       .all(...(project ? [project] : [])) as {
       id: string;
@@ -345,7 +345,12 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     for (const row of rows) {
       if (!canView(row as never, viewer)) continue;
       const files = JSON.parse(row.files_touched || '[]') as string[];
-      const hit = files.find((f) => f === rel || f.endsWith(`/${rel}`) || rel.endsWith(`/${f}`));
+      const slash = (x: string): string => x.replace(/\\/g, '/');
+      const relN = slash(rel);
+      const hit = files.find((f) => {
+        const fN = slash(f);
+        return fN === relN || fN.endsWith(`/${relN}`) || relN.endsWith(`/${fN}`);
+      });
       if (!hit) continue;
       matches.push({
         id: row.id,
@@ -356,12 +361,13 @@ export function createServer(config: ServerConfig = {}): MotifServer {
         matched: hit,
         exact: hit === rel || hit.endsWith(`/${rel}`),
       });
-      if (matches.length >= 20) break;
     }
+    // sort BEFORE trimming — an early break would let twenty fresh loose
+    // matches evict an older exact one
     matches.sort(
       (a, b) => Number(b.exact) - Number(a.exact) || (b.updated_at ?? '').localeCompare(a.updated_at ?? ''),
     );
-    return c.json({ sessions: matches });
+    return c.json({ sessions: matches.slice(0, 20) });
   });
 
   app.get('/api/sessions/:id', (c) => {
@@ -806,6 +812,20 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     }
     try {
       const noteId = Number(c.req.param('id'));
+      // A verdict both mutates a claim and echoes it back. A note whose
+      // evidence is someone else's personal session must be as invisible to
+      // this caller on the write path as it is on every read path — 404, not
+      // 403, because even its existence is not this caller's to learn.
+      const gate = db
+        .prepare(
+          `SELECT s.visibility, s.member_id FROM memory_notes n
+           LEFT JOIN sessions s ON s.pk = n.source_session_pk WHERE n.id = ?`,
+        )
+        .get(noteId) as { visibility: string | null; member_id: number | null } | undefined;
+      if (!gate) return c.json({ error: 'not found' }, 404);
+      if (gate.visibility === 'personal' && gate.member_id !== reviewer) {
+        return c.json({ error: 'not found' }, 404);
+      }
       // capture the loser BEFORE the verdict rewires conflict_with
       const loserId =
         body.verdict === 'prefer'
@@ -816,6 +836,17 @@ export function createServer(config: ServerConfig = {}): MotifServer {
             )?.conflict_with ??
             null)
           : null;
+      if (body.verdict === 'prefer' && loserId !== null) {
+        const loserGate = db
+          .prepare(
+            `SELECT s.visibility, s.member_id FROM memory_notes n
+             LEFT JOIN sessions s ON s.pk = n.source_session_pk WHERE n.id = ?`,
+          )
+          .get(loserId) as { visibility: string | null; member_id: number | null } | undefined;
+        if (loserGate?.visibility === 'personal' && loserGate.member_id !== reviewer) {
+          return c.json({ error: 'not found' }, 404);
+        }
+      }
       const note = applyVerdict(db, {
         noteId,
         reviewerId: reviewer,
@@ -1025,5 +1056,6 @@ export {
   createWeaverJob,
   listWeaverJobs,
   type WeaverJobRow,
+  requeueStaleClaims,
   type WeaverPayload,
 } from './weaver.js';
