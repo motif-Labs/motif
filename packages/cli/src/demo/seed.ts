@@ -11,7 +11,16 @@
  * crosses people and tools.
  */
 import type { MotifMessage, MotifSession } from '@motif/core';
-import { applyNotes, applyVerdict, fullReplaceSession, registerMember, type Db } from '@motif/server';
+import {
+  applyNotes,
+  applyVerdict,
+  claimWeaverJob,
+  completeWeaverJob,
+  createWeaverJob,
+  fullReplaceSession,
+  registerMember,
+  type Db,
+} from '@motif/server';
 
 const DAY = 24 * 3600_000;
 const base = Date.now() - 6 * DAY;
@@ -267,6 +276,25 @@ export function seedDemo(db: Db): DemoSeedResult {
     ],
     { projectPath: '/workspace/payments-api', sessionPk: pk('demo-rate-limit'), memberId: ada },
   );
+
+  // one already-woven ruling, so `motif weaver status` has a story to tell:
+  // an earlier conflict was ruled on, and the Weaver aligned the runbook
+  const woven = createWeaverJob(db, '/workspace/ops-runbooks', {
+    kind: 'ruling',
+    entity: 'redis outage policy',
+    aspect: 'runbook wording',
+    winnerBody: 'ADR-014: the limiter fails CLOSED when Redis is unreachable.',
+    loserBody: 'An early draft said the limiter fails open.',
+    reason: 'ruled by ben — the ADR is the written decision',
+    reviewerName: 'ben',
+    winnerSessionId: 'codex:demo-runbook',
+    loserSessionId: 'claude-code:demo-rate-limit',
+  });
+  claimWeaverJob(db, woven.id, ben);
+  completeWeaverJob(db, woven.id, ben, {
+    status: 'done',
+    result: 'changed: runbooks/redis-outage.md — repository aligned with the ruling',
+  });
 
   const reviewItems = db
     .prepare("SELECT COUNT(*) AS n FROM memory_notes WHERE status = 'conflicted'")
