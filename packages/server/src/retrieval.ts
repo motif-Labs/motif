@@ -360,9 +360,9 @@ export function recall(db: Db, opts: RecallOptions): RecallResult {
   // ── 3. curated knowledge: memory notes ──────────────────────────────────
   const noteRows = db
     .prepare(
-      `SELECT n.body, n.aspect, n.created_at, n.status, e.name AS entity, e.kind, e.project_path
+      `SELECT n.body, n.aspect, n.created_at, n.status, n.verification, e.name AS entity, e.kind, e.project_path
        FROM memory_notes n JOIN memory_entities e ON e.id = n.entity_id
-       WHERE n.status IN ('current','conflicted')
+       WHERE n.status IN ('current','conflicted') AND n.verification != 'retired'
        ${opts.project ? 'AND e.project_path = ?' : ''}`,
     )
     .all(...(opts.project ? [opts.project] : [])) as {
@@ -370,6 +370,7 @@ export function recall(db: Db, opts: RecallOptions): RecallResult {
     aspect: string;
     created_at: string;
     status: string;
+    verification: string;
     entity: string;
     kind: string;
     project_path: string;
@@ -379,12 +380,21 @@ export function recall(db: Db, opts: RecallOptions): RecallResult {
   for (const n of noteRows) {
     const cov = termCoverage(`${n.entity} ${n.aspect} ${n.body}`, terms);
     if (cov === 0 && terms.length > 0) continue;
-    const score = 0.65 * cov + 0.2 * recencyScore(n.created_at) + (n.status === 'conflicted' ? 0.1 : 0.15);
-    const text = `[${n.kind}] ${n.entity} · ${n.aspect}${n.status === 'conflicted' ? ' (CONFLICTED)' : ''}\n${n.body}`;
+    // a claim a person vouched for outranks one only a model produced
+    const authority = n.verification === 'verified' ? 0.2 : n.status === 'conflicted' ? 0.1 : 0.15;
+    const score = 0.65 * cov + 0.2 * recencyScore(n.created_at) + authority;
+    const mark =
+      n.status === 'conflicted' ? ' (CONFLICTED)' : n.verification === 'verified' ? ' (verified)' : '';
+    const text = `[${n.kind}] ${n.entity} · ${n.aspect}${mark}\n${n.body}`;
     items.push({
       kind: 'note',
       text,
-      why: n.status === 'conflicted' ? 'team memory — unresolved conflict' : 'team memory (current)',
+      why:
+        n.status === 'conflicted'
+          ? 'team memory — unresolved conflict'
+          : n.verification === 'verified'
+            ? 'team memory (human-verified)'
+            : 'team memory (current)',
       score,
       tokens: approxTokens(text),
       priority: 0,

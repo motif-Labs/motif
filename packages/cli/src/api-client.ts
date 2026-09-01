@@ -89,6 +89,28 @@ export class MotifClient {
     return this.request('GET', `/api/recall?${q}`);
   }
 
+  async listMemoryReview(): Promise<{
+    items: {
+      type: 'conflict' | 'stale' | 'disputed';
+      note: MemoryReviewNote;
+      against?: MemoryReviewNote;
+    }[];
+  }> {
+    return this.request('GET', '/api/memory/review');
+  }
+
+  async postMemoryVerdict(
+    noteId: number,
+    verdict: 'confirm' | 'prefer' | 'retire' | 'dispute',
+    opts: { overNoteId?: number; reason?: string } = {},
+  ): Promise<{ note: MemoryReviewNote }> {
+    return this.request('POST', `/api/memory/notes/${noteId}/verdict`, {
+      verdict,
+      overNoteId: opts.overNoteId,
+      reason: opts.reason,
+    });
+  }
+
   async recallMarkdown(query: string, opts: { project?: string; budget?: number } = {}): Promise<string> {
     const q = new URLSearchParams({ q: query, format: 'markdown' });
     if (opts.project) q.set('project', opts.project);
@@ -247,4 +269,20 @@ export class MotifClient {
   }): Promise<{ ok: boolean }> {
     return this.request('POST', '/api/handoffs', input);
   }
+}
+
+export interface MemoryReviewNote {
+  id: number;
+  kind: string;
+  entity: string;
+  project_path: string;
+  aspect: string;
+  body: string;
+  status: string;
+  verification: string;
+  stale: number;
+  stale_reason: string | null;
+  author_name: string | null;
+  session_id: string | null;
+  created_at: string;
 }

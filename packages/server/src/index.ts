@@ -10,6 +10,7 @@ import type { MotifMessage, MotifSession } from '@motif/core';
 import { ensureTeamToken, openDb, type Db } from './db/database.js';
 import { LiveBus } from './live/bus.js';
 import { recall, renderRecall } from './retrieval.js';
+import { applyVerdict, listReviewQueue } from './memory/review.js';
 import {
   addComment,
   appendMessages,
@@ -671,6 +672,37 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     return c.json({ entity, notes });
   });
 
+  app.get('/api/memory/review', (c) => {
+    return c.json({ items: listReviewQueue(db, memberId(c)) });
+  });
+
+  app.post('/api/memory/notes/:id/verdict', async (c) => {
+    // a verdict changes what the whole team is told is true — it must carry a name
+    const reviewer = memberId(c);
+    if (reviewer === undefined) return c.json({ error: 'a member token is required to rule on memory' }, 403);
+    const body = (await c.req.json().catch(() => ({}))) as {
+      verdict?: string;
+      overNoteId?: number;
+      reason?: string;
+    };
+    if (!['confirm', 'prefer', 'retire', 'dispute'].includes(body.verdict ?? '')) {
+      return c.json({ error: 'verdict must be confirm | prefer | retire | dispute' }, 400);
+    }
+    try {
+      const note = applyVerdict(db, {
+        noteId: Number(c.req.param('id')),
+        reviewerId: reviewer,
+        verdict: body.verdict as 'confirm' | 'prefer' | 'retire' | 'dispute',
+        overNoteId: body.overNoteId,
+        reason: body.reason,
+      });
+      bus.publish('memory-reviewed', { noteId: note.id, verdict: body.verdict!, reviewerId: reviewer });
+      return c.json({ note });
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 400);
+    }
+  });
+
   app.get('/api/events', (c) =>
     streamSSE(c, async (stream) => {
       // Session titles are the first user prompt, and project paths are absolute.
@@ -822,3 +854,4 @@ export * from './store.js';
 export { LiveBus } from './live/bus.js';
 export { createProvider, type LLMProvider } from './memory/providers.js';
 export { applyNotes, runMemoryTick, startMemoryScheduler } from './memory/pipeline.js';
+export { applyVerdict, listReviewQueue, type ReviewItem, type ReviewNote } from './memory/review.js';

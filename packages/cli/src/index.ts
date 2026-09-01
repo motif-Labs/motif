@@ -17,6 +17,7 @@ import { registerComment } from './commands/comment.js';
 import { registerRecall } from './commands/recall.js';
 import { registerAsk } from './commands/ask.js';
 import { registerMcp } from './commands/mcp.js';
+import { registerMemory } from './commands/memory.js';
 
 const program = new Command();
 
@@ -43,6 +44,7 @@ registerComment(program);
 registerRecall(program);
 registerAsk(program);
 registerMcp(program);
+registerMemory(program);
 
 program.parseAsync().catch((err: unknown) => {
   console.error(err instanceof Error ? err.message : String(err));

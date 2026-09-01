@@ -12,6 +12,7 @@ export interface LiveEvents {
     messageCount: number;
   };
   'memory-updated': { entityId: number; kind: string; name: string };
+  'memory-reviewed': { noteId: number; verdict: string; reviewerId: number };
   'member-joined': { memberId: number; name: string };
   'handoff-created': { sessionId: string; memberId: number; target: string };
   'handoff-requested': { requestId: number; sessionId: string; memberId: number };

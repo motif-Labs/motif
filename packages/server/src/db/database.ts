@@ -222,6 +222,30 @@ const MIGRATIONS: string[] = [
   // sessions already synced, which is all of them. Now only a hand-made choice
   // is sticky.
   `ALTER TABLE sessions ADD COLUMN visibility_locked INTEGER NOT NULL DEFAULT 0;`,
+  // v9 — memory becomes reviewable. A distilled note is a machine-made CLAIM;
+  // this migration gives it a human axis (unverified → verified/disputed/retired)
+  // and a freshness axis (stale), and records every human verdict — who ruled,
+  // over what, and why. Nothing is ever deleted: a wrong note is retired, and
+  // the ruling itself is part of the record.
+  `
+  ALTER TABLE memory_notes ADD COLUMN verification TEXT NOT NULL DEFAULT 'unverified'
+    CHECK (verification IN ('unverified','verified','disputed','retired'));
+  ALTER TABLE memory_notes ADD COLUMN verified_by INTEGER REFERENCES members(id);
+  ALTER TABLE memory_notes ADD COLUMN verified_at TEXT;
+  ALTER TABLE memory_notes ADD COLUMN stale INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE memory_notes ADD COLUMN stale_reason TEXT;
+
+  CREATE TABLE memory_reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    note_id INTEGER NOT NULL REFERENCES memory_notes(id),
+    reviewer_id INTEGER NOT NULL REFERENCES members(id),
+    verdict TEXT NOT NULL CHECK (verdict IN ('confirm','prefer','retire','dispute')),
+    over_note_id INTEGER REFERENCES memory_notes(id),
+    reason TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX idx_reviews_note ON memory_reviews(note_id);
+  `,
 ];
 
 export function openDb(dbPath: string): Db {
