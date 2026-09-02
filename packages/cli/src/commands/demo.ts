@@ -8,6 +8,7 @@ import {
   applyVerdict,
   createServer,
   createWeaverJob,
+  findRegressionGaps,
   recall,
   startServer,
   whenListening,
@@ -222,6 +223,60 @@ export function registerDemo(program: Command): void {
           console.log('    (you ruled for what the repo already says; the Weaver refuses to invent work)\n');
         }
 
+        // ── Act 4b · the Weaver finds an untested fix, on its own ────────
+        await beat(700);
+        console.log('  ▸ Act 4b · The Weaver scans — and finds a fix nobody tested\n');
+        const gaps = findRegressionGaps(server.db);
+        // prefer a fix for the demo — an untested bug fix is the sharper story
+        const gap = gaps.find((g) => g.changeKind === 'fix') ?? gaps[0];
+        if (gap) {
+          console.log(`    it found: ${gap.file}`);
+          console.log(`    from "${gap.sessionTitle}" — ${gap.changeKind}, no test\n`);
+          await beat(700);
+          // wire the demo repo to hold this file, then let the Weaver write the test
+          const srcDir = path.join(repo, path.dirname(gap.file));
+          fs.mkdirSync(srcDir, { recursive: true });
+          fs.writeFileSync(
+            path.join(repo, gap.file),
+            'export function charge(key, amount) {\n  if (seen(key)) return replay(key);\n  seen.add(key);\n  return doCharge(key, amount);\n}\n',
+          );
+          execFileSync('git', ['-C', repo, 'add', '-A'], { stdio: 'ignore' });
+          execFileSync(
+            'git',
+            ['-C', repo, '-c', 'user.name=demo', '-c', 'user.email=d@demo.test', 'commit', '-qm', 'the fix'],
+            { stdio: 'ignore' },
+          );
+          const testJob = createWeaverJob(server.db, repo, {
+            kind: 'missing-regression',
+            file: gap.file,
+            changeKind: gap.changeKind,
+            sessionId: gap.sessionId,
+            sessionTitle: gap.sessionTitle,
+            memberName: gap.memberName,
+            context: gap.context,
+          });
+          const testOut = await performWeaverJob(
+            { id: testJob.id, project_path: repo, payload: testJob.payload },
+            {
+              runAgent: (_p, cwd) => {
+                const t = path.join(cwd, gap.file.replace(/\.(\w+)$/, '.test.$1'));
+                fs.mkdirSync(path.dirname(t), { recursive: true });
+                fs.writeFileSync(
+                  t,
+                  "import { charge } from './payments';\n\ntest('a retried key replays instead of charging twice', () => {\n  charge('k1', 10);\n  expect(charge('k1', 10)).toBe(replay('k1'));\n});\n",
+                );
+              },
+              publishBranch: ({ branch }) => `(local branch ${branch} — in real use: a draft PR)`,
+            },
+          );
+          if (testOut.prUrl) {
+            console.log(`    the Weaver wrote the test — ${testOut.result}`);
+            console.log('    (aimed at the fix, from the record — no wandering the tree)\n');
+          }
+        } else {
+          console.log('    every recorded change already has a test.\n');
+        }
+
         // ── Act 5 · ask the memory ───────────────────────────────────────
         await beat(700);
         console.log('  ▸ Act 5 · Recall — what agents are told now\n');
@@ -235,10 +290,15 @@ export function registerDemo(program: Command): void {
           console.log(`      — ${item.why}\n`);
         }
 
-        console.log('  That was invented data on the real engine — ruling, receipts, worktree and all.');
-        console.log(`  Explore the dashboard: ${base}   (Review, Memory, Sessions)`);
-        console.log('  Point it at your own history:  motif up');
-        console.log('  Run it again (rule the other way!):  motif demo · remove: motif demo --clean\n');
+        console.log('  Invented data, real engine: a ruling, a test the agent wrote from a receipt,');
+        console.log('  a worktree, a diff — all of it the code that ships.\n');
+        console.log(`  Now open the dashboard: ${base}`);
+        console.log('    Weave   — the whole record as a graph');
+        console.log('    Review  — the conflict you just ruled on, and how');
+        console.log('    Memory  — decisions, verified and current\n');
+        console.log(
+          '  On your own history:  motif up     ·     Again:  motif demo     ·     Remove:  motif demo --clean\n',
+        );
         console.log('  Ctrl+C stops the server.');
       },
     );
