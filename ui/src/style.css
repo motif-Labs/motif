@@ -1587,3 +1587,24 @@ h1.session-title {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* on very wide screens content pools to one side; centre it with room */
+.main > div {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+/* the Weave and session detail want the full sheet, not the reading column */
+.main > div:has(.weave-wrap),
+.main > .detail,
+.main > div:has(.detail) {
+  max-width: none;
+}
+
+/* avatars get a touch of depth — a subtle top-light gradient and inner ring */
+.avatar {
+  background-image: linear-gradient(160deg, rgba(255, 255, 255, 0.22), transparent 55%);
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.12),
+    0 1px 2px rgba(16, 18, 22, 0.18);
+  letter-spacing: 0.2px;
+}
