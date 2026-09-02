@@ -19,8 +19,16 @@ afterEach(() => {
 describe('the built-in demo seed', () => {
   it('stages the whole story: sessions, a conflict to rule on, a stale note, a verified one', () => {
     const result = seedDemo(db);
-    expect(result.sessions).toBe(10);
-    expect(result.members.map((m) => m.name).sort()).toEqual(['ada', 'ben', 'cleo', 'iris', 'you']);
+    expect(result.sessions).toBe(18);
+    expect(result.members.map((m) => m.name).sort()).toEqual([
+      'ada',
+      'ben',
+      'cleo',
+      'iris',
+      'nora',
+      'omar',
+      'you',
+    ]);
 
     const queue = listReviewQueue(db, undefined);
     const types = queue.map((i) => i.type).sort();
@@ -28,8 +36,8 @@ describe('the built-in demo seed', () => {
 
     // the conflict shows both sides, each citing its session
     const conflict = queue.find((i) => i.type === 'conflict')!;
-    expect(conflict.against!.session_id).toContain('demo-rate-limit');
-    expect(conflict.note.session_id).toContain('demo-runbook');
+    expect(conflict.against!.session_id).toContain('pay-ratelimit');
+    expect(conflict.note.session_id).toContain('ops-redis');
 
     // recall crosses people and tools, and carries authority marks
     const out = recall(db, { query: 'why do we fail open when redis is down', budget: 1500 });

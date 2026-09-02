@@ -82,7 +82,7 @@ export function registerDemo(program: Command): void {
         const beat = (ms: number): Promise<void> =>
           opts.fast ? Promise.resolve() : new Promise((r) => setTimeout(r, ms));
 
-        const server = createServer({ dbPath: path.join(dir, 'demo.db'), teamName: 'Demo Team' });
+        const server = createServer({ dbPath: path.join(dir, 'demo.db'), teamName: 'Motif Engineering' });
         const members = seedMembers(server.db);
         const you = members.byName.get('you')!;
         const port = Number(opts.port) || 4699;
@@ -90,7 +90,9 @@ export function registerDemo(program: Command): void {
         await whenListening(listener);
         const base = `http://127.0.0.1:${port}`;
 
-        console.log(`\n  MOTIF DEMO — a team's week, replayed in a minute. Nothing real is touched.\n`);
+        console.log(
+          `\n  MOTIF ENGINEERING — two weeks of a real team's work, replayed. Nothing real is touched.\n`,
+        );
         console.log(`  Dashboard (watch it fill): ${base}  — signed in as "you"\n`);
         if (opts.open) {
           const url = `${base}/?token=${encodeURIComponent(you.memberToken)}`;
@@ -104,9 +106,13 @@ export function registerDemo(program: Command): void {
         }
 
         // ── Act 1 · sessions stream in, live ─────────────────────────────
-        console.log('  ▸ Act 1 · Collect — four people, two tools, one record\n');
-        for (const s of SESSIONS) {
-          insertSession(server.db, members, s);
+        console.log(
+          `  ▸ Act 1 · Collect — ${new Set(SESSIONS.map((x) => x.member)).size} people, two tools, ${new Set(SESSIONS.map((x) => x.project)).size} projects, one record\n`,
+        );
+        SESSIONS.forEach((s, i) => insertSession(server.db, members, s));
+        // stream the recent ones on screen; the rest are already in the record
+        const shown = SESSIONS.slice(-9);
+        for (const s of shown) {
           const title = s.turns[0]![0];
           server.bus.publish('session-upserted', {
             id: `${s.source}:${s.id}`,
@@ -119,8 +125,9 @@ export function registerDemo(program: Command): void {
           console.log(
             `    ${s.member.padEnd(5)} · ${s.source === 'claude-code' ? 'Claude Code' : 'Codex      '}  ${title.slice(0, 62)}…`,
           );
-          await beat(350);
+          await beat(300);
         }
+        console.log(`    …and ${SESSIONS.length - shown.length} more already in the record.\n`);
 
         // ── Act 2 · memory catches a contradiction ───────────────────────
         await beat(900);

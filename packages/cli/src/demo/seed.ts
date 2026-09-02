@@ -14,7 +14,7 @@ import type { MotifMessage, MotifSession } from '@motif/core';
 import { applyNotes, applyVerdict, fullReplaceSession, registerMember, type Db } from '@motif/server';
 
 const DAY = 24 * 3600_000;
-const base = Date.now() - 6 * DAY;
+const base = Date.now() - 13 * DAY;
 /** Deterministic timestamps spread over the last week. */
 const at = (day: number, hour: number): string => new Date(base + day * DAY + hour * 3600_000).toISOString();
 
@@ -37,8 +37,9 @@ interface SeedSession {
 }
 
 const SESSIONS: SeedSession[] = [
+  // ── payments-api — the busy heart, many hands, many decisions ──────────
   {
-    id: 'demo-rate-limit',
+    id: 'pay-ratelimit',
     source: 'claude-code',
     member: 'ada',
     project: '/workspace/payments-api',
@@ -46,17 +47,17 @@ const SESSIONS: SeedSession[] = [
     day: 0,
     turns: [
       [
-        'The public API has no rate limiting. Add one, but it has to survive a restart — the last in-memory attempt reset every deploy.',
-        'Went with a Redis token bucket keyed by API key rather than IP, since several customers sit behind one NAT. 100 req/min sustained, burst of 20. State lives in Redis so a rolling deploy does not hand everyone a fresh quota.',
+        'The public API has no rate limiting. Add one that survives a restart — the in-memory attempt reset on every deploy.',
+        'Redis token bucket keyed by API key, since several customers sit behind one NAT. 100 req/min, burst 20. State in Redis so a rolling deploy keeps quotas. Recorded in ADR-014.',
       ],
       [
-        'What happens if Redis is down?',
-        'Fail open, and log loudly. Rejecting live payment traffic because a cache is unreachable is worse than briefly serving unlimited requests. Decision recorded in ADR-014.',
+        'What if Redis is down?',
+        'Fail open and log loudly — rejecting live payment traffic over a cache outage is worse. ADR-014.',
       ],
     ],
   },
   {
-    id: 'demo-auth-closed',
+    id: 'pay-authclose',
     source: 'claude-code',
     member: 'ben',
     project: '/workspace/payments-api',
@@ -65,119 +66,238 @@ const SESSIONS: SeedSession[] = [
     turns: [
       [
         'Auth middleware fails open when the token service times out. That is backwards — make it fail closed.',
-        'Flipped it to fail closed, with one carve-out: the internal health route keeps working so the load balancer does not pull every node when the token service blips.',
+        'Flipped to fail closed, with one carve-out: the internal health route stays up so the load balancer does not pull every node on a blip.',
       ],
     ],
   },
   {
-    id: 'demo-runbook',
-    source: 'codex',
-    member: 'iris',
-    project: '/workspace/ops-runbooks',
-    files: ['runbooks/redis-outage.md'],
-    day: 2,
-    turns: [
-      [
-        'Write the on-call runbook for a Redis outage.',
-        'Documented the split people keep getting wrong on call: ADR-014 as written says the limiter fails CLOSED when Redis is unreachable — the earlier session remembered it the other way around. During an outage expect 429s, not a traffic spike.',
-      ],
-    ],
-  },
-  {
-    id: 'demo-breaker',
-    source: 'codex',
-    member: 'cleo',
-    project: '/workspace/payments-api',
-    files: ['src/auth/breaker.ts'],
-    day: 2,
-    turns: [
-      [
-        'Put a circuit breaker in front of the token service so a slow dependency cannot stall every request.',
-        'Opens after five consecutive timeouts, half-open probe every ten seconds. While the breaker is open, auth fails closed. Different blast radius than the limiter — that is a policy split worth keeping deliberate.',
-      ],
-    ],
-  },
-  {
-    id: 'demo-idempotency',
+    id: 'pay-idempotency',
     source: 'codex',
     member: 'ben',
+    project: '/workspace/payments-api',
+    files: ['src/routes/payments.ts'],
+    day: 2,
+    turns: [
+      [
+        'Add idempotency keys so a retried request cannot double-charge.',
+        'Client sends Idempotency-Key; the key and response are stored 24h and replayed on repeat. Body hash is part of the key, so a reused key with different data gets 422.',
+      ],
+      [
+        'Why 24h?',
+        'Covers the longest retry window we have seen (a 6h backoff chain) with margin, without growing the table unbounded.',
+      ],
+    ],
+  },
+  {
+    id: 'pay-doublecharge',
+    source: 'claude-code',
+    member: 'omar',
     project: '/workspace/payments-api',
     files: ['src/routes/payments.ts'],
     day: 3,
     turns: [
       [
-        'Add idempotency keys to the payment endpoint so a retried request cannot double-charge.',
-        'Client sends Idempotency-Key; the key and response are stored for 24h and replayed on a repeat. The request body hash is part of the key, so reusing a key with different data gets a 422 instead of the old response.',
+        'Fix the double-charge: a retried request with the same idempotency key still charged twice.',
+        'The key was checked AFTER the charge call, not before. Moved the lookup ahead of the charge so a replay short-circuits to the stored response. Verified by hand against the reproduction.',
       ],
     ],
   },
   {
-    id: 'demo-pool-leak',
+    id: 'pay-breaker',
+    source: 'codex',
+    member: 'cleo',
+    project: '/workspace/payments-api',
+    files: ['src/auth/breaker.ts', 'src/middleware/auth.ts'],
+    day: 3,
+    turns: [
+      [
+        'Put a circuit breaker in front of the token service so a slow dependency cannot stall every request.',
+        'Opens after five consecutive timeouts, half-open probe every ten seconds. While open, auth fails closed. Different blast radius than the limiter — a deliberate policy split.',
+      ],
+    ],
+  },
+  {
+    id: 'pay-poolleak',
     source: 'claude-code',
     member: 'cleo',
     project: '/workspace/payments-api',
     files: ['src/limiter/bucket.ts', 'src/cache/session.ts'],
-    day: 3,
+    day: 4,
     turns: [
       [
         'Redis connections leak in staging — the pool is exhausted after a few hours.',
-        'The rate limiter was constructing a client per request. Moved it to a shared pool created at boot; the limiter sits on every public route, so a leak there takes the whole API down first.',
+        'The limiter constructed a client per request. Moved to a shared pool created at boot; the limiter is on every public route, so a leak there takes the whole API down first.',
       ],
     ],
   },
   {
-    id: 'demo-retry-after',
+    id: 'pay-retryafter',
     source: 'claude-code',
     member: 'iris',
     project: '/workspace/payments-api',
     files: ['src/limiter/respond.ts', 'src/limiter/bucket.ts'],
-    day: 4,
+    day: 5,
     turns: [
       [
         'Our 429s go out with no Retry-After, so clients retry immediately and make it worse.',
-        'Retry-After is now computed from the bucket refill rate, and X-RateLimit-Remaining is on every response — that header is what support keeps asking customers to screenshot.',
+        'Retry-After now computed from the bucket refill rate, and X-RateLimit-Remaining on every response — the header support keeps asking customers to screenshot.',
       ],
     ],
   },
   {
-    id: 'demo-doublecharge',
-    source: 'claude-code',
-    member: 'ben',
+    id: 'pay-webhookflaky',
+    source: 'codex',
+    member: 'ada',
     project: '/workspace/payments-api',
-    files: ['src/routes/payments.ts'],
-    day: 4,
+    files: ['src/webhooks/deliver.ts', 'test/webhooks.test.ts'],
+    day: 6,
     turns: [
       [
-        'Fix the double-charge: a retried request with the same idempotency key still charged twice.',
-        'The key was checked after the charge call, not before. Moved the lookup ahead of the charge, so a replay short-circuits to the stored response. Verified by hand against the reproduction.',
+        'The checkout webhook test is flaky in CI — passes locally, fails maybe one run in five.',
+        'The test asserted delivery attempts before the retry queue drained; it passed locally only because the machine is slower. Replaced the sleep with a wait on queue depth.',
       ],
     ],
   },
   {
-    id: 'demo-billing',
+    id: 'pay-scoping',
+    source: 'claude-code',
+    member: 'nora',
+    project: '/workspace/payments-api',
+    files: ['src/limiter/bucket.ts'],
+    day: 8,
+    turns: [
+      [
+        'Enterprise customers hit the 100/min limit during nightly syncs. Add a per-plan override.',
+        'Limits now read from the plan: enterprise gets 1000/min, burst 100; everyone else unchanged. Keyed by API key as before, so the NAT case still holds.',
+      ],
+    ],
+  },
+  {
+    id: 'pay-webhookretry',
+    source: 'codex',
+    member: 'omar',
+    project: '/workspace/payments-api',
+    files: ['src/webhooks/deliver.ts'],
+    day: 9,
+    turns: [
+      [
+        'Add exponential backoff to webhook delivery — some endpoints are down for minutes.',
+        'Backoff 1s → 32s over six attempts, then a dead-letter row. Idempotency-Key travels with each retry so a slow endpoint that finally accepts does not process twice.',
+      ],
+    ],
+  },
+  // ── billing-worker — the nightly job, moved to a queue ─────────────────
+  {
+    id: 'bill-cron',
     source: 'codex',
     member: 'ada',
     project: '/workspace/billing-worker',
     files: ['src/jobs/billing.ts'],
-    day: 5,
+    day: 1,
     turns: [
       [
         'Move the nightly billing job off cron onto the new queue.',
-        'The job now enqueues per-account instead of one giant nightly sweep, so a single failing account no longer blocks the batch. The cron entry stays for one release as a fallback.',
+        'Enqueues per-account instead of one giant nightly sweep, so a single failing account no longer blocks the batch. Kept the cron entry for one release as a fallback.',
       ],
     ],
   },
   {
-    id: 'demo-bucket-tune',
+    id: 'bill-partial',
+    source: 'claude-code',
+    member: 'iris',
+    project: '/workspace/billing-worker',
+    files: ['src/jobs/billing.ts', 'src/jobs/retry.ts'],
+    day: 7,
+    turns: [
+      [
+        'A billing run partially failed and we double-charged three accounts on retry.',
+        'The retry re-ran the whole batch instead of the failed accounts. Now each account is its own idempotent unit, keyed like the payments API — a retry only touches what actually failed.',
+      ],
+    ],
+  },
+  {
+    id: 'bill-timezone',
     source: 'claude-code',
     member: 'ben',
-    project: '/workspace/payments-api',
-    files: ['src/limiter/bucket.ts'],
+    project: '/workspace/billing-worker',
+    files: ['src/jobs/schedule.ts'],
+    day: 10,
+    turns: [
+      [
+        'Fix the off-by-one: some accounts billed a day early around DST.',
+        'The schedule computed the next run in UTC then displayed local, crossing the DST boundary. Compute in the account’s zone and store UTC — the display was never the source of truth.',
+      ],
+    ],
+  },
+  // ── ops-runbooks — the on-call knowledge, sometimes at odds ────────────
+  {
+    id: 'ops-redis',
+    source: 'codex',
+    member: 'iris',
+    project: '/workspace/ops-runbooks',
+    files: ['runbooks/redis-outage.md'],
     day: 5,
     turns: [
       [
-        'The burst allowance feels too tight for the mobile clients — they batch on reconnect.',
-        'Raised burst to 30 for authenticated mobile keys only; the sustained rate is unchanged. Watching the 429 rate for a week before deciding whether it sticks.',
+        'Write the on-call runbook for a Redis outage.',
+        'Documented the split people keep getting wrong: ADR-014 as WRITTEN says the limiter fails CLOSED on a Redis outage — the rate-limiting session remembered it the other way. During an outage expect 429s, not a traffic spike.',
+      ],
+    ],
+  },
+  {
+    id: 'ops-tokenservice',
+    source: 'claude-code',
+    member: 'cleo',
+    project: '/workspace/ops-runbooks',
+    files: ['runbooks/token-service.md'],
+    day: 8,
+    turns: [
+      [
+        'Runbook for a token-service outage now that auth fails closed.',
+        'If the token service is down, expect 401s, not 500s — the breaker opens and auth fails closed. If you see a traffic spike instead, it is Redis, not the token service. Cross-linked both runbooks.',
+      ],
+    ],
+  },
+  // ── web-dashboard — a different corner, its own history ────────────────
+  {
+    id: 'web-auth',
+    source: 'claude-code',
+    member: 'nora',
+    project: '/workspace/web-dashboard',
+    files: ['src/auth/session.ts'],
+    day: 2,
+    turns: [
+      [
+        'Sessions log users out after 30 minutes even while active — sliding expiry is broken.',
+        'The cookie max-age was set once at login and never refreshed. Now each authenticated request slides it forward, capped at an 8h absolute lifetime.',
+      ],
+    ],
+  },
+  {
+    id: 'web-charts',
+    source: 'codex',
+    member: 'omar',
+    project: '/workspace/web-dashboard',
+    files: ['src/charts/usage.ts'],
+    day: 6,
+    turns: [
+      [
+        'Build the usage chart for the billing page — requests per day, per plan.',
+        'Server aggregates by day and plan; the client just draws. No per-request fetch, so a customer with millions of calls still loads instantly.',
+      ],
+    ],
+  },
+  {
+    id: 'web-timezone',
+    source: 'claude-code',
+    member: 'ada',
+    project: '/workspace/web-dashboard',
+    files: ['src/charts/usage.ts'],
+    day: 11,
+    turns: [
+      [
+        'The usage chart is off by a day for customers outside UTC.',
+        'Same class of bug as billing: aggregation bucketed by UTC day, displayed local. Now buckets by the viewer’s zone. Noted the pattern — this is the third timezone bug this month.',
       ],
     ],
   },
@@ -191,7 +311,7 @@ export interface DemoMembers {
 
 export function seedMembers(db: Db): DemoMembers {
   const byName = new Map<string, { memberId: number; memberToken: string }>();
-  for (const name of ['ada', 'ben', 'cleo', 'iris', 'you']) {
+  for (const name of ['ada', 'ben', 'cleo', 'iris', 'omar', 'nora', 'you']) {
     byName.set(name, registerMember(db, { name, email: `${name}@example.com` }));
   }
   return { byName };
@@ -228,31 +348,81 @@ const sessionPk = (db: Db, id: string): number =>
 export function seedBackgroundMemory(db: Db, members: DemoMembers): void {
   const ada = members.byName.get('ada')!.memberId;
   const ben = members.byName.get('ben')!.memberId;
-  applyNotes(
-    db,
-    [
-      {
-        entity: { kind: 'decision', name: 'idempotency keys' },
-        aspect: 'behaviour',
-        body: 'Payment retries replay the stored response for 24h; a reused key with a different body gets a 422.',
-      },
-    ],
-    { projectPath: '/workspace/payments-api', sessionPk: sessionPk(db, 'demo-idempotency'), memberId: ben },
-  );
+  const iris = members.byName.get('iris')!.memberId;
+  const PAY = '/workspace/payments-api';
+  const put = (
+    session: string,
+    member: number,
+    project: string,
+    notes: { kind: 'decision' | 'file' | 'topic'; name: string; aspect: string; body: string }[],
+  ) =>
+    applyNotes(
+      db,
+      notes.map((n) => ({ entity: { kind: n.kind, name: n.name }, aspect: n.aspect, body: n.body })),
+      { projectPath: project, sessionPk: sessionPk(db, session), memberId: member },
+    );
+
+  // idempotency — a decision AND the file it lives in, from one session:
+  // co-occurrence links them in the Weave. Then a human vouches for it.
+  put('pay-idempotency', ben, PAY, [
+    {
+      kind: 'decision',
+      name: 'idempotency keys',
+      aspect: 'behaviour',
+      body: 'Payment retries replay the stored response for 24h; a reused key with a different body gets a 422.',
+    },
+    {
+      kind: 'file',
+      name: 'src/routes/payments.ts',
+      aspect: 'design',
+      body: 'The idempotency lookup must run BEFORE the charge call, or a replay double-charges.',
+    },
+  ]);
   const idem = db.prepare("SELECT id FROM memory_notes WHERE body LIKE '%422%'").get() as { id: number };
   applyVerdict(db, { noteId: idem.id, reviewerId: ben, verdict: 'confirm' });
 
-  applyNotes(
-    db,
-    [
-      {
-        entity: { kind: 'file', name: 'src/limiter/bucket.ts' },
-        aspect: 'design',
-        body: 'One Redis client per request keeps the bucket simple; connection churn is negligible.',
-      },
-    ],
-    { projectPath: '/workspace/payments-api', sessionPk: sessionPk(db, 'demo-rate-limit'), memberId: ada },
-  );
+  // the recurring timezone lesson — a topic tying three files across projects
+  put('web-timezone', ada, '/workspace/web-dashboard', [
+    {
+      kind: 'topic',
+      name: 'timezone bugs',
+      aspect: 'pattern',
+      body: 'Aggregate/schedule in the viewer or account zone, store UTC. Display is never the source of truth — third such bug this month.',
+    },
+    {
+      kind: 'file',
+      name: 'src/charts/usage.ts',
+      aspect: 'design',
+      body: 'Buckets usage by the viewer’s zone, not UTC.',
+    },
+  ]);
+
+  // the breaker/auth policy split — a decision touching two files
+  put('pay-breaker', members.byName.get('cleo')!.memberId, PAY, [
+    {
+      kind: 'decision',
+      name: 'auth failure policy',
+      aspect: 'behaviour',
+      body: 'Auth fails CLOSED: the breaker opens after five timeouts, and a token-service outage yields 401s, not a traffic spike.',
+    },
+    {
+      kind: 'file',
+      name: 'src/auth/breaker.ts',
+      aspect: 'design',
+      body: 'Opens after five consecutive timeouts; half-open probe every 10s.',
+    },
+  ]);
+
+  // a note that will read as possibly stale — its file was reworked since
+  put('pay-ratelimit', ada, PAY, [
+    {
+      kind: 'file',
+      name: 'src/limiter/bucket.ts',
+      aspect: 'design',
+      body: 'One Redis client per request keeps the bucket simple; connection churn is negligible.',
+    },
+  ]);
+  void iris;
 }
 
 /** The star of the show: two sessions remember ADR-014 in opposite directions. */
@@ -268,7 +438,7 @@ export function seedConflict(db: Db, members: DemoMembers): { standingId: number
         body: 'The limiter fails open when Redis is unreachable — rejecting payments over a cache is worse. (ADR-014)',
       },
     ],
-    { projectPath: '/workspace/payments-api', sessionPk: sessionPk(db, 'demo-rate-limit'), memberId: ada },
+    { projectPath: '/workspace/payments-api', sessionPk: sessionPk(db, 'pay-ratelimit'), memberId: ada },
   );
   applyNotes(
     db,
@@ -280,7 +450,7 @@ export function seedConflict(db: Db, members: DemoMembers): { standingId: number
         contradictsCurrent: true,
       },
     ],
-    { projectPath: '/workspace/payments-api', sessionPk: sessionPk(db, 'demo-runbook'), memberId: iris },
+    { projectPath: '/workspace/payments-api', sessionPk: sessionPk(db, 'ops-redis'), memberId: iris },
   );
   const rows = db
     .prepare(
