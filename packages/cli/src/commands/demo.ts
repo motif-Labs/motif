@@ -300,9 +300,10 @@ export function registerDemo(program: Command): void {
         console.log('  Invented data, real engine: a ruling, a test the agent wrote from a receipt,');
         console.log('  a worktree, a diff — all of it the code that ships.\n');
         console.log(`  Now open the dashboard: ${base}`);
-        console.log('    Weave   — the whole record as a graph');
-        console.log('    Review  — the conflict you just ruled on, and how');
-        console.log('    Memory  — decisions, verified and current\n');
+        console.log('    Overview — the team’s pulse at a glance');
+        console.log('    Weave    — the whole record as a living graph');
+        console.log('    Review   — the conflict you just ruled on, and how');
+        console.log('    Memory   — decisions, each with a confidence\n');
         console.log(
           '  On your own history:  motif up     ·     Again:  motif demo     ·     Remove:  motif demo --clean\n',
         );
