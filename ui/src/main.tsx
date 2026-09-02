@@ -109,6 +109,15 @@ function ConfidenceBar({ value }: { value: number }) {
   );
 }
 
+/** Coalesce a burst of events into one call. */
+function debounce<T extends (...a: never[]) => void>(fn: T, ms = 250): T {
+  let t: ReturnType<typeof setTimeout> | undefined;
+  return ((...a: never[]) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...a), ms);
+  }) as T;
+}
+
 function Skeleton({ rows = 5 }: { rows?: number }) {
   return (
     <div class="skeleton">
@@ -381,11 +390,12 @@ function SessionsPage({ me }: { me: Me }) {
   useEffect(() => {
     setSessions(null);
     reload();
+    const reloadList = debounce(reload); // a burst of sessions reloads the list once
     return openEvents((name, data) => {
       if (name !== 'session-upserted') return;
       const id = (data as { id?: string }).id;
       if (id) {
-        // let the newcomer announce itself, then let it belong
+        // the freshness highlight is per-id and cheap — keep it immediate
         setFresh((f) => new Set(f).add(id));
         setTimeout(
           () =>
@@ -397,7 +407,7 @@ function SessionsPage({ me }: { me: Me }) {
           2600,
         );
       }
-      reload();
+      reloadList();
     });
   }, [scope]);
   if (!sessions) return <Skeleton rows={6} />;
@@ -1295,8 +1305,9 @@ function OverviewPage({ me }: { me: Me }) {
         .then(setD)
         .catch(() => setD(null));
     load();
+    const reloadOv = debounce(load);
     return openEvents((name) => {
-      if (name === 'session-upserted' || name === 'memory-updated' || name === 'memory-reviewed') load();
+      if (name === 'session-upserted' || name === 'memory-updated' || name === 'memory-reviewed') reloadOv();
     });
   }, []);
   if (!d) return <Skeleton rows={4} />;
@@ -1391,8 +1402,13 @@ function WeavePage() {
       canvas.height = r.height * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
+    const onResize = () => {
+      resize();
+      alpha = Math.max(alpha, 0.05);
+      wake();
+    };
     resize();
-    window.addEventListener('resize', resize);
+    window.addEventListener('resize', onResize);
 
     const W = () => canvas.width / dpr;
     const H = () => canvas.height / dpr;
@@ -1461,23 +1477,11 @@ function WeavePage() {
         n.x! += n.vx! * alpha;
         n.y! += n.vy! * alpha;
       }
-      alpha *= 0.994;
-      if (alpha < 0.02) alpha = 0.02;
+      alpha *= 0.985;
     };
 
     const draw = () => {
       ctx.clearRect(0, 0, W(), H());
-      // a faint dotted ground gives the canvas depth instead of a blank void
-      ctx.fillStyle = faint;
-      ctx.globalAlpha = 0.05;
-      for (let gx = 24; gx < W(); gx += 26) {
-        for (let gy = 24; gy < H(); gy += 26) {
-          ctx.beginPath();
-          ctx.arc(gx, gy, 0.8, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-      ctx.globalAlpha = 1;
       const hov = hoverRef.current;
       const near = hov ? (adj.get(hov) ?? new Set()) : null;
       // edges — gentle curves, lit ones glow like a synapse firing
@@ -1513,20 +1517,12 @@ function WeavePage() {
         ctx.globalAlpha = dim ? 0.25 : 1;
         const active = n.id === hov || near?.has(n.id);
         if (n.type === 'entity') {
-          // confidence sizes the diamond — a trusted decision reads larger and glows
           const r = 4 + (n.confidence ?? 0.5) * 5.5;
           const col = n.kind === 'decision' ? accent : ink;
-          // soft halo, brighter for confident nodes and on hover
-          const glow = ctx.createRadialGradient(n.x!, n.y!, 0, n.x!, n.y!, r * (active ? 4 : 2.6));
-          glow.addColorStop(0, col);
-          glow.addColorStop(1, 'transparent');
-          ctx.globalAlpha = (dim ? 0.06 : 0.14 + (n.confidence ?? 0.5) * 0.12) * (active ? 1.8 : 1);
-          ctx.fillStyle = glow;
-          ctx.beginPath();
-          ctx.arc(n.x!, n.y!, r * (active ? 4 : 2.6), 0, Math.PI * 2);
-          ctx.fill();
-          // the diamond itself
+          // the diamond, with a cheap shadow glow only when it matters
           ctx.globalAlpha = dim ? 0.3 : 1;
+          ctx.shadowBlur = active ? 14 : (n.confidence ?? 0.5) > 0.7 ? 6 : 0;
+          ctx.shadowColor = col;
           ctx.fillStyle = col;
           ctx.beginPath();
           ctx.moveTo(n.x!, n.y! - r);
@@ -1535,6 +1531,7 @@ function WeavePage() {
           ctx.lineTo(n.x! - r, n.y!);
           ctx.closePath();
           ctx.fill();
+          ctx.shadowBlur = 0;
         } else {
           ctx.globalAlpha = dim ? 0.2 : active ? 0.9 : 0.55;
           ctx.fillStyle = faint;
@@ -1553,12 +1550,36 @@ function WeavePage() {
       ctx.globalAlpha = 1;
     };
 
-    const loop = () => {
-      step();
+    // run the physics until it settles, then STOP — no frames burned while the
+    // graph sits still. A hover or a redraw request wakes it (see wake()).
+    let running = false;
+    let lastHover: string | null = null;
+    let settleGuard = 0;
+    const frame = () => {
+      if (hoverRef.current !== lastHover) {
+        lastHover = hoverRef.current;
+        settleGuard = 0;
+      }
+      const moving = alpha > 0.015;
+      if (moving) {
+        step();
+        settleGuard = 0;
+      } else {
+        settleGuard++;
+      }
       draw();
-      raf = requestAnimationFrame(loop);
+      if (settleGuard > 20) {
+        running = false; // fully idle: stop the loop
+        return;
+      }
+      raf = requestAnimationFrame(frame);
     };
-    loop();
+    const wake = () => {
+      if (running) return;
+      running = true;
+      raf = requestAnimationFrame(frame);
+    };
+    wake();
 
     const pick = (mx: number, my: number): GNode | null => {
       let best: GNode | null = null;
@@ -1575,8 +1596,10 @@ function WeavePage() {
     const onMove = (ev: MouseEvent) => {
       const r = canvas.getBoundingClientRect();
       const hit = pick(ev.clientX - r.left, ev.clientY - r.top);
+      const changed = (hit?.id ?? null) !== hoverRef.current;
       hoverRef.current = hit?.id ?? null;
       canvas.style.cursor = hit ? 'pointer' : 'default';
+      if (changed) wake();
     };
     const onClick = (ev: MouseEvent) => {
       const r = canvas.getBoundingClientRect();
@@ -1590,7 +1613,7 @@ function WeavePage() {
 
     return () => {
       cancelAnimationFrame(raf);
-      window.removeEventListener('resize', resize);
+      window.removeEventListener('resize', onResize);
       canvas.removeEventListener('mousemove', onMove);
       canvas.removeEventListener('click', onClick);
     };
@@ -1919,8 +1942,10 @@ function App() {
         .then((r) => setReviewCount(r.items.length))
         .catch(() => setReviewCount(0));
     loadCount();
+    const reloadCount = debounce(loadCount);
     return openEvents((name) => {
-      if (name === 'memory-updated' || name === 'memory-reviewed' || name === 'memory-conflict') loadCount();
+      if (name === 'memory-updated' || name === 'memory-reviewed' || name === 'memory-conflict')
+        reloadCount();
     });
   }, [authed]);
 

@@ -1387,11 +1387,12 @@ h1.session-title {
 .weave-wrap {
   height: calc(100vh - 170px);
   min-height: 480px;
-  background: radial-gradient(
-    ellipse at 50% 40%,
-    color-mix(in srgb, var(--accent) 5%, var(--panel)),
-    var(--panel) 70%
-  );
+  /* the dotted ground and the soft centre glow are static CSS, not redrawn
+     every frame — the canvas only draws the graph itself */
+  background:
+    radial-gradient(circle, color-mix(in srgb, var(--faint) 40%, transparent) 0.8px, transparent 0.8px) 0 0 /
+      26px 26px,
+    radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--accent) 6%, var(--panel)), var(--panel) 70%);
   border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
   border-radius: 16px;
   overflow: hidden;
