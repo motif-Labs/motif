@@ -985,16 +985,19 @@ export function createServer(config: ServerConfig = {}): MotifServer {
 
     // two entities a single session both informed are related — this is the
     // causal weave: decisions and the files/topics they touch, linked
+    // liveEntities already gates both ends to visible entities; this filters at
+    // the source too, so a personal session cannot even form a candidate edge
     const cooccur = db
       .prepare(
         `SELECT DISTINCT a.entity_id AS ea, b.entity_id AS eb
          FROM memory_notes a JOIN memory_notes b
            ON a.source_session_pk = b.source_session_pk AND a.entity_id < b.entity_id
+         JOIN sessions ss ON ss.pk = a.source_session_pk
          WHERE a.status = 'current' AND b.status = 'current'
            AND a.verification != 'retired' AND b.verification != 'retired'
-           AND a.source_session_pk IS NOT NULL`,
+           AND (ss.visibility = 'team' OR ss.member_id = ?)`,
       )
-      .all() as { ea: number; eb: number }[];
+      .all(viewer) as { ea: number; eb: number }[];
     const liveEntities = new Set(entities.map((e) => e.id));
     for (const l of cooccur) {
       if (liveEntities.has(l.ea) && liveEntities.has(l.eb)) {
