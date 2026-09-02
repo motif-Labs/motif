@@ -30,6 +30,7 @@ const dbPath = arg('db') ?? process.env.MOTIF_DB_PATH ?? path.join(os.homedir(),
 const questionsPath =
   arg('questions') ?? path.join(path.dirname(new URL(import.meta.url).pathname), 'questions.json');
 const budget = Number(arg('budget', '1500'));
+const anyMember = (db.prepare('SELECT id FROM members LIMIT 1').get() as { id: number } | undefined)?.id;
 
 if (!fs.existsSync(dbPath)) {
   console.error(`No database at ${dbPath}. Run \`motif up\` once, then retry.`);
@@ -56,7 +57,14 @@ const corpusTokens = projectHistoryTokens(db);
 const rows: { q: string; hit: boolean; tokens: number; items: number; sessions: number }[] = [];
 
 for (const question of questions) {
-  const result = recall(db, { query: question.q, project: question.project, budget });
+  const result = recall(db, {
+    query: question.q,
+    project: question.project,
+    budget,
+    // the benchmark runs on the owner's own corpus — measure what THEY would
+    // see, or personal-sourced notes silently vanish from the score
+    viewerId: anyMember,
+  });
   const haystack = result.items
     .map((i) => i.text)
     .join('\n')

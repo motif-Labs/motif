@@ -264,6 +264,12 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_weaver_status ON weaver_jobs(status, created_at);
   `,
+  // v11 — a note must not become MORE visible because its evidence was
+  // deleted. Deleting or purging a session used to null the note's session
+  // link, and every visibility predicate treated "no session" as team-visible:
+  // deleting personal evidence PUBLISHED the claim. The orphaned note now
+  // keeps a snapshot of the visibility it died with.
+  `ALTER TABLE memory_notes ADD COLUMN orphan_visibility TEXT;`,
 ];
 
 export function openDb(dbPath: string): Db {

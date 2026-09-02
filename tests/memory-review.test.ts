@@ -261,13 +261,15 @@ describe('staleness — doubt raised when the ground moves under a note', () => 
       { projectPath: PROJECT, sessionPk: src.pk, memberId },
     );
 
-    for (let i = 0; i < 3; i++) {
-      fullReplaceSession(
-        db,
-        memberId,
-        makeSession(`later${i}`, ['src/limiter.js'], `2026-08-0${2 + i}T10:00:00.000Z`),
-      );
-    }
+    // later sessions record the SAME file in different shapes — relative here,
+    // absolute there — exactly what cross-tool teams produce
+    fullReplaceSession(db, memberId, makeSession('later0', ['src/limiter.js'], '2026-08-02T10:00:00.000Z'));
+    fullReplaceSession(
+      db,
+      memberId,
+      makeSession('later1', ['/workspace/app/src/limiter.js'], '2026-08-03T10:00:00.000Z'),
+    );
+    fullReplaceSession(db, memberId, makeSession('later2', ['src/limiter.js'], '2026-08-04T10:00:00.000Z'));
     expect(markStaleNotes(db)).toBe(1);
 
     const queue = listReviewQueue(db, memberId);
@@ -419,5 +421,41 @@ describe('memory visibility — notes inherit the visibility of their evidence',
       .prepare('SELECT verification FROM memory_notes WHERE id = ?')
       .get(secretNote.id) as { verification: string };
     expect(untouched.verification).toBe('unverified');
+
+    // deleting the personal evidence must not PUBLISH the claim: the orphaned
+    // note keeps the visibility it died with
+    const del = await fetch(`${base}/api/sessions/${encodeURIComponent('claude-code:private')}`, {
+      method: 'DELETE',
+      headers: { authorization: `Bearer ${owner.memberToken}` },
+    });
+    expect(del.status).toBe(200);
+    const afterDelete = (await (await call('/api/memory/entities', other.memberToken)).json()) as {
+      name: string;
+    }[];
+    expect(afterDelete.map((e) => e.name)).not.toContain('secret feature plan');
+    const stillOwners = (await (await call('/api/memory/entities', owner.memberToken)).json()) as {
+      name: string;
+    }[];
+    expect(stillOwners.map((e) => e.name)).toContain('secret feature plan');
+  });
+
+  it('a retired note stops counting on the Memory tab — dashboard and agents read one truth', async () => {
+    const cleo = registerMember(server.db, { name: 'cleo', email: 'cleo@example.com' });
+    applyNotes(
+      server.db,
+      [{ entity: { kind: 'decision', name: 'lone claim' }, aspect: 'a', body: 'the only note here' }],
+      { projectPath: '/workspace/app', sessionPk: null, memberId: cleo.memberId },
+    );
+    const note = server.db.prepare("SELECT id FROM memory_notes WHERE body = 'the only note here'").get() as {
+      id: number;
+    };
+    applyVerdict(server.db, { noteId: note.id, reviewerId: cleo.memberId, verdict: 'retire' });
+
+    const entities = (await (await call('/api/memory/entities', cleo.memberToken)).json()) as {
+      name: string;
+      current_notes: number;
+    }[];
+    const lone = entities.find((e) => e.name === 'lone claim');
+    expect(lone?.current_notes ?? 0).toBe(0);
   });
 });

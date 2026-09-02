@@ -197,14 +197,31 @@ export async function fulfillPendingWeaves(
     } catch {
       continue; // someone else won it — that is the point of claiming
     }
-    const outcome = await performWeaverJob(job, deps);
-    await client
-      .completeWeaverJob(job.id, {
-        status: outcome.status,
-        prUrl: outcome.prUrl,
-        result: outcome.result,
-      })
-      .catch(() => {});
+    // performWeaverJob catches its own weaving errors, but a malformed payload
+    // or an unwritable tmpdir throws before that try begins — and an unhandled
+    // rejection here takes the whole daemon down with it, syncs and asks included
+    let outcome;
+    try {
+      outcome = await performWeaverJob(job, deps);
+    } catch (err) {
+      outcome = { status: 'error' as const, result: String(err).slice(0, 400) };
+    }
+    // the completion report is what stops the lease from re-running a delivered
+    // weave — worth more than one attempt
+    let reported = false;
+    for (let attempt = 0; attempt < 3 && !reported; attempt++) {
+      try {
+        await client.completeWeaverJob(job.id, {
+          status: outcome.status,
+          prUrl: outcome.prUrl,
+          result: outcome.result,
+        });
+        reported = true;
+      } catch {
+        await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+      }
+    }
+    if (!reported) log(`   could not report ruling #${job.id} — the lease will requeue it`);
     log(
       outcome.prUrl
         ? `🧵 wove ruling #${job.id} — draft PR: ${outcome.prUrl}`

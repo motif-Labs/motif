@@ -9,6 +9,7 @@
  * Verdicts never delete. A wrong note is retired, a losing note is superseded,
  * and the ruling itself — who, over what, why — is recorded in memory_reviews.
  */
+import { filePathMatches } from '@motif/core';
 import type { Db } from '../db/database.js';
 
 export type Verdict = 'confirm' | 'prefer' | 'retire' | 'dispute';
@@ -26,6 +27,9 @@ export interface ReviewNote {
   stale: number;
   stale_reason: string | null;
   author_name: string | null;
+  note_member_id: number | null;
+  conflict_with: number | null;
+  orphan_visibility: string | null;
   session_id: string | null;
   session_visibility: string | null;
   session_member_id: number | null;
@@ -44,7 +48,8 @@ const NOTE_SELECT = `
   SELECT n.id, n.entity_id, e.kind, e.name AS entity, e.project_path,
          n.aspect, n.body, n.status, n.verification, n.stale, n.stale_reason,
          n.created_at,
-         m.name AS author_name,
+         m.name AS author_name, n.member_id AS note_member_id, n.conflict_with,
+         n.orphan_visibility,
          s.id AS session_id, s.visibility AS session_visibility,
          s.member_id AS session_member_id
   FROM memory_notes n
@@ -52,11 +57,17 @@ const NOTE_SELECT = `
   LEFT JOIN members m ON m.id = n.member_id
   LEFT JOIN sessions s ON s.pk = n.source_session_pk`;
 
-/** A note is shown only when its evidence would be — same rule as sessions. */
-function viewable(note: ReviewNote, viewerId: number | undefined): boolean {
-  if (note.session_id === null) return true; // no session attached (e.g. seeded)
-  if (note.session_visibility !== 'personal') return true;
-  return viewerId !== undefined && note.session_member_id === viewerId;
+/** A note is shown only when its evidence would be — same rule as sessions.
+ * When the evidence is gone, the note keeps the visibility it died with:
+ * deleting a personal session must never PUBLISH its distilled claims. */
+function viewable(
+  note: Pick<ReviewNote, 'session_visibility' | 'session_member_id' | 'orphan_visibility' | 'note_member_id'>,
+  viewerId: number | undefined,
+): boolean {
+  const visibility = note.session_visibility ?? note.orphan_visibility ?? 'team';
+  if (visibility !== 'personal') return true;
+  const owner = note.session_member_id ?? note.note_member_id;
+  return viewerId !== undefined && owner === viewerId;
 }
 
 /**
@@ -65,14 +76,20 @@ function viewable(note: ReviewNote, viewerId: number | undefined): boolean {
  * age — the oldest doubt is the most expensive one.
  */
 /** The badge polls this and every dashboard tab holds it open; sweeping
- * staleness on each read would tax the common case to serve the rare one. */
-let lastStaleSweep = 0;
+ * staleness on each read would tax the common case to serve the rare one.
+ * The throttle is PER DATABASE (one server can host several in tests and the
+ * demo), and new notes bust it so fresh doubt is never hidden behind a timer. */
+const lastStaleSweep = new WeakMap<Db, number>();
 const STALE_SWEEP_MS = 30_000;
+
+export function invalidateStaleSweep(db: Db): void {
+  lastStaleSweep.delete(db);
+}
 
 export function listReviewQueue(db: Db, viewerId: number | undefined): ReviewItem[] {
   // freshness is computed lazily on read — throttled, deterministic, schedulerless
-  if (Date.now() - lastStaleSweep > STALE_SWEEP_MS) {
-    lastStaleSweep = Date.now();
+  if (Date.now() - (lastStaleSweep.get(db) ?? 0) > STALE_SWEEP_MS) {
+    lastStaleSweep.set(db, Date.now());
     markStaleNotes(db);
   }
   const noteById = (id: number): ReviewNote | undefined =>
@@ -84,11 +101,9 @@ export function listReviewQueue(db: Db, viewerId: number | undefined): ReviewIte
     .prepare(
       `${NOTE_SELECT} WHERE n.status = 'conflicted' AND n.verification NOT IN ('retired') ORDER BY n.created_at ASC`,
     )
-    .all() as (ReviewNote & { conflict_with?: number })[];
-  const conflictWith = db.prepare('SELECT conflict_with FROM memory_notes WHERE id = ?');
+    .all() as ReviewNote[];
   for (const note of conflicts) {
-    const ref = conflictWith.get(note.id) as { conflict_with: number | null } | undefined;
-    const against = ref?.conflict_with ? noteById(ref.conflict_with) : undefined;
+    const against = note.conflict_with ? noteById(note.conflict_with) : undefined;
     if (!viewable(note, viewerId)) continue;
     if (against && !viewable(against, viewerId)) continue;
     items.push({ type: 'conflict', note, against });
@@ -165,7 +180,7 @@ export function markStaleNotes(db: Db, opts: StaleOptions = {}): number {
       files_touched: string;
     }[]) {
       const lf = JSON.parse(later.files_touched || '[]') as string[];
-      if (lf.some((f) => files.includes(f))) touching++;
+      if (lf.some((f) => files.some((mine) => filePathMatches(f, mine)))) touching++;
       if (touching >= threshold) break;
     }
     if (touching >= threshold) {

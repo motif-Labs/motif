@@ -8,6 +8,7 @@
 
 import { buildDigest, type MotifMessage } from '@motif/core';
 import type { Db } from '../db/database.js';
+import { invalidateStaleSweep } from './review.js';
 import type { LiveBus } from '../live/bus.js';
 import type { LLMProvider } from './providers.js';
 
@@ -112,6 +113,7 @@ export function applyNotes(
       }
     }
   })();
+  invalidateStaleSweep(db); // fresh notes may re-date staleness — next read sweeps
   return { entityIds, conflicts };
 }
 

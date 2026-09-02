@@ -235,6 +235,25 @@ describe('performWeaverJob — the rails, against a real git repository', () => 
     expect(branches.trim()).toBe('');
   });
 
+  it('a re-claimed job whose branch exists reports done instead of weaving twice', async () => {
+    // first attempt weaves and publishes, but the completion report was lost
+    await performWeaverJob(job(11), {
+      runAgent: (_p, cwd) => fs.writeFileSync(path.join(cwd, 'ADR.md'), 'woven once\n'),
+      publishBranch: () => 'https://example.com/pr/11',
+    });
+    // the lease requeues it; a second attempt must not burn another agent run
+    let agentRan = false;
+    const outcome = await performWeaverJob(job(11), {
+      runAgent: () => {
+        agentRan = true;
+      },
+      publishBranch: () => 'never',
+    });
+    expect(agentRan).toBe(false);
+    expect(outcome.status).toBe('done');
+    expect(outcome.result).toContain('previous attempt');
+  });
+
   it('a failing publish rolls everything back and reports the error', async () => {
     const outcome = await performWeaverJob(job(9), {
       runAgent: (_p, cwd) => fs.writeFileSync(path.join(cwd, 'ADR.md'), 'changed\n'),

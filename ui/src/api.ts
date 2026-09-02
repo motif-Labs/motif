@@ -61,6 +61,7 @@ export interface MemoryNote {
   body: string;
   status: 'current' | 'superseded' | 'conflicted';
   created_at: string;
+  verification?: string;
 }
 
 export interface ReviewNote {
@@ -178,6 +179,10 @@ export function openEvents(onEvent: (name: string, data: unknown) => void): () =
     'comment-added',
     'ask-requested',
     'ask-answered',
+    'memory-conflict',
+    'memory-reviewed',
+    'weaver-job',
+    'weaver-completed',
   ];
   for (const name of names) {
     src.addEventListener(name, (e) => {

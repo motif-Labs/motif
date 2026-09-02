@@ -1028,7 +1028,7 @@ function ReviewPage({ me }: { me: Me }) {
   useEffect(() => {
     reload();
     return openEvents((name) => {
-      if (name === 'memory-updated' || name === 'memory-reviewed') reload();
+      if (name === 'memory-updated' || name === 'memory-reviewed' || name === 'memory-conflict') reload();
     });
   }, []);
 
@@ -1228,9 +1228,11 @@ function MemoryEntityView({ id }: { id: string }) {
         <span style="color:var(--faint)">[{data.entity.kind}]</span> {data.entity.name}
       </h1>
       {data.notes.map((n) => (
-        <div key={n.id} class={`note ${n.status}`}>
+        <div key={n.id} class={`note ${n.status} ${n.verification === 'retired' ? 'superseded' : ''}`}>
           <div class="aspect">
-            {n.aspect} · {n.status} · {ago(n.created_at)}
+            {n.aspect} · {n.status}
+            {n.verification && n.verification !== 'unverified' ? ` · ${n.verification}` : ''} ·{' '}
+            {ago(n.created_at)}
           </div>
           <div>{n.body}</div>
         </div>
@@ -1442,7 +1444,7 @@ function App() {
         .catch(() => setReviewCount(0));
     loadCount();
     return openEvents((name) => {
-      if (name === 'memory-updated' || name === 'memory-reviewed') loadCount();
+      if (name === 'memory-updated' || name === 'memory-reviewed' || name === 'memory-conflict') loadCount();
     });
   }, [authed]);
 

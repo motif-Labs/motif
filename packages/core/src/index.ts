@@ -5,4 +5,4 @@ export * from './digest.js';
 export * from './writers/codex.js';
 export * from './writers/claude-code.js';
 export * from './writers/codex-tools.js';
-export { filePathMatches } from './paths.js';
+export { filePathExact, filePathMatches } from './paths.js';

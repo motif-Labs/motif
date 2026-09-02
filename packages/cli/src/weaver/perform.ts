@@ -88,6 +88,18 @@ export async function performWeaverJob(job: WeaverJob, deps: WeaverDeps): Promis
   }
 
   const branch = `motif/weaver-${job.id}`;
+  // A re-claimed job whose branch already exists was woven before and only the
+  // completion report was lost. Weaving again would burn ten agent-minutes to
+  // fail on the branch name — or worse, push a duplicate PR from another machine.
+  try {
+    git(repo, 'rev-parse', '--verify', '--quiet', `refs/heads/${branch}`);
+    return {
+      status: 'done',
+      result: `branch ${branch} already exists — woven by a previous attempt whose report was lost`,
+    };
+  } catch {
+    /* no branch: this is a first attempt */
+  }
   const worktree = fs.mkdtempSync(path.join(os.tmpdir(), 'motif-weaver-'));
   const cleanup = (dropBranch: boolean): void => {
     try {

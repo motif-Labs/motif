@@ -1,7 +1,7 @@
 import type { Command } from 'commander';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
-import { filePathMatches, type MotifSession } from '@motif/core';
+import { filePathExact, filePathMatches, type MotifSession } from '@motif/core';
 import { MotifClient } from '../api-client.js';
 import { loadConfig } from '../config.js';
 import { scanLocal } from '../local.js';
@@ -40,7 +40,7 @@ export function rankForFile(
       title: s.title ?? null,
       updatedAt: s.updatedAt ?? null,
       matched: hit,
-      exact: hit === rel || hit.endsWith(`/${rel}`),
+      exact: filePathExact(hit, rel),
     });
   }
   // exact path beats loose suffix; within a tier, the freshest session first
@@ -78,7 +78,9 @@ export function registerBlame(program: Command): void {
             serverUrl: cfg.serverUrl,
             token: cfg.memberToken ?? cfg.token!,
           });
-          for (const s of await client.sessionsByFile(rel, root)) {
+          // no project filter on purpose: project_path is each uploader's raw
+          // local cwd, so an exact match would hide every teammate's machine
+          for (const s of await client.sessionsByFile(rel)) {
             seen.add(s.id);
             candidates.push({
               id: s.id,

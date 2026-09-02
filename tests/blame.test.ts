@@ -50,12 +50,14 @@ describe('rankForFile — from a path to the sessions that produced it', () => {
     expect(ranked[0]!.exact).toBe(true);
   });
 
-  it('matches across slash conventions — readers store raw platform paths', () => {
+  it('matches across slash conventions — and still ranks them exact, not merely loose', () => {
     const ranked = rankForFile(
       [session('win', ['C:\\repo\\src\\limiter.ts'], '2026-08-05T10:00:00.000Z')],
       'src\\limiter.ts',
     );
     expect(ranked).toHaveLength(1);
+    // a Windows-stored path that IS the file must not lose to a fresher loose match
+    expect(ranked[0]!.exact).toBe(true);
   });
 });
 

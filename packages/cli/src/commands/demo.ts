@@ -81,7 +81,13 @@ export function registerDemo(program: Command): void {
         const beat = (ms: number): Promise<void> =>
           opts.fast ? Promise.resolve() : new Promise((r) => setTimeout(r, ms));
 
-        const server = createServer({ dbPath: path.join(dir, 'demo.db'), teamName: 'Demo Team' });
+        const server = createServer({
+          dbPath: path.join(dir, 'demo.db'),
+          teamName: 'Demo Team',
+          // an inherited MOTIF_WEBHOOK_URL must not send invented conflicts to
+          // a real Slack channel — the demo's promise is "nothing real is touched"
+          webhookUrl: '',
+        });
         const members = seedMembers(server.db);
         const you = members.byName.get('you')!;
         const port = Number(opts.port) || 4699;

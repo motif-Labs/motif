@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { filePathMatches, type MotifMessage, type MotifSession } from '@motif/core';
+import { filePathExact, filePathMatches, type MotifMessage, type MotifSession } from '@motif/core';
 import { ensureTeamToken, openDb, type Db } from './db/database.js';
 import { LiveBus } from './live/bus.js';
 import { recall, renderRecall } from './retrieval.js';
@@ -206,7 +206,12 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       const pks = doomed.map((r) => r.pk);
       let messages = 0;
       for (const pk of pks) {
-        db.prepare('UPDATE memory_notes SET source_session_pk = NULL WHERE source_session_pk = ?').run(pk);
+        db.prepare(
+          `UPDATE memory_notes SET
+             orphan_visibility = (SELECT visibility FROM sessions WHERE pk = memory_notes.source_session_pk),
+             source_session_pk = NULL
+           WHERE source_session_pk = ?`,
+        ).run(pk);
         db.prepare('UPDATE handoffs SET session_pk = NULL WHERE session_pk = ?').run(pk);
         db.prepare('DELETE FROM messages_fts WHERE session_pk = ?').run(pk);
         messages += db.prepare('DELETE FROM messages WHERE session_pk = ?').run(pk).changes;
@@ -354,7 +359,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
         member_name: row.member_name,
         updated_at: row.updated_at,
         matched: hit,
-        exact: hit === rel || hit.endsWith(`/${rel}`),
+        exact: filePathExact(hit, rel),
       });
     }
     // sort BEFORE trimming — an early break would let twenty fresh loose
@@ -526,7 +531,12 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     if (row.member_id !== member) return c.json({ error: 'you can only delete your own sessions' }, 403);
     db.transaction(() => {
       // drop the references first: memory notes and handoffs outlive the raw session
-      db.prepare('UPDATE memory_notes SET source_session_pk = NULL WHERE source_session_pk = ?').run(row.pk);
+      db.prepare(
+        `UPDATE memory_notes SET
+           orphan_visibility = (SELECT visibility FROM sessions WHERE pk = memory_notes.source_session_pk),
+           source_session_pk = NULL
+         WHERE source_session_pk = ?`,
+      ).run(row.pk);
       db.prepare('UPDATE handoffs SET session_pk = NULL WHERE session_pk = ?').run(row.pk);
       db.prepare('DELETE FROM messages_fts WHERE session_pk = ?').run(row.pk);
       db.prepare('DELETE FROM messages WHERE session_pk = ?').run(row.pk);
@@ -717,15 +727,15 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   // An entity's name and notes are distilled from sessions — they inherit the
   // visibility of their evidence. A note from a personal session reaches only
   // its owner, exactly as the session itself would.
-  const NOTE_VISIBLE = `(s.pk IS NULL OR s.visibility != 'personal' OR s.member_id = ?)`;
+  const NOTE_VISIBLE = `(COALESCE(s.visibility, n.orphan_visibility, 'team') != 'personal' OR COALESCE(s.member_id, n.member_id) = ?)`;
 
   app.get('/api/memory/entities', (c) => {
     const viewer = memberId(c) ?? -1;
     const rows = db
       .prepare(
         `SELECT e.id, e.kind, e.name, e.project_path,
-                SUM(CASE WHEN n.status = 'current' THEN 1 ELSE 0 END) AS current_notes,
-                SUM(CASE WHEN n.status = 'conflicted' THEN 1 ELSE 0 END) AS conflicts
+                SUM(CASE WHEN n.status = 'current' AND n.verification != 'retired' THEN 1 ELSE 0 END) AS current_notes,
+                SUM(CASE WHEN n.status = 'conflicted' AND n.verification != 'retired' THEN 1 ELSE 0 END) AS conflicts
          FROM memory_entities e
          JOIN memory_notes n ON n.entity_id = e.id
          LEFT JOIN sessions s ON s.pk = n.source_session_pk
@@ -813,7 +823,9 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       // 403, because even its existence is not this caller's to learn.
       const gate = db
         .prepare(
-          `SELECT s.visibility, s.member_id FROM memory_notes n
+          `SELECT COALESCE(s.visibility, n.orphan_visibility, 'team') AS visibility,
+                  COALESCE(s.member_id, n.member_id) AS member_id
+           FROM memory_notes n
            LEFT JOIN sessions s ON s.pk = n.source_session_pk WHERE n.id = ?`,
         )
         .get(noteId) as { visibility: string | null; member_id: number | null } | undefined;
@@ -834,7 +846,9 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       if (body.verdict === 'prefer' && loserId !== null) {
         const loserGate = db
           .prepare(
-            `SELECT s.visibility, s.member_id FROM memory_notes n
+            `SELECT COALESCE(s.visibility, n.orphan_visibility, 'team') AS visibility,
+                    COALESCE(s.member_id, n.member_id) AS member_id
+             FROM memory_notes n
              LEFT JOIN sessions s ON s.pk = n.source_session_pk WHERE n.id = ?`,
           )
           .get(loserId) as { visibility: string | null; member_id: number | null } | undefined;

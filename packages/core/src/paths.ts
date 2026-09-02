@@ -9,3 +9,12 @@ export function filePathMatches(stored: string, asked: string): boolean {
   const a = asked.replace(/\\/g, '/');
   return s === a || s.endsWith(`/${a}`) || a.endsWith(`/${s}`);
 }
+
+/** The stricter tier: the stored path IS the asked file, not merely a
+ * suffix-cousin from another tree. Same normalization as the matcher, so a
+ * Windows-stored path can rank exact too. */
+export function filePathExact(stored: string, asked: string): boolean {
+  const s = stored.replace(/\\/g, '/');
+  const a = asked.replace(/\\/g, '/');
+  return s === a || s.endsWith(`/${a}`);
+}
