@@ -93,6 +93,8 @@ export function registerDemo(program: Command): void {
         const server = createServer({ dbPath: path.join(dir, 'demo.db'), teamName: 'Motif Engineering' });
         const members = seedMembers(server.db);
         const you = members.byName.get('you')!;
+        // what a viewer sees for a seed handle: the display name, never the handle
+        const nm = (k: string) => members.byName.get(k)!.displayName;
         const port = Number(opts.port) || 4699;
         const listener = startServer(server, { port, hostname: '127.0.0.1' });
         await whenListening(listener);
@@ -131,7 +133,7 @@ export function registerDemo(program: Command): void {
             messageCount: s.turns.length * 2,
           });
           console.log(
-            `    ${s.member.padEnd(5)} · ${s.source === 'claude-code' ? 'Claude Code' : 'Codex      '}  ${title.slice(0, 62)}…`,
+            `    ${nm(s.member).padEnd(6)} · ${s.source === 'claude-code' ? 'Claude Code' : 'Codex      '}  ${title.slice(0, 62)}…`,
           );
           await beat(300);
         }
@@ -150,8 +152,12 @@ export function registerDemo(program: Command): void {
         });
         await beat(600);
         console.log('    ⚖️  CONFLICT, “redis outage policy”');
-        console.log('        ada, in the rate-limiting session:  the limiter fails OPEN  (cites ADR-014)');
-        console.log('        iris, writing the runbook:          ADR-014 as WRITTEN says fail CLOSED');
+        console.log(
+          `        ${nm('ada')}, in the rate-limiting session:  the limiter fails OPEN  (cites ADR-014)`,
+        );
+        console.log(
+          `        ${nm('iris')}, writing the runbook:          ADR-014 as WRITTEN says fail CLOSED`,
+        );
         console.log('        until someone rules, agents are shown BOTH sides with a warning.');
         console.log('        (a second one, on billing retry strategy, is still open in Review.)\n');
 

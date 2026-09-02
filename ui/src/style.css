@@ -1385,6 +1385,7 @@ h1.session-title {
 
 /* ── Weave: the record, drawn ────────────────────────── */
 .weave-wrap {
+  position: relative;
   height: calc(100vh - 170px);
   min-height: 480px;
   /* the dotted ground and the soft centre glow are static CSS, not redrawn
@@ -1641,6 +1642,7 @@ a.act:hover {
 
 /* ── Weave: the record, drawn ────────────────────────── */
 .weave-wrap {
+  position: relative;
   height: calc(100vh - 170px);
   min-height: 480px;
   /* the dotted ground and the soft centre glow are static CSS, not redrawn
@@ -1870,4 +1872,60 @@ a.act:hover {
 .sidebar .nav-item:nth-child(3),
 .sidebar .nav-item:nth-child(5) {
   margin-bottom: 10px;
+}
+
+/* Weave hover card: a light glass panel that names the knot under the cursor,
+   its confidence and how many ties it holds, so a dense weave stays readable. */
+.weave-card {
+  position: absolute;
+  z-index: 5;
+  width: 216px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 12px 28px -12px rgba(0, 0, 0, 0.28);
+  backdrop-filter: saturate(180%) blur(8px);
+  pointer-events: none;
+  animation: weave-card-in 0.12s ease-out;
+}
+@keyframes weave-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.weave-card-kind {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.weave-card-kind.decision {
+  color: var(--accent);
+}
+.weave-card-label {
+  margin: 3px 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text);
+}
+.weave-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 10px;
+  font-size: 11px;
+  color: var(--faint);
+}
+.weave-card-proj {
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--accent) 70%, var(--faint));
 }

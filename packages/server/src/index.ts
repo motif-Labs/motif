@@ -1083,15 +1083,39 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       );
     }
 
+    // The same concept seen in two projects ("redis dependency" in payments and
+    // in the runbooks) is two entity rows but one knot in the weave. Fold them
+    // onto a single canonical node, keyed by (kind, name), so the graph reads as
+    // ideas and their ties, not one dot per project. The concept's confidence is
+    // the strongest reading of it anywhere, and every edge is remapped to the
+    // canonical node, which naturally pulls the cross-project ties together.
+    const entityById = new Map(entities.map((e) => [e.id, e]));
+    const canonByKey = new Map<string, number>();
+    for (const e of entities) {
+      const key = `${e.kind} ${e.name}`;
+      const prev = canonByKey.get(key);
+      if (prev === undefined || e.id < prev) canonByKey.set(key, e.id);
+    }
+    const canon = new Map<number, number>();
+    for (const e of entities) canon.set(e.id, canonByKey.get(`${e.kind} ${e.name}`)!);
+    const confByCanon = new Map<number, number>();
+    for (const e of entities) {
+      const cid = canon.get(e.id)!;
+      confByCanon.set(cid, Math.max(confByCanon.get(cid) ?? 0, confByEntity.get(e.id) ?? 0.5));
+    }
+
     const nodes = [
-      ...entities.map((e) => ({
-        id: `e${e.id}`,
-        type: 'entity' as const,
-        kind: e.kind,
-        label: e.name,
-        project: e.project_path,
-        confidence: confByEntity.get(e.id) ?? 0.5,
-      })),
+      ...[...canonByKey.values()].map((cid) => {
+        const e = entityById.get(cid)!;
+        return {
+          id: `e${cid}`,
+          type: 'entity' as const,
+          kind: e.kind,
+          label: e.name,
+          project: e.project_path,
+          confidence: confByCanon.get(cid) ?? 0.5,
+        };
+      }),
       ...sessions.map((x) => ({
         id: `s${x.pk}`,
         type: 'session' as const,
@@ -1104,8 +1128,17 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     ];
 
     const edges: { a: string; b: string; kind: string }[] = [];
+    const seen = new Set<string>();
+    const addEdge = (a: string, b: string, kind: string): void => {
+      if (a === b) return;
+      const key = a < b ? `${a}|${b}|${kind}` : `${b}|${a}|${kind}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      edges.push({ a, b, kind });
+    };
 
-    // session → entity (a session produced a note about it)
+    // session → entity (a session produced a note about it). A conflicted note
+    // makes the tie a 'contests' one, and that reading wins over a plain inform.
     const links = db
       .prepare(
         `SELECT DISTINCT n.entity_id, n.source_session_pk AS pk, n.status
@@ -1113,14 +1146,17 @@ export function createServer(config: ServerConfig = {}): MotifServer {
          WHERE n.source_session_pk IS NOT NULL AND n.verification != 'retired' AND ${vis}`,
       )
       .all(viewer) as { entity_id: number; pk: number; status: string }[];
+    const sePair = new Map<string, 'informs' | 'contests'>();
     for (const l of links) {
-      if (liveSessions.has(l.pk)) {
-        edges.push({
-          a: `s${l.pk}`,
-          b: `e${l.entity_id}`,
-          kind: l.status === 'conflicted' ? 'contests' : 'informs',
-        });
-      }
+      if (!liveSessions.has(l.pk) || !canon.has(l.entity_id)) continue;
+      const key = `s${l.pk}|e${canon.get(l.entity_id)}`;
+      const kind = l.status === 'conflicted' ? 'contests' : 'informs';
+      if (sePair.get(key) === 'contests') continue;
+      sePair.set(key, kind);
+    }
+    for (const [key, kind] of sePair) {
+      const [a, b] = key.split('|');
+      if (a && b) addEdge(a, b, kind);
     }
 
     // two entities a single session both informed are related, this is the
@@ -1141,7 +1177,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     const liveEntities = new Set(entities.map((e) => e.id));
     for (const l of cooccur) {
       if (liveEntities.has(l.ea) && liveEntities.has(l.eb)) {
-        edges.push({ a: `e${l.ea}`, b: `e${l.eb}`, kind: 'relates' });
+        addEdge(`e${canon.get(l.ea)}`, `e${canon.get(l.eb)}`, 'relates');
       }
     }
 
@@ -1155,7 +1191,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       .all() as { a: number; b: number }[];
     for (const l of lineage) {
       if (liveSessions.has(l.a) && liveSessions.has(l.b)) {
-        edges.push({ a: `s${l.a}`, b: `s${l.b}`, kind: 'continues' });
+        addEdge(`s${l.a}`, `s${l.b}`, 'continues');
       }
     }
 

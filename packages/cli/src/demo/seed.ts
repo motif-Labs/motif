@@ -306,13 +306,28 @@ const SESSIONS: SeedSession[] = [
 export { SESSIONS };
 
 export interface DemoMembers {
-  byName: Map<string, { memberId: number; memberToken: string }>;
+  byName: Map<string, { memberId: number; memberToken: string; displayName: string }>;
 }
 
 export function seedMembers(db: Db): DemoMembers {
-  const byName = new Map<string, { memberId: number; memberToken: string }>();
-  for (const name of ['ada', 'ben', 'cleo', 'iris', 'omar', 'nora', 'you']) {
-    byName.set(name, registerMember(db, { name, email: `${name}@example.com` }));
+  const byName = new Map<string, { memberId: number; memberToken: string; displayName: string }>();
+  // The seed keys stay stable ('ada', 'ben', …) so the rest of this file can
+  // address a member by a short handle. What a viewer sees on screen is the
+  // display name below. The one running the demo can put their own name on the
+  // 'you' seat for a recording, without a real name ever entering the repo:
+  //   MOTIF_DEMO_ME="Robin (you)" motif demo
+  const display: Record<string, string> = {
+    ada: 'Maya',
+    ben: 'Leo',
+    cleo: 'Priya',
+    iris: 'Sofia',
+    omar: 'Diego',
+    nora: 'Nina',
+    you: process.env.MOTIF_DEMO_ME?.trim() || 'you',
+  };
+  for (const [key, name] of Object.entries(display)) {
+    const reg = registerMember(db, { name, email: `${key}@example.com` });
+    byName.set(key, { ...reg, displayName: name });
   }
   return { byName };
 }

@@ -6,6 +6,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-09-02
+
+### Changed
+
+- **The Weave reads more clearly.** The same concept seen in two projects is
+  now one knot, not two, so cross-project ties pull together instead of
+  doubling. Decisions carry a label at rest; files, topics and sessions reveal
+  theirs on hover, each on a soft pill so a dense weave stays legible.
+
+### Added
+
+- **A hover card on the Weave.** Point at any node for its kind, confidence and
+  how many ties it holds, without leaving the graph.
+
 ## [1.3.1] - 2026-09-02
 
 ## [1.3.0], 2026-09-02

@@ -79,7 +79,13 @@ sessions to your server as they happen, attributed to the person and the tool
 that produced them. Nothing leaves your infrastructure, and there is no telemetry.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/motif-Labs/motif/main/docs/assets/dashboard.png" alt="The dashboard: every member's sessions across Claude Code and Codex, on one timeline" width="880" />
+  <img src="https://raw.githubusercontent.com/motif-Labs/motif/main/docs/assets/overview.png" alt="The Overview: the team's week of sessions, the decisions it produced, and what still needs a human" width="880" />
+</p>
+
+<p align="center"><sub>The whole team's memory at a glance: the week's activity, the latest decisions, and what needs a human.</sub></p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/motif-Labs/motif/main/docs/assets/dashboard.png" alt="Every member's sessions across Claude Code and Codex, on one timeline" width="880" />
 </p>
 
 Joining a team shares nothing by default, everything uploads as `personal` until
@@ -176,7 +182,13 @@ that informs an entity, a note that contests another, a handoff lineage). It is
 the same graph recall walks to answer in ~1.5k tokens instead of the whole
 history, now visible. Two entities a single session both touched are drawn as
 **related**, so decisions and the files and topics they shaped form one causal
-weave, and each entity is sized by its confidence.
+weave, and each entity is sized by its confidence. The same idea seen in two
+projects is one knot, not two, so cross-project ties pull together. Hover any
+node for its kind, confidence and how many ties it holds.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/motif-Labs/motif/main/docs/assets/weave.png" alt="The Weave: a team's decisions, files and sessions drawn as one graph, with a hovered node showing its confidence and ties" width="880" />
+</p>
 
 ### Verify
 

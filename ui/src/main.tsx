@@ -1265,6 +1265,8 @@ interface GNode {
   label: string;
   project: string;
   confidence?: number;
+  sessionId?: string;
+  memberId?: number;
   x?: number;
   y?: number;
   vx?: number;
@@ -1449,6 +1451,7 @@ function WeavePage() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [data, setData] = useState<{ nodes: GNode[]; edges: GEdge[] } | null>(null);
   const hoverRef = useRef<string | null>(null);
+  const [preview, setPreview] = useState<{ node: GNode; ties: number; x: number; y: number } | null>(null);
 
   useEffect(() => {
     api<{ nodes: GNode[]; edges: GEdge[] }>('/api/graph')
@@ -1497,11 +1500,14 @@ function WeavePage() {
       n.vy = 0;
     });
 
-    const ink = getComputedStyle(document.body).getPropertyValue('--text').trim();
-    const faint = getComputedStyle(document.body).getPropertyValue('--faint').trim();
-    const border = getComputedStyle(document.body).getPropertyValue('--border').trim();
-    const accent = getComputedStyle(document.body).getPropertyValue('--accent').trim();
-    const red = getComputedStyle(document.body).getPropertyValue('--red').trim();
+    const cssVar = (name: string) => getComputedStyle(document.body).getPropertyValue(name).trim();
+    const ink = cssVar('--text');
+    const faint = cssVar('--faint');
+    const border = cssVar('--border');
+    const accent = cssVar('--accent');
+    const red = cssVar('--red');
+    const panel = cssVar('--panel');
+    const muted = cssVar('--muted') || faint;
 
     const step = () => {
       // repulsion
@@ -1607,12 +1613,32 @@ function WeavePage() {
           ctx.arc(n.x!, n.y!, active ? 3.6 : 2.8, 0, Math.PI * 2);
           ctx.fill();
         }
-        if (n.id === hov || (!hov && n.type === 'entity')) {
-          ctx.globalAlpha = dim ? 0.25 : 0.9;
-          ctx.fillStyle = faint;
-          ctx.font = '11px -apple-system, sans-serif';
+        // Labels earn their space: decisions (the load-bearing knots) carry one
+        // at rest; files, topics and sessions reveal theirs on hover or when
+        // they neighbour the hovered node. A soft pill keeps each one legible
+        // where the weave is dense. Full detail lives in the hover card.
+        const showLabel = active || (!hov && n.type === 'entity' && n.kind === 'decision');
+        if (showLabel) {
           const t = n.label.length > 30 ? n.label.slice(0, 30) + '…' : n.label;
-          if (n.type === 'entity' || n.id === hov) ctx.fillText(t, n.x! + 9, n.y! + 3);
+          const isDecision = n.type === 'entity' && n.kind === 'decision';
+          ctx.font = `${isDecision ? '600 ' : ''}11px -apple-system, system-ui, sans-serif`;
+          const tx = n.x! + (n.type === 'entity' ? 10 : 8);
+          const ty = n.y! + 3.5;
+          const w = ctx.measureText(t).width;
+          ctx.globalAlpha = dim ? 0.25 : 1;
+          ctx.fillStyle = panel;
+          const pill = () => {
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(tx - 4, ty - 10, w + 8, 15, 4);
+            else ctx.rect(tx - 4, ty - 10, w + 8, 15);
+            ctx.fill();
+          };
+          const prevA = ctx.globalAlpha;
+          ctx.globalAlpha = dim ? 0.2 : 0.82;
+          pill();
+          ctx.globalAlpha = prevA;
+          ctx.fillStyle = n.type === 'entity' ? ink : muted;
+          ctx.fillText(t, tx, ty);
         }
       }
       ctx.globalAlpha = 1;
@@ -1667,7 +1693,15 @@ function WeavePage() {
       const changed = (hit?.id ?? null) !== hoverRef.current;
       hoverRef.current = hit?.id ?? null;
       canvas.style.cursor = hit ? 'pointer' : 'default';
-      if (changed) wake();
+      if (changed) {
+        setPreview(hit ? { node: hit, ties: adj.get(hit.id)?.size ?? 0, x: hit.x!, y: hit.y! } : null);
+        wake();
+      }
+    };
+    const onLeave = () => {
+      hoverRef.current = null;
+      setPreview(null);
+      wake();
     };
     const onClick = (ev: MouseEvent) => {
       const r = canvas.getBoundingClientRect();
@@ -1677,12 +1711,14 @@ function WeavePage() {
         location.hash = `#/sessions/${encodeURIComponent(hit.sessionId)}`;
     };
     canvas.addEventListener('mousemove', onMove);
+    canvas.addEventListener('mouseleave', onLeave);
     canvas.addEventListener('click', onClick);
 
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', onResize);
       canvas.removeEventListener('mousemove', onMove);
+      canvas.removeEventListener('mouseleave', onLeave);
       canvas.removeEventListener('click', onClick);
     };
   }, [data]);
@@ -1718,9 +1754,42 @@ function WeavePage() {
           </div>
           <div class="weave-wrap">
             <canvas ref={canvasRef} class="weave-canvas" />
+            {preview && <WeaveCard {...preview} />}
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function weaveConfidenceLabel(c: number): string {
+  if (c >= 0.75) return 'well supported';
+  if (c >= 0.55) return 'holding';
+  if (c >= 0.4) return 'thin';
+  return 'in question';
+}
+
+function WeaveCard({ node, ties, x, y }: { node: GNode; ties: number; x: number; y: number }) {
+  const isEntity = node.type === 'entity';
+  const kindLabel = isEntity ? node.kind : `${node.kind} session`;
+  // clamp the card inside the canvas so it never spills off the right edge
+  const left = `min(${Math.round(x + 16)}px, calc(100% - 232px))`;
+  const top = `min(${Math.round(y + 14)}px, calc(100% - 96px))`;
+  return (
+    <div class="weave-card" style={{ left, top }}>
+      <div class={`weave-card-kind ${isEntity && node.kind === 'decision' ? 'decision' : ''}`}>
+        {kindLabel}
+      </div>
+      <div class="weave-card-label">{node.label}</div>
+      <div class="weave-card-meta">
+        {isEntity && typeof node.confidence === 'number' && (
+          <span>{weaveConfidenceLabel(node.confidence)}</span>
+        )}
+        <span>
+          {ties} {ties === 1 ? 'tie' : 'ties'}
+        </span>
+        {node.project && <span class="weave-card-proj">{node.project.split('/').pop()}</span>}
+      </div>
     </div>
   );
 }
