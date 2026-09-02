@@ -193,10 +193,6 @@ and why. Recall serves the outcome: retired notes disappear, human-verified
 ones outrank machine-only ones, and an unresolved conflict is shown to agents
 with both sides and a warning, never as one quiet wrong answer.
 
-Set `MOTIF_WEBHOOK_URL` and the server tells a channel the moment a new
-conflict lands, plus a daily digest while anything still waits — the payload's
-`text` field renders as-is in a Slack incoming webhook.
-
 ### 06 · Move — any agent, any teammate
 
 None of this asks anyone to change tools. A session started in one agent continues

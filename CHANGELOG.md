@@ -31,9 +31,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   old, drawn from the team server and this machine's own history. Attribution
   is inferred from what sessions recorded about themselves, and personal
   sessions stay out of a stranger's blame.
-- **Webhooks.** With `MOTIF_WEBHOOK_URL` set, the server POSTs when memory
-  catches a new conflict and digests the open queue daily; the `text` field
-  renders as-is in a Slack incoming webhook.
 
 ### Fixed
 

@@ -11,7 +11,6 @@ import { ensureTeamToken, openDb, type Db } from './db/database.js';
 import { LiveBus } from './live/bus.js';
 import { recall, renderRecall } from './retrieval.js';
 import { applyVerdict, listReviewQueue } from './memory/review.js';
-import { startWebhooks } from './webhooks.js';
 import {
   claimWeaverJob,
   completeWeaverJob,
@@ -56,8 +55,6 @@ export interface ServerConfig {
   token?: string;
   /** Shown in the dashboard breadcrumb; persisted on first set (env: MOTIF_TEAM_NAME). */
   teamName?: string;
-  /** POST target for conflict pings and the daily review digest (env: MOTIF_WEBHOOK_URL). */
-  webhookUrl?: string;
 }
 
 export interface MotifServer {
@@ -78,10 +75,6 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   const db = openDb(config.dbPath ?? defaultDbPath());
   const token = ensureTeamToken(db, config.token ?? process.env.MOTIF_TOKEN);
   const bus = new LiveBus();
-  // one URL, told what matters: new conflicts as they land, a daily digest of
-  // what still waits. The text field renders as-is in a Slack incoming webhook.
-  const webhookUrl = config.webhookUrl ?? process.env.MOTIF_WEBHOOK_URL;
-  if (webhookUrl) startWebhooks(db, bus, webhookUrl);
   const app = new Hono();
 
   const explicitTeamName = config.teamName ?? process.env.MOTIF_TEAM_NAME;
@@ -1058,7 +1051,6 @@ export {
   type ReviewItem,
   type ReviewNote,
 } from './memory/review.js';
-export { startWebhooks, type WebhookOptions } from './webhooks.js';
 export {
   claimWeaverJob,
   completeWeaverJob,
