@@ -79,6 +79,25 @@ export function registerWeaver(program: Command): void {
     });
 
   weaver
+    .command('resolve <jobId> <fate>')
+    .description('Record a Weaver PR’s fate (merged | closed) — a closed ruling-fix reopens the ruling')
+    .action(async (jobId: string, fate: string) => {
+      if (fate !== 'merged' && fate !== 'closed') {
+        console.error('fate must be: merged | closed');
+        process.exitCode = 1;
+        return;
+      }
+      const cfg = loadConfig();
+      requireConnection(cfg);
+      const client = new MotifClient({ serverUrl: cfg.serverUrl, token: cfg.memberToken });
+      const { reopenedNote } = await client.resolveWeaverJob(Number(jobId), fate);
+      console.log(`Recorded: #${jobId} ${fate}.`);
+      if (reopenedNote) {
+        console.log('That fix came from a ruling, and it was closed — the ruling is back in review.');
+      }
+    });
+
+  weaver
     .command('status')
     .description('What the Weaver has woven, and what still waits')
     .option('--json', 'machine-readable output')

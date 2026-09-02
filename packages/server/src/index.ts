@@ -18,6 +18,7 @@ import {
   createWeaverJob,
   findRegressionGaps,
   listWeaverJobs,
+  resolveWeaverJob,
   type WeaverPayload,
 } from './weaver.js';
 import {
@@ -783,6 +784,21 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     return c.json({ job });
   });
 
+  app.post('/api/weaver/jobs/:id/resolve', async (c) => {
+    if (memberId(c) === undefined) return c.json({ error: 'a member token is required' }, 403);
+    const body = (await c.req.json().catch(() => ({}))) as { resolution?: string };
+    if (body.resolution !== 'merged' && body.resolution !== 'closed') {
+      return c.json({ error: 'resolution must be merged | closed' }, 400);
+    }
+    const out = resolveWeaverJob(db, Number(c.req.param('id')), body.resolution);
+    if (!out) return c.json({ error: 'no such job' }, 404);
+    if (out.reopenedNoteId) {
+      // a ruling's fix was rejected — the ruling is back in doubt
+      bus.publish('memory-reviewed', { noteId: out.reopenedNoteId, verdict: 'disputed', reviewerId: -1 });
+    }
+    return c.json({ job: out.job, reopenedNote: out.reopenedNoteId ?? null });
+  });
+
   app.get('/api/weaver/jobs', (c) => {
     const status = c.req.query('status') as 'pending' | 'running' | 'done' | 'error' | undefined;
     return c.json({ jobs: listWeaverJobs(db, status) });
@@ -1061,7 +1077,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
             winnerSessionId: note.session_id,
             loserSessionId: loser.session_id,
           };
-          const job = createWeaverJob(db, note.project_path, payload);
+          const job = createWeaverJob(db, note.project_path, payload, note.id);
           bus.publish('weaver-job', { jobId: job.id, projectPath: job.project_path });
         }
       }
@@ -1243,6 +1259,7 @@ export {
   findRegressionGaps,
   listWeaverJobs,
   requeueStaleClaims,
+  resolveWeaverJob,
   type RegressionGap,
   type WeaverJobRow,
   type WeaverPayload,

@@ -97,6 +97,13 @@ export class MotifClient {
     return this.request('POST', '/api/weaver/gaps/queue', { file, project });
   }
 
+  async resolveWeaverJob(
+    id: number,
+    resolution: 'merged' | 'closed',
+  ): Promise<{ job: WeaverJobDto; reopenedNote: number | null }> {
+    return this.request('POST', `/api/weaver/jobs/${id}/resolve`, { resolution });
+  }
+
   async listWeaverJobs(status?: string): Promise<{ jobs: WeaverJobDto[] }> {
     return this.request('GET', `/api/weaver/jobs${status ? `?status=${status}` : ''}`);
   }

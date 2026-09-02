@@ -264,6 +264,15 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_weaver_status ON weaver_jobs(status, created_at);
   `,
+  // v12 — close the loop. A Weaver PR has a fate (merged or closed), and that
+  // fate is a signal: a ruling's fix that gets rejected means the ruling may be
+  // wrong. The job remembers which note it came from, so resolving it can feed
+  // the outcome back into memory.
+  `
+  ALTER TABLE weaver_jobs ADD COLUMN resolution TEXT
+    CHECK (resolution IN ('merged','closed') OR resolution IS NULL);
+  ALTER TABLE weaver_jobs ADD COLUMN source_note_id INTEGER REFERENCES memory_notes(id);
+  `,
   // v11 — a note must not become MORE visible because its evidence was
   // deleted. Deleting or purging a session used to null the note's session
   // link, and every visibility predicate treated "no session" as team-visible:

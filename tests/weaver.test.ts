@@ -334,3 +334,52 @@ describe('regression gaps — the record sees an untested fix', () => {
     expect(gaps[0]!.changeKind).toBe('fix');
   });
 });
+
+import { resolveWeaverJob, applyVerdict as applyVerdict2 } from '@motif/server';
+
+describe('the loop closes: a rejected ruling-fix reopens the ruling', () => {
+  let tmp3: string;
+  let db3: import('@motif/server').Db;
+  beforeEach(() => {
+    tmp3 = fs.mkdtempSync(path.join(os.tmpdir(), 'motif-loop-'));
+    db3 = openDb2(path.join(tmp3, 'db.sqlite'));
+  });
+  afterEach(() => {
+    db3.close();
+    fs.rmSync(tmp3, { recursive: true, force: true });
+  });
+
+  it('a merged fix records its fate and leaves memory alone; a closed one disputes the note', () => {
+    const m = registerMember2(db3, { name: 'ada' }).memberId;
+    applyNotes(db3, [{ entity: { kind: 'decision', name: 'x' }, aspect: 'a', body: 'the ruled claim' }], {
+      projectPath: '/workspace/app',
+      sessionPk: null,
+      memberId: m,
+    });
+    const note = db3.prepare("SELECT id FROM memory_notes WHERE body = 'the ruled claim'").get() as {
+      id: number;
+    };
+    applyVerdict2(db3, { noteId: note.id, reviewerId: m, verdict: 'confirm' });
+
+    const merged = createWeaverJob(db3, '/workspace/app', PAYLOAD, note.id);
+    resolveWeaverJob(db3, merged.id, 'merged');
+    expect(
+      (
+        db3.prepare('SELECT verification FROM memory_notes WHERE id = ?').get(note.id) as {
+          verification: string;
+        }
+      ).verification,
+    ).toBe('verified'); // merge confirms; nothing reopens
+
+    const closed = createWeaverJob(db3, '/workspace/app', PAYLOAD, note.id);
+    const out = resolveWeaverJob(db3, closed.id, 'closed');
+    expect(out!.reopenedNoteId).toBe(note.id);
+    expect(
+      (
+        db3.prepare('SELECT verification FROM memory_notes WHERE id = ?').get(note.id) as {
+          verification: string;
+        }
+      ).verification,
+    ).toBe('disputed'); // the world rejected the fix — the ruling is in doubt again
+  });
+});

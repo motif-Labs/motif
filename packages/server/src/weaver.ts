@@ -50,6 +50,8 @@ export interface WeaverJobRow {
   claimed_by: number | null;
   pr_url: string | null;
   result: string | null;
+  resolution: 'merged' | 'closed' | null;
+  source_note_id: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -143,15 +145,55 @@ export function findRegressionGaps(db: Db, project?: string): RegressionGap[] {
   return gaps;
 }
 
-export function createWeaverJob(db: Db, projectPath: string, payload: WeaverPayload): WeaverJobRow {
+export function createWeaverJob(
+  db: Db,
+  projectPath: string,
+  payload: WeaverPayload,
+  sourceNoteId?: number,
+): WeaverJobRow {
   const now = new Date().toISOString();
   const id = db
     .prepare(
-      `INSERT INTO weaver_jobs (project_path, payload, status, created_at, updated_at)
-       VALUES (?, ?, 'pending', ?, ?)`,
+      `INSERT INTO weaver_jobs (project_path, payload, status, source_note_id, created_at, updated_at)
+       VALUES (?, ?, 'pending', ?, ?, ?)`,
     )
-    .run(projectPath, JSON.stringify(payload), now, now).lastInsertRowid as number;
+    .run(projectPath, JSON.stringify(payload), sourceNoteId ?? null, now, now).lastInsertRowid as number;
   return db.prepare('SELECT * FROM weaver_jobs WHERE id = ?').get(id) as WeaverJobRow;
+}
+
+/**
+ * The loop closes here. A Weaver PR's fate is a fact about the world: a fix
+ * that was merged confirms the change; a fix born from a ruling that gets
+ * CLOSED is evidence the ruling may have been wrong, so the note it came from
+ * is flagged disputed and returns to the review queue. The record learns from
+ * what its own hands produced.
+ */
+export function resolveWeaverJob(
+  db: Db,
+  id: number,
+  resolution: 'merged' | 'closed',
+): { job: WeaverJobRow; reopenedNoteId?: number } | undefined {
+  const job = db.prepare('SELECT * FROM weaver_jobs WHERE id = ?').get(id) as WeaverJobRow | undefined;
+  if (!job) return undefined;
+  db.prepare('UPDATE weaver_jobs SET resolution = ?, updated_at = ? WHERE id = ?').run(
+    resolution,
+    new Date().toISOString(),
+    id,
+  );
+  let reopenedNoteId: number | undefined;
+  if (resolution === 'closed' && job.source_note_id) {
+    const note = db
+      .prepare("SELECT id, verification FROM memory_notes WHERE id = ? AND verification = 'verified'")
+      .get(job.source_note_id) as { id: number } | undefined;
+    if (note) {
+      db.prepare("UPDATE memory_notes SET verification = 'disputed' WHERE id = ?").run(note.id);
+      reopenedNoteId = note.id;
+    }
+  }
+  return {
+    job: db.prepare('SELECT * FROM weaver_jobs WHERE id = ?').get(id) as WeaverJobRow,
+    reopenedNoteId,
+  };
 }
 
 /** A claim is a lease, not a deed. A daemon that died mid-weave must not
