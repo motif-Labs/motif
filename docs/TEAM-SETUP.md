@@ -116,7 +116,7 @@ with the team token, re-run `connect`.
 |                                            | team token | member token |
 | ------------------------------------------ | ---------- | ------------ |
 | read team-visible sessions, search, recall | yes        | yes          |
-| register a new machine                     | yes        |,            |
+| register a new machine                     | yes        | ,            |
 | upload sessions                            | no         | yes          |
 | hand off, ask, pin notes                   | no         | yes          |
 | see their own personal sessions            | no         | yes          |

@@ -135,11 +135,11 @@ meant to open a dashboard. One command registers Motif with all three:
 motif mcp install
 ```
 
-| tool                                | what it does                                                                |
-| ----------------------------------- | --------------------------------------------------------------------------- |
+| tool                                | what it does                                                               |
+| ----------------------------------- | -------------------------------------------------------------------------- |
 | `recall`                            | the distilled answer, decisions, human notes, cited excerpts, ~1.5k tokens |
-| `search_sessions` · `list_sessions` | find the session                                                            |
-| `get_session`                       | read a transcript                                                           |
+| `search_sessions` · `list_sessions` | find the session                                                           |
+| `get_session`                       | read a transcript                                                          |
 | `ask_session`                       | **put a question to a past session**, the agent that lived it answers      |
 
 `ask_session` is the unusual one: your Claude Code agent can question a Codex
@@ -314,12 +314,12 @@ its own daemon. Full model in [SECURITY.md](SECURITY.md).
 | --------- | --------------------------------------------------------------------------------------- |
 | Runtime   | one process, one SQLite file, default port `4680`                                       |
 | Footprint | ≈57 MB resident for server and daemon combined, ≈14 MB database at 130 sessions         |
-| Network   | no telemetry, no account, no API key, nothing leaves the machine until you connect     |
+| Network   | no telemetry, no account, no API key, nothing leaves the machine until you connect      |
 | Redaction | on by default, 10 patterns, applied before upload                                       |
-| Retrieval | deterministic, FTS5 + the session graph + pinned notes, no embeddings                  |
+| Retrieval | deterministic, FTS5 + the session graph + pinned notes, no embeddings                   |
 | Tests     | 74, CI on Linux, macOS and Windows across Node 22 and 24                                |
 | Package   | [`getmotif`](https://www.npmjs.com/package/getmotif), published from CI with provenance |
-| Licence   | Apache-2.0 in full, no license key, no feature flags, no member limits                 |
+| Licence   | Apache-2.0 in full, no license key, no feature flags, no member limits                  |
 
 ## Command reference
 
@@ -366,7 +366,7 @@ its own daemon. Full model in [SECURITY.md](SECURITY.md).
 | -------------------------------------- | ------------------------------------------------- |
 | `motif memory review`                  | everything waiting for a human, evidence cited    |
 | `motif memory prefer <id> --over <id>` | resolve a conflict; the loser is kept, superseded |
-| `motif memory confirm <id>`            | vouch for a claim, it outranks machine-only ones |
+| `motif memory confirm <id>`            | vouch for a claim, it outranks machine-only ones  |
 | `motif memory retire <id>`             | out of recall, still in the record                |
 | `motif demo`                           | an invented team to try all of this on            |
 
