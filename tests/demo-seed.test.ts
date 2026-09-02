@@ -32,7 +32,8 @@ describe('the built-in demo seed', () => {
 
     const queue = listReviewQueue(db, undefined);
     const types = queue.map((i) => i.type).sort();
-    expect(types).toEqual(['conflict', 'stale']);
+    // two open disagreements now (ADR-014 and billing retry) plus the stale note
+    expect(types).toEqual(['conflict', 'conflict', 'stale']);
 
     // the conflict shows both sides, each citing its session
     const conflict = queue.find((i) => i.type === 'conflict')!;
