@@ -1465,6 +1465,10 @@ function WeavePage() {
     const ctx = canvas.getContext('2d')!;
     const dpr = window.devicePixelRatio || 1;
     let raf = 0;
+    // a node held by the cursor: pinned there, physics lets go of it while the
+    // rest of the weave keeps reacting. dragMoved tells a real drag from a click.
+    let dragging: GNode | null = null;
+    let dragMoved = false;
     let alpha = 1;
 
     const resize = () => {
@@ -1544,6 +1548,13 @@ function WeavePage() {
       }
       // centre pull + integrate
       for (const n of nodes) {
+        if (n === dragging) {
+          // held by the cursor: no forces move it, but zero its velocity so it
+          // does not fling when released
+          n.vx = 0;
+          n.vy = 0;
+          continue;
+        }
         n.vx! += (W() / 2 - n.x!) * 0.002;
         n.vy! += (H() / 2 - n.y!) * 0.002;
         n.vx! *= 0.86;
@@ -1654,7 +1665,7 @@ function WeavePage() {
         lastHover = hoverRef.current;
         settleGuard = 0;
       }
-      const moving = alpha > 0.015;
+      const moving = alpha > 0.015 || !!dragging;
       if (moving) {
         step();
         settleGuard = 0;
@@ -1687,37 +1698,79 @@ function WeavePage() {
       }
       return best;
     };
-    const onMove = (ev: MouseEvent) => {
+    const at = (ev: MouseEvent): [number, number] => {
       const r = canvas.getBoundingClientRect();
-      const hit = pick(ev.clientX - r.left, ev.clientY - r.top);
+      return [ev.clientX - r.left, ev.clientY - r.top];
+    };
+    const onDown = (ev: MouseEvent) => {
+      const [mx, my] = at(ev);
+      const hit = pick(mx, my);
+      if (!hit) return;
+      dragging = hit;
+      dragMoved = false;
+      hoverRef.current = hit.id;
+      canvas.style.cursor = 'grabbing';
+      ev.preventDefault(); // do not start a text selection on the page
+    };
+    const onMove = (ev: MouseEvent) => {
+      const [mx, my] = at(ev);
+      if (dragging) {
+        // pin the node to the cursor and keep the weave lively so its ties follow
+        dragging.x = mx;
+        dragging.y = my;
+        dragging.vx = 0;
+        dragging.vy = 0;
+        dragMoved = true;
+        alpha = Math.max(alpha, 0.3);
+        setPreview({ node: dragging, ties: adj.get(dragging.id)?.size ?? 0, x: mx, y: my });
+        wake();
+        return;
+      }
+      const hit = pick(mx, my);
       const changed = (hit?.id ?? null) !== hoverRef.current;
       hoverRef.current = hit?.id ?? null;
-      canvas.style.cursor = hit ? 'pointer' : 'default';
+      canvas.style.cursor = hit ? 'grab' : 'default';
       if (changed) {
         setPreview(hit ? { node: hit, ties: adj.get(hit.id)?.size ?? 0, x: hit.x!, y: hit.y! } : null);
         wake();
       }
     };
+    const onUp = () => {
+      if (!dragging) return;
+      canvas.style.cursor = 'grab';
+      dragging = null;
+      alpha = Math.max(alpha, 0.15); // let the neighbours resettle
+      wake();
+    };
     const onLeave = () => {
+      if (dragging) return; // keep dragging even if the cursor grazes the edge
       hoverRef.current = null;
       setPreview(null);
       wake();
     };
     const onClick = (ev: MouseEvent) => {
-      const r = canvas.getBoundingClientRect();
-      const hit = pick(ev.clientX - r.left, ev.clientY - r.top);
+      if (dragMoved) {
+        dragMoved = false;
+        return; // a drag is not a navigation
+      }
+      const [mx, my] = at(ev);
+      const hit = pick(mx, my);
       if (hit?.type === 'entity') location.hash = `#/memory/${hit.id.slice(1)}`;
       if (hit?.type === 'session' && hit.sessionId)
         location.hash = `#/sessions/${encodeURIComponent(hit.sessionId)}`;
     };
-    canvas.addEventListener('mousemove', onMove);
+    canvas.addEventListener('mousedown', onDown);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
     canvas.addEventListener('mouseleave', onLeave);
     canvas.addEventListener('click', onClick);
 
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', onResize);
-      canvas.removeEventListener('mousemove', onMove);
+      canvas.removeEventListener('mousedown', onDown);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
       canvas.removeEventListener('mouseleave', onLeave);
       canvas.removeEventListener('click', onClick);
     };

@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-09-02
+
+### Added
+
+- **Drag a node in the Weave.** Grab any knot and the graph follows: its ties
+  stretch with it and the rest of the weave resettles when you let go.
+
 ## [1.3.2] - 2026-09-02
 
 ### Changed
