@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Please do not report a security problem here — use
+        Please do not report a security problem here, use
         [private reporting](https://github.com/motif-Labs/motif/security/advisories/new)
         instead, as described in [SECURITY.md](../blob/main/SECURITY.md).
 

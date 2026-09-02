@@ -107,7 +107,7 @@ describe('answering a question only ever resumes our own session', () => {
   it('rejects a transcript path outside the agent directories', () => {
     // The check was `fs.existsSync(sourcePath)`, which is true of any file that
     // happens to exist. A teammate can upload a session row, so that let them
-    // choose which path the resume pointed at — and the working directory.
+    // choose which path the resume pointed at, and the working directory.
     const base: MotifSession = {
       ...readClaudeSession(path.join(root, 'fixtures', 'claude-code', 'minimal.jsonl')),
       source: 'claude-code',
@@ -170,7 +170,7 @@ describe('a handoff writes only where it is supposed to', () => {
 describe('a handoff delivered by a teammate', () => {
   it('is not refused by the "you already have this" guard', () => {
     // The guard tests whether the rollout path exists locally. A delivery from
-    // a teammate exists precisely because the session is not here — and two
+    // a teammate exists precisely because the session is not here, and two
     // people sharing a directory layout made the test fire falsely, so the
     // handoff never landed and the sender was told it was on its way.
     const session = readClaudeSession(path.join(root, 'fixtures', 'claude-code', 'minimal.jsonl'));
@@ -195,7 +195,7 @@ describe('a handoff delivered by a teammate', () => {
 describe('a busy port', () => {
   it('explains itself instead of throwing an unhandled listen error', () => {
     // `npx getmotif up` on a machine where 4680 was taken printed a raw Node
-    // stack trace — the first thing a new user saw.
+    // stack trace, the first thing a new user saw.
     const ours = listenErrorMessage(4680, 'EADDRINUSE', true);
     expect(ours).toContain('Motif is already running');
     expect(ours).toContain('motif ui');
@@ -298,8 +298,8 @@ describe('http api', () => {
   });
 
   it('applies a scope change on re-sync, but never undoes a hand-made one', async () => {
-    // `motif projects team <path>` did nothing to sessions already synced —
-    // which is all of them — because visibility was frozen after INSERT.
+    // `motif projects team <path>` did nothing to sessions already synced,
+    // which is all of them, because visibility was frozen after INSERT.
     const me = registerMember(server.db, { name: 'dana', email: 'dana@example.com' });
     const base = {
       source: 'claude-code' as const,
@@ -425,7 +425,7 @@ describe('http api', () => {
   });
 
   // `motif doctor` used to ask the server who you are and, when the server was
-  // simply off, report "member identity" as missing — sending someone to mint a
+  // simply off, report "member identity" as missing, sending someone to mint a
   // second identity over the working token already on their machine.
   it('reports writes enabled from the local token when the server is unreachable', () => {
     expect(writesEnabled({ reachable: false }, true)).toBe(true);

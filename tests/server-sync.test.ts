@@ -141,14 +141,14 @@ describe('http api', () => {
 
     const session = makeSession('h1', [msg('u1', 'user', 'server smoke test')]);
 
-    // the shared team token cannot write sessions — no identity to attribute
+    // the shared team token cannot write sessions, no identity to attribute
     const teamPut = await call(`/api/sessions/${encodeURIComponent(session.id)}`, {
       method: 'PUT',
       body: JSON.stringify(session),
     });
     expect(teamPut.status).toBe(403);
 
-    // a spoofed member header changes nothing — identity is the token
+    // a spoofed member header changes nothing, identity is the token
     const spoofed = await call(`/api/sessions/${encodeURIComponent(session.id)}`, {
       method: 'PUT',
       body: JSON.stringify(session),

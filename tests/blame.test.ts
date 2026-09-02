@@ -36,7 +36,7 @@ function session(id: string, files: string[], updatedAt: string): MotifSession {
   };
 }
 
-describe('rankForFile — from a path to the sessions that produced it', () => {
+describe('rankForFile, from a path to the sessions that produced it', () => {
   it('matches absolute stored paths against relative asks, exact beating loose, fresh beating old', () => {
     const ranked = rankForFile(
       [
@@ -50,7 +50,7 @@ describe('rankForFile — from a path to the sessions that produced it', () => {
     expect(ranked[0]!.exact).toBe(true);
   });
 
-  it('matches across slash conventions — and still ranks them exact, not merely loose', () => {
+  it('matches across slash conventions, and still ranks them exact, not merely loose', () => {
     const ranked = rankForFile(
       [session('win', ['C:\\repo\\src\\limiter.ts'], '2026-08-05T10:00:00.000Z')],
       'src\\limiter.ts',

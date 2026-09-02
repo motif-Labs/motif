@@ -4,7 +4,7 @@ import { confidence, freshness } from '@motif/server';
 const base = { status: 'current', verification: 'unverified', stale: 0, support: 1 };
 const fresh = new Date().toISOString();
 
-describe('confidence — one trust number every surface agrees on', () => {
+describe('confidence, one trust number every surface agrees on', () => {
   it('rises with a human vouch and with corroboration', () => {
     const plain = confidence({ ...base, createdAt: fresh });
     const vouched = confidence({ ...base, verification: 'verified', createdAt: fresh });
@@ -20,7 +20,7 @@ describe('confidence — one trust number every surface agrees on', () => {
     expect(confidence({ ...base, stale: 1, createdAt: fresh })).toBeLessThan(plain);
   });
 
-  it('tempers with age but never zeroes — old knowledge is less certain, not wrong', () => {
+  it('tempers with age but never zeroes, old knowledge is less certain, not wrong', () => {
     const old = new Date(Date.now() - 400 * 86400000).toISOString();
     const c = confidence({ ...base, createdAt: old });
     expect(c).toBeGreaterThan(0.05);

@@ -14,7 +14,7 @@ body:
     id: idea
     attributes:
       label: What would solve it?
-      description: If you have a shape in mind — a command, a flag, a screen — sketch it.
+      description: If you have a shape in mind, a command, a flag, a screen, sketch it.
 
   - type: textarea
     id: alternatives

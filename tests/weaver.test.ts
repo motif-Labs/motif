@@ -78,7 +78,7 @@ describe('the weaver queue', () => {
   });
 });
 
-describe('a ruling queues work — unless its evidence is personal', () => {
+describe('a ruling queues work, unless its evidence is personal', () => {
   let tmp: string;
   let server: MotifServer;
   let httpServer: ReturnType<typeof startServer>;
@@ -165,13 +165,13 @@ describe('a ruling queues work — unless its evidence is personal', () => {
     expect(job.project_path).toBe('/workspace/app');
   });
 
-  it("'prefer' over personal evidence queues nothing — daemons must not receive what strangers cannot read", async () => {
+  it("'prefer' over personal evidence queues nothing, daemons must not receive what strangers cannot read", async () => {
     const jobs = await stageConflictAndRule(true);
     expect(jobs).toBe(0);
   });
 });
 
-describe('performWeaverJob — the rails, against a real git repository', () => {
+describe('performWeaverJob, the rails, against a real git repository', () => {
   let repo: string;
   beforeEach(() => {
     repo = fs.mkdtempSync(path.join(os.tmpdir(), 'motif-weaver-repo-'));
@@ -277,7 +277,7 @@ describe('performWeaverJob — the rails, against a real git repository', () => 
 import { findRegressionGaps } from '@motif/server';
 import { buildPrompt } from '../packages/cli/src/weaver/perform.js';
 
-describe('regression gaps — the record sees an untested fix', () => {
+describe('regression gaps, the record sees an untested fix', () => {
   let tmp2: string;
   let db2: import('@motif/server').Db;
   beforeEach(() => {
@@ -312,7 +312,7 @@ describe('regression gaps — the record sees an untested fix', () => {
 
     fullReplaceSession2(db2, m, sess('d', 'Add rate limiting to the public API', ['src/limiter.ts']));
     const gaps = findRegressionGaps(db2);
-    // every untested change is caught — the fix, and both features — but never
+    // every untested change is caught, the fix, and both features, but never
     // the one that shipped with its test (src/hook.ts had src/hook.test.ts)
     expect(gaps.map((g) => g.file).sort()).toEqual(['src/limiter.ts', 'src/page.ts', 'src/pay.ts']);
     expect(gaps.find((g) => g.file === 'src/pay.ts')!.changeKind).toBe('fix');
@@ -380,6 +380,6 @@ describe('the loop closes: a rejected ruling-fix reopens the ruling', () => {
           verification: string;
         }
       ).verification,
-    ).toBe('disputed'); // the world rejected the fix — the ruling is in doubt again
+    ).toBe('disputed'); // the world rejected the fix, the ruling is in doubt again
   });
 });

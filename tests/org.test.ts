@@ -75,7 +75,7 @@ describe('project sync scope', () => {
     expect(shouldSyncProject('/w/personal', { exclude: ['**/personal'] })).toBe(false);
   });
 
-  it("'selected' mode syncs nothing unless included — personal work stays local", () => {
+  it("'selected' mode syncs nothing unless included, personal work stays local", () => {
     const cfg = { syncMode: 'selected' as const, include: ['/w/company', '/w/oss/**'] };
     expect(shouldSyncProject('/w/company', cfg)).toBe(true);
     expect(shouldSyncProject('/w/oss/motif', cfg)).toBe(true);

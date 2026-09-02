@@ -158,7 +158,7 @@ describe('cursor reader', () => {
     );
     db.prepare('INSERT INTO cursorDiskKV VALUES (?, ?)').run(
       `bubbleId:${composerId}:b2`,
-      JSON.stringify({ type: 2, text: 'The handler throws because email is undefined — add a guard.' }),
+      JSON.stringify({ type: 2, text: 'The handler throws because email is undefined, add a guard.' }),
     );
     db.close();
 

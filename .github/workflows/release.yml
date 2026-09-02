@@ -1,4 +1,4 @@
-# Publishes the `getmotif` package to npm with a provenance attestation —
+# Publishes the `getmotif` package to npm with a provenance attestation,
 # the ONLY sanctioned publish path (see SECURITY.md). Trigger by pushing
 # a v* tag. Requires the NPM_TOKEN repo secret (automation token, 2FA org).
 name: Release

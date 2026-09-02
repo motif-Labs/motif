@@ -64,7 +64,7 @@ function seedConflict(memberId: number): { standingId: number; challengerId: num
   return { standingId: standing.id, challengerId: challenger.id };
 }
 
-describe('memory review — the human loop over distilled claims', () => {
+describe('memory review, the human loop over distilled claims', () => {
   it('surfaces a conflict as one item carrying both sides', () => {
     const { memberId } = registerMember(db, { name: 'ada' });
     const { standingId, challengerId } = seedConflict(memberId);
@@ -153,7 +153,7 @@ describe('memory review — the human loop over distilled claims', () => {
     expect(out.items.find((i) => i.text.includes('jitter'))!.why).toContain('human-verified');
   });
 
-  it("'confirm' refuses a note that is still in conflict — a ruling must pick a side", () => {
+  it("'confirm' refuses a note that is still in conflict, a ruling must pick a side", () => {
     const { memberId } = registerMember(db, { name: 'ada' });
     const { challengerId } = seedConflict(memberId);
     expect(() =>
@@ -171,7 +171,7 @@ describe('memory review — the human loop over distilled claims', () => {
     };
     expect(standing.status).toBe('current');
     expect(listReviewQueue(db, memberId)).toHaveLength(0);
-    // and it stops COUNTING as a conflict — a retired challenge left
+    // and it stops COUNTING as a conflict, a retired challenge left
     // 'conflicted' would show the dashboard a conflict nothing could clear
     const challenger = db.prepare('SELECT status FROM memory_notes WHERE id = ?').get(challengerId) as {
       status: string;
@@ -241,7 +241,7 @@ function makeSession(id: string, files: string[], updatedAt: string, project = P
   };
 }
 
-describe('staleness — doubt raised when the ground moves under a note', () => {
+describe('staleness, doubt raised when the ground moves under a note', () => {
   it('marks a note stale after enough later sessions touch its files, and the queue shows it', () => {
     const { memberId } = registerMember(db, { name: 'ada' });
     const src = fullReplaceSession(
@@ -261,8 +261,8 @@ describe('staleness — doubt raised when the ground moves under a note', () => 
       { projectPath: PROJECT, sessionPk: src.pk, memberId },
     );
 
-    // later sessions record the SAME file in different shapes — relative here,
-    // absolute there — exactly what cross-tool teams produce
+    // later sessions record the SAME file in different shapes, relative here,
+    // absolute there, exactly what cross-tool teams produce
     fullReplaceSession(db, memberId, makeSession('later0', ['src/limiter.js'], '2026-08-02T10:00:00.000Z'));
     fullReplaceSession(
       db,
@@ -309,7 +309,7 @@ describe('staleness — doubt raised when the ground moves under a note', () => 
         makeSession(`later${i}`, ['src/a.js', 'src/b.js'], `2026-08-0${2 + i}T10:00:00.000Z`),
       );
     }
-    // the refreshed entity got a newer note — distillation kept up
+    // the refreshed entity got a newer note, distillation kept up
     applyNotes(
       db,
       [{ entity: { kind: 'file', name: 'src/b.js' }, aspect: 'design', body: 'Newer claim about b.' }],
@@ -321,7 +321,7 @@ describe('staleness — doubt raised when the ground moves under a note', () => 
   });
 });
 
-describe('memory visibility — notes inherit the visibility of their evidence', () => {
+describe('memory visibility, notes inherit the visibility of their evidence', () => {
   let server: MotifServer;
   let httpServer: ReturnType<typeof startServer>;
   let base: string;
@@ -400,7 +400,7 @@ describe('memory visibility — notes inherit the visibility of their evidence',
     expect(ownerQueue.items).toHaveLength(1);
     expect(otherQueue.items).toHaveLength(0);
 
-    // recall keeps the same promise — the MCP path must not leak what the
+    // recall keeps the same promise, the MCP path must not leak what the
     // dashboard hides
     const ownerRecall = recall(server.db, { query: 'secret feature ships', viewerId: owner.memberId });
     const otherRecall = recall(server.db, { query: 'secret feature ships', viewerId: other.memberId });
@@ -416,7 +416,7 @@ describe('memory visibility — notes inherit the visibility of their evidence',
       headers: { authorization: `Bearer ${other.memberToken}`, 'content-type': 'application/json' },
       body: JSON.stringify({ verdict: 'retire' }),
     });
-    expect(strangerVerdict.status).toBe(404); // not 403 — its existence is not theirs to learn
+    expect(strangerVerdict.status).toBe(404); // not 403, its existence is not theirs to learn
     const untouched = server.db
       .prepare('SELECT verification FROM memory_notes WHERE id = ?')
       .get(secretNote.id) as { verification: string };
@@ -439,7 +439,7 @@ describe('memory visibility — notes inherit the visibility of their evidence',
     expect(stillOwners.map((e) => e.name)).toContain('secret feature plan');
   });
 
-  it('a retired note stops counting on the Memory tab — dashboard and agents read one truth', async () => {
+  it('a retired note stops counting on the Memory tab, dashboard and agents read one truth', async () => {
     const cleo = registerMember(server.db, { name: 'cleo', email: 'cleo@example.com' });
     applyNotes(
       server.db,

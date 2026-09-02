@@ -60,7 +60,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         # the native sqlite dependency ships prebuilt binaries per Node ABI, and
         # a release line that has none for the current LTS makes every install
-        # compile from source — which fails outright without a toolchain
+        # compile from source, which fails outright without a toolchain
         node: [22, 24]
     steps:
       - uses: actions/checkout@v4
