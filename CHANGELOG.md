@@ -8,6 +8,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **The Weave** — the record drawn as a graph instead of a list. Entities and
+  sessions are nodes; edges are the relationships already in the tables (a
+  session that informs an entity, a note that contests another, a handoff
+  lineage). A dependency-free force layout with the same visibility rules as
+  recall; hover lights a neighbourhood, click opens a node.
+- **The Weaver scans for untested changes.** Beyond acting on a ruling, it now
+  finds fixes and features the record kept but the repo never tested —
+  `motif weaver scan` lists them, `motif weaver run <file>` queues one. Queueing
+  is always a person's choice; the agent is handed the session's own context and
+  writes the focused test as a draft PR, never wandering the tree.
 - **The Review loop.** Distilled memory notes now carry a human axis next to the
   machine one: a person can `confirm`, `prefer` (resolving a conflict),
   `retire` or `dispute` a claim — from `motif memory review` or the dashboard's

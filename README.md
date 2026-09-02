@@ -57,15 +57,20 @@ same thing. Node 22 or newer.
 Want to see it populated before pointing it at anything real?
 
 ```bash
-npx getmotif demo        # an invented team: sessions, memory, one conflict to rule on
+npx getmotif demo        # a team's week replays live, in five acts — you rule, the Weaver acts
 ```
 
-No reader runs in the demo — it writes a throwaway database and serves it, so
-your own history is never opened.
+Sessions stream in, memory catches two of them contradicting each other, you
+pick the winner from the terminal, and the Weaver aligns a real (throwaway) git
+repository with your ruling — the diff on screen. No reader runs; your own
+history is never opened.
 
 ## How it works
 
-Six verbs. Each one is a command you can run today.
+Motif works in three movements — **remember**, **verify**, **act** — and every
+verb under them is a command you can run today.
+
+### Remember
 
 ### 01 · Collect — one memory for the whole team
 
@@ -158,6 +163,17 @@ No embeddings, no vector store, no API key. Ranking comes from full-text search
 over the graph the sessions already form — handoff lineage, shared files, shared
 entities — plus the notes people pinned. Every item says why it was picked.
 
+### See it — the record as a graph
+
+Everything the sessions form — decisions, files, topics, and the sessions that
+produced them — is a graph, not a list. The **Weave** view draws it: entities
+are diamonds, sessions are dots, and edges are the real relationships (a session
+that informs an entity, a note that contests another, a handoff lineage). It is
+the same graph recall walks to answer in ~1.5k tokens instead of the whole
+history — now visible.
+
+### Verify
+
 ### 04 · Decide — every decision, with the reason still attached
 
 As sessions go idle the server distils them into entity notes: the decisions, the
@@ -193,7 +209,30 @@ and why. Recall serves the outcome: retired notes disappear, human-verified
 ones outrank machine-only ones, and an unresolved conflict is shown to agents
 with both sides and a warning, never as one quiet wrong answer.
 
-### 06 · Move — any agent, any teammate
+### Act
+
+### 06 · Weave the record back into the repo
+
+A ruling fixes the memory; the repository can still say what the losing claim
+said. And the record can see changes the repo never tested — a fix or a feature
+that shipped with no test. The **Weaver** closes both, on projects you opt in:
+
+```bash
+motif weaver enable ~/work/payments-api    # let the Weaver act here (draft PRs only)
+motif weaver scan                          # untested fixes and features it could close
+motif weaver run src/limiter.ts            # write the missing test → draft PR
+```
+
+When a ruling lands, or you queue a gap, a daemon holding the project claims the
+job, works in a **throwaway worktree**, and opens a **draft PR** on a `motif/`
+branch — the ruling or the session that made the change cited in the body. The
+rails do not bend: your checkout is never touched, a default branch cannot be
+pushed, an agreeing repo produces no PR, and a job born from personal evidence
+is never queued. The agent is handed the record's own context, so it writes the
+change instead of searching for it — pointed at a receipt a human picked, never
+wandering.
+
+### 07 · Move — any agent, any teammate
 
 None of this asks anyone to change tools. A session started in one agent continues
 natively in another: Motif writes the target tool's own session file and registers
