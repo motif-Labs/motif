@@ -792,6 +792,104 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     return c.json({ job: row });
   });
 
+  // The whole record as a graph: entities and sessions are nodes, edges are the
+  // real relationships already in the tables — a session that produced a note,
+  // a note that supersedes or contradicts another, a handoff lineage. This is
+  // the same knowledge recall walks, drawn instead of searched; visibility is
+  // enforced the same way, so nobody sees a node their evidence would hide.
+  app.get('/api/graph', (c) => {
+    const viewer = memberId(c) ?? -1;
+    const project = c.req.query('project');
+    const vis = `(COALESCE(s.visibility, n.orphan_visibility, 'team') != 'personal' OR COALESCE(s.member_id, n.member_id) = ?)`;
+
+    const entities = db
+      .prepare(
+        `SELECT DISTINCT e.id, e.kind, e.name, e.project_path
+         FROM memory_entities e JOIN memory_notes n ON n.entity_id = e.id
+         LEFT JOIN sessions s ON s.pk = n.source_session_pk
+         WHERE n.verification != 'retired' AND ${vis}
+         ${project ? 'AND e.project_path = ?' : ''}`,
+      )
+      .all(...[viewer, ...(project ? [project] : [])]) as {
+      id: number;
+      kind: string;
+      name: string;
+      project_path: string;
+    }[];
+
+    const sessions = db
+      .prepare(
+        `SELECT pk, id, title, source, member_id, project_path FROM sessions s
+         WHERE (s.visibility = 'team' OR s.member_id = ?)
+         ${project ? 'AND s.project_path = ?' : ''}
+         ORDER BY s.updated_at DESC LIMIT 300`,
+      )
+      .all(...[viewer, ...(project ? [project] : [])]) as {
+      pk: number;
+      id: string;
+      title: string | null;
+      source: string;
+      member_id: number;
+      project_path: string;
+    }[];
+    const liveSessions = new Set(sessions.map((x) => x.pk));
+
+    const nodes = [
+      ...entities.map((e) => ({
+        id: `e${e.id}`,
+        type: 'entity' as const,
+        kind: e.kind,
+        label: e.name,
+        project: e.project_path,
+      })),
+      ...sessions.map((x) => ({
+        id: `s${x.pk}`,
+        type: 'session' as const,
+        kind: x.source,
+        label: x.title ?? '(untitled)',
+        sessionId: x.id,
+        project: x.project_path,
+        memberId: x.member_id,
+      })),
+    ];
+
+    const edges: { a: string; b: string; kind: string }[] = [];
+
+    // session → entity (a session produced a note about it)
+    const links = db
+      .prepare(
+        `SELECT DISTINCT n.entity_id, n.source_session_pk AS pk, n.status
+         FROM memory_notes n LEFT JOIN sessions s ON s.pk = n.source_session_pk
+         WHERE n.source_session_pk IS NOT NULL AND n.verification != 'retired' AND ${vis}`,
+      )
+      .all(viewer) as { entity_id: number; pk: number; status: string }[];
+    for (const l of links) {
+      if (liveSessions.has(l.pk)) {
+        edges.push({
+          a: `s${l.pk}`,
+          b: `e${l.entity_id}`,
+          kind: l.status === 'conflicted' ? 'contests' : 'informs',
+        });
+      }
+    }
+
+    // handoff lineage: one session continues another
+    const lineage = db
+      .prepare(
+        `SELECT h.session_pk AS a, s2.pk AS b FROM handoffs h
+         JOIN sessions s2 ON s2.source_session_id = h.target_session_id
+         WHERE h.session_pk IS NOT NULL`,
+      )
+      .all() as { a: number; b: number }[];
+    for (const l of lineage) {
+      if (liveSessions.has(l.a) && liveSessions.has(l.b)) {
+        edges.push({ a: `s${l.a}`, b: `s${l.b}`, kind: 'continues' });
+      }
+    }
+
+    return c.json({ nodes, edges });
+  });
+
   app.get('/api/memory/review', (c) => {
     return c.json({ items: listReviewQueue(db, memberId(c)) });
   });

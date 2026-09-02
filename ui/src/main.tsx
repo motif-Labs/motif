@@ -75,6 +75,14 @@ const NAV_ICONS: Record<string, JSX.Element> = {
       <path d="m10.2 10.2 3.4 3.4" />
     </>,
   ),
+  '#/weave': ic(
+    <>
+      <circle cx="4" cy="4" r="1.6" />
+      <circle cx="12" cy="5" r="1.6" />
+      <circle cx="7.5" cy="12" r="1.6" />
+      <path d="M4 4l3.5 8M12 5L7.5 12M4 4l8 1" />
+    </>,
+  ),
   '#/setup': ic(
     <>
       <path d="M2.5 5h4.4m3.2 0h5.4M2.5 11h7.4m3.2 0h2.4" />
@@ -1223,6 +1231,258 @@ function ReviewPage({ me }: { me: Me }) {
   );
 }
 
+interface GNode {
+  id: string;
+  type: 'entity' | 'session';
+  kind: string;
+  label: string;
+  project: string;
+  x?: number;
+  y?: number;
+  vx?: number;
+  vy?: number;
+}
+interface GEdge {
+  a: string;
+  b: string;
+  kind: string;
+}
+
+/**
+ * The Weave: the record drawn instead of searched. Entities are diamonds,
+ * sessions are dots, edges are the real relationships in the tables. A
+ * hand-rolled force layout on a canvas — no dependency, fine to a few hundred
+ * nodes. Hover lights a node's neighbourhood; click an entity opens it.
+ */
+function WeavePage() {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [data, setData] = useState<{ nodes: GNode[]; edges: GEdge[] } | null>(null);
+  const hoverRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    api<{ nodes: GNode[]; edges: GEdge[] }>('/api/graph')
+      .then(setData)
+      .catch(() => setData({ nodes: [], edges: [] }));
+  }, []);
+
+  useEffect(() => {
+    if (!data || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d')!;
+    const dpr = window.devicePixelRatio || 1;
+    let raf = 0;
+    let alpha = 1;
+
+    const resize = () => {
+      const r = canvas.getBoundingClientRect();
+      canvas.width = r.width * dpr;
+      canvas.height = r.height * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    resize();
+    window.addEventListener('resize', resize);
+
+    const W = () => canvas.width / dpr;
+    const H = () => canvas.height / dpr;
+    const nodes = data.nodes;
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    const adj = new Map<string, Set<string>>();
+    for (const n of nodes) adj.set(n.id, new Set());
+    for (const e of data.edges) {
+      adj.get(e.a)?.add(e.b);
+      adj.get(e.b)?.add(e.a);
+    }
+    // seed positions on a loose circle
+    nodes.forEach((n, i) => {
+      const a = (i / nodes.length) * Math.PI * 2;
+      n.x = W() / 2 + Math.cos(a) * 120 + (Math.random() - 0.5) * 40;
+      n.y = H() / 2 + Math.sin(a) * 120 + (Math.random() - 0.5) * 40;
+      n.vx = 0;
+      n.vy = 0;
+    });
+
+    const ink = getComputedStyle(document.body).getPropertyValue('--text').trim();
+    const faint = getComputedStyle(document.body).getPropertyValue('--faint').trim();
+    const border = getComputedStyle(document.body).getPropertyValue('--border').trim();
+    const accent = getComputedStyle(document.body).getPropertyValue('--accent').trim();
+    const red = getComputedStyle(document.body).getPropertyValue('--red').trim();
+
+    const step = () => {
+      // repulsion
+      for (let i = 0; i < nodes.length; i++) {
+        const a = nodes[i]!;
+        for (let j = i + 1; j < nodes.length; j++) {
+          const b = nodes[j]!;
+          let dx = a.x! - b.x!;
+          let dy = a.y! - b.y!;
+          let d2 = dx * dx + dy * dy || 0.01;
+          const f = 900 / d2;
+          const d = Math.sqrt(d2);
+          dx /= d;
+          dy /= d;
+          a.vx! += dx * f;
+          a.vy! += dy * f;
+          b.vx! -= dx * f;
+          b.vy! -= dy * f;
+        }
+      }
+      // spring along edges
+      for (const e of data.edges) {
+        const a = byId.get(e.a);
+        const b = byId.get(e.b);
+        if (!a || !b) continue;
+        const dx = b.x! - a.x!;
+        const dy = b.y! - a.y!;
+        const d = Math.sqrt(dx * dx + dy * dy) || 0.01;
+        const f = (d - 70) * 0.012;
+        a.vx! += (dx / d) * f;
+        a.vy! += (dy / d) * f;
+        b.vx! -= (dx / d) * f;
+        b.vy! -= (dy / d) * f;
+      }
+      // centre pull + integrate
+      for (const n of nodes) {
+        n.vx! += (W() / 2 - n.x!) * 0.002;
+        n.vy! += (H() / 2 - n.y!) * 0.002;
+        n.vx! *= 0.86;
+        n.vy! *= 0.86;
+        n.x! += n.vx! * alpha;
+        n.y! += n.vy! * alpha;
+      }
+      alpha *= 0.994;
+      if (alpha < 0.02) alpha = 0.02;
+    };
+
+    const draw = () => {
+      ctx.clearRect(0, 0, W(), H());
+      const hov = hoverRef.current;
+      const near = hov ? (adj.get(hov) ?? new Set()) : null;
+      // edges
+      for (const e of data.edges) {
+        const a = byId.get(e.a);
+        const b = byId.get(e.b);
+        if (!a || !b) continue;
+        const lit = hov && (e.a === hov || e.b === hov);
+        ctx.strokeStyle = e.kind === 'contests' ? red : lit ? accent : border;
+        ctx.globalAlpha = hov ? (lit ? 0.9 : 0.15) : 0.5;
+        ctx.lineWidth = lit ? 1.4 : 1;
+        if (e.kind === 'contests') ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(a.x!, a.y!);
+        ctx.lineTo(b.x!, b.y!);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.globalAlpha = 1;
+      // nodes
+      for (const n of nodes) {
+        const dim = hov && n.id !== hov && !near?.has(n.id);
+        ctx.globalAlpha = dim ? 0.25 : 1;
+        if (n.type === 'entity') {
+          const r = 5.5;
+          ctx.fillStyle = n.kind === 'decision' ? accent : ink;
+          ctx.beginPath();
+          ctx.moveTo(n.x!, n.y! - r);
+          ctx.lineTo(n.x! + r, n.y!);
+          ctx.lineTo(n.x!, n.y! + r);
+          ctx.lineTo(n.x! - r, n.y!);
+          ctx.closePath();
+          ctx.fill();
+        } else {
+          ctx.fillStyle = faint;
+          ctx.beginPath();
+          ctx.arc(n.x!, n.y!, 3.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        if (n.id === hov || (!hov && n.type === 'entity')) {
+          ctx.globalAlpha = dim ? 0.25 : 0.9;
+          ctx.fillStyle = faint;
+          ctx.font = '11px -apple-system, sans-serif';
+          const t = n.label.length > 30 ? n.label.slice(0, 30) + '…' : n.label;
+          if (n.type === 'entity' || n.id === hov) ctx.fillText(t, n.x! + 9, n.y! + 3);
+        }
+      }
+      ctx.globalAlpha = 1;
+    };
+
+    const loop = () => {
+      step();
+      draw();
+      raf = requestAnimationFrame(loop);
+    };
+    loop();
+
+    const pick = (mx: number, my: number): GNode | null => {
+      let best: GNode | null = null;
+      let bd = 14;
+      for (const n of nodes) {
+        const d = Math.hypot(n.x! - mx, n.y! - my);
+        if (d < bd) {
+          bd = d;
+          best = n;
+        }
+      }
+      return best;
+    };
+    const onMove = (ev: MouseEvent) => {
+      const r = canvas.getBoundingClientRect();
+      const hit = pick(ev.clientX - r.left, ev.clientY - r.top);
+      hoverRef.current = hit?.id ?? null;
+      canvas.style.cursor = hit ? 'pointer' : 'default';
+    };
+    const onClick = (ev: MouseEvent) => {
+      const r = canvas.getBoundingClientRect();
+      const hit = pick(ev.clientX - r.left, ev.clientY - r.top);
+      if (hit?.type === 'entity') location.hash = `#/memory/${hit.id.slice(1)}`;
+      if (hit?.type === 'session' && hit.sessionId)
+        location.hash = `#/sessions/${encodeURIComponent(hit.sessionId)}`;
+    };
+    canvas.addEventListener('mousemove', onMove);
+    canvas.addEventListener('click', onClick);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', resize);
+      canvas.removeEventListener('mousemove', onMove);
+      canvas.removeEventListener('click', onClick);
+    };
+  }, [data]);
+
+  return (
+    <div>
+      <div class="page-head">
+        <h1>Weave</h1>
+      </div>
+      {data && data.nodes.length === 0 ? (
+        <div class="empty">
+          The weave draws itself as memory forms. Enable distillation with <code>MOTIF_LLM_PROVIDER</code>, or
+          try <code>motif demo</code>.
+        </div>
+      ) : (
+        <>
+          <div class="weave-legend">
+            <span>
+              <i class="wl-diamond" /> decision
+            </span>
+            <span>
+              <i class="wl-diamond ink" /> file · topic
+            </span>
+            <span>
+              <i class="wl-dot" /> session
+            </span>
+            <span>
+              <i class="wl-line contest" /> contested
+            </span>
+          </div>
+          <div class="weave-wrap">
+            <canvas ref={canvasRef} class="weave-canvas" />
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function MemoryPage() {
   const [entities, setEntities] = useState<MemoryEntity[] | null>(null);
   const reload = () =>
@@ -1515,6 +1775,7 @@ function App() {
     ['#/', 'Sessions', /^\/(sessions.*)?$/],
     ['#/people', 'People', /^\/people/],
     ['#/memory', 'Memory', /^\/memory/],
+    ['#/weave', 'Weave', /^\/weave/],
     ['#/review', 'Review', /^\/review/],
     ['#/search', 'Search', /^\/search/],
     ['#/setup', 'Setup', /^\/setup/],
@@ -1533,6 +1794,9 @@ function App() {
   } else if (hash.startsWith('/people')) {
     view = <PeoplePage me={me} />;
     crumb = 'People';
+  } else if (hash.startsWith('/weave')) {
+    view = <WeavePage />;
+    crumb = 'Weave';
   } else if (hash.startsWith('/memory')) {
     view = <MemoryPage />;
     crumb = 'Memory';
