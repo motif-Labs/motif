@@ -67,7 +67,7 @@ export function registerDemo(program: Command): void {
     .option('--clean', 'remove the demo and exit')
     .action(
       async (opts: { port: string; open: boolean; fast?: boolean; auto?: boolean; clean?: boolean }) => {
-        const dir = path.join(os.homedir(), '.motif-demo');
+        const dir = process.env.MOTIF_DEMO_DIR ?? path.join(os.homedir(), '.motif-demo');
         if (opts.clean) {
           fs.rmSync(dir, { recursive: true, force: true });
           console.log('Demo removed. Your own ~/.motif was never touched.');

@@ -26,6 +26,91 @@ import {
 type Theme = 'system' | 'light' | 'dark';
 const THEME_KEY = 'motif-theme';
 
+function Skeleton({ rows = 5 }: { rows?: number }) {
+  return (
+    <div class="skeleton">
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} class="bone" style={`opacity:${1 - i * 0.15}`} />
+      ))}
+    </div>
+  );
+}
+
+interface Toast {
+  id: number;
+  glyph: string;
+  title: string;
+  body?: string;
+  href?: string;
+}
+
+let toastSeq = 0;
+
+/** The work, felt as it happens: conflicts caught, rulings landing, PRs woven. */
+function Toasts() {
+  const [toasts, setToasts] = useState<(Toast & { leaving?: boolean })[]>([]);
+  useEffect(() => {
+    const dismiss = (id: number) => {
+      setToasts((t) => t.map((x) => (x.id === id ? { ...x, leaving: true } : x)));
+      setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 260);
+    };
+    const push = (t: Omit<Toast, 'id'>) => {
+      const id = ++toastSeq;
+      setToasts((prev) => [...prev.slice(-2), { ...t, id }]); // never more than 3
+      setTimeout(() => dismiss(id), 6000);
+    };
+    return openEvents((name, data) => {
+      if (name === 'memory-conflict') {
+        const d = data as { entity: string };
+        push({
+          glyph: '⚖️',
+          title: 'Two sessions disagree',
+          body: `“${d.entity}” — agents see both sides until someone rules`,
+          href: '#/review',
+        });
+      }
+      if (name === 'memory-reviewed') {
+        const d = data as { verdict: string };
+        push({
+          glyph: '✓',
+          title: 'A ruling landed',
+          body: `${d.verdict} — recorded, recall obeys`,
+          href: '#/review',
+        });
+      }
+      if (name === 'weaver-completed') {
+        const d = data as { prUrl?: string };
+        if (d.prUrl) {
+          push({ glyph: '🧵', title: 'The Weaver opened a draft PR', body: d.prUrl });
+        }
+      }
+      if (name === 'member-joined') {
+        const d = data as { name: string };
+        push({ glyph: '·', title: `${d.name} joined the team` });
+      }
+    });
+  }, []);
+  if (toasts.length === 0) return null;
+  return (
+    <div class="toasts">
+      {toasts.map((t) => (
+        <a
+          key={t.id}
+          class={`toast ${t.leaving ? 'leaving' : ''}`}
+          href={t.href}
+          onClick={() => setToasts((x) => x.filter((y) => y.id !== t.id))}
+        >
+          <span class="glyph">{t.glyph}</span>
+          <span>
+            <div class="t-title">{t.title}</div>
+            {t.body && <div class="t-body">{t.body}</div>}
+          </span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
 function applyTheme(theme: Theme): void {
   if (theme === 'system') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = theme;
@@ -135,9 +220,9 @@ function ToolChip({ source }: { source: string }) {
 
 /* ── sessions ────────────────────────────────────────── */
 
-function SessionCard({ s }: { s: SessionRow }) {
+function SessionCard({ s, fresh }: { s: SessionRow; fresh?: boolean }) {
   return (
-    <div class={`snode ${isActive(s.updatedAt) ? 'live' : ''}`}>
+    <div class={`snode ${isActive(s.updatedAt) ? 'live' : ''} ${fresh ? 'fresh' : ''}`}>
       <a class="scard" href={`#/sessions/${encodeURIComponent(s.id)}`}>
         <div class="top">
           <span class="title">{s.title ?? '(untitled)'}</span>
@@ -204,6 +289,7 @@ function SessionsPage({ me }: { me: Me }) {
   const [agent, setAgent] = useState('');
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
+  const [fresh, setFresh] = useState<Set<string>>(new Set());
   const reload = () =>
     api<SessionRow[]>(`/api/sessions?limit=200&scope=${scopeRef.current}`)
       .then(setSessions)
@@ -211,11 +297,26 @@ function SessionsPage({ me }: { me: Me }) {
   useEffect(() => {
     setSessions(null);
     reload();
-    return openEvents((name) => {
-      if (name === 'session-upserted') reload();
+    return openEvents((name, data) => {
+      if (name !== 'session-upserted') return;
+      const id = (data as { id?: string }).id;
+      if (id) {
+        // let the newcomer announce itself, then let it belong
+        setFresh((f) => new Set(f).add(id));
+        setTimeout(
+          () =>
+            setFresh((f) => {
+              const next = new Set(f);
+              next.delete(id);
+              return next;
+            }),
+          2600,
+        );
+      }
+      reload();
     });
   }, [scope]);
-  if (!sessions) return <div class="empty">Loading…</div>;
+  if (!sessions) return <Skeleton rows={6} />;
 
   const projects = [...new Set(sessions.map((s) => projName(s.projectPath)))].sort();
   const members = [...new Set(sessions.map((s) => s.memberName).filter(Boolean))] as string[];
@@ -305,7 +406,7 @@ function SessionsPage({ me }: { me: Me }) {
             <div key={g.label}>
               <div class="day-label">{g.label}</div>
               {g.rows.map((s) => (
-                <SessionCard key={s.id} s={s} />
+                <SessionCard key={s.id} s={s} fresh={fresh.has(s.id)} />
               ))}
             </div>
           ))}
@@ -917,27 +1018,6 @@ function PeoplePage({ me }: { me: Me }) {
 
 /* ── memory ──────────────────────────────────────────── */
 
-function ReviewNoteCard({ n, label }: { n: ReviewNote; label?: string }) {
-  return (
-    <div class={`note ${n.status}`}>
-      <div class="aspect">
-        {label && <strong>{label} · </strong>}[{n.kind}] {n.entity} · {n.aspect}
-        {n.stale ? ` · stale: ${n.stale_reason ?? 'its files moved on'}` : ''}
-      </div>
-      <div>{n.body}</div>
-      <div class="aspect" style="margin-top:6px">
-        {n.author_name ? `@${n.author_name}` : 'unknown'} · {ago(n.created_at)}
-        {n.session_id && (
-          <>
-            {' · '}
-            <a href={`#/sessions/${encodeURIComponent(n.session_id)}`}>source session</a>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function ReviewPage({ me }: { me: Me }) {
   const [items, setItems] = useState<ReviewItem[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -968,9 +1048,9 @@ function ReviewPage({ me }: { me: Me }) {
     }
   };
 
-  if (!items) return <div class="empty">Loading…</div>;
+  if (!items) return <Skeleton rows={3} />;
   return (
-    <div style="max-width:760px">
+    <div style="max-width:820px">
       <h1>Review</h1>
       {items.length === 0 && <div class="empty">Nothing waits for a ruling — the memory is at peace.</div>}
       {!canRule && items.length > 0 && (
@@ -978,14 +1058,45 @@ function ReviewPage({ me }: { me: Me }) {
       )}
       {items.map((item) =>
         item.type === 'conflict' && item.against ? (
-          <div key={item.note.id} class="review-item">
-            <div class="aspect" style="margin-bottom:6px">
-              <span class="chip conflict">conflict</span> two sessions disagree — agents see both sides until
-              someone rules
+          <div key={item.note.id} class="case">
+            <div class="case-head">
+              <span class="chip conflict">conflict</span>
+              <span class="title">
+                {item.against.entity} · {item.against.aspect}
+              </span>
+              <span>— agents see both sides until someone rules</span>
             </div>
-            <ReviewNoteCard n={item.against} label="standing" />
-            <ReviewNoteCard n={item.note} label="challenger" />
-            <div class="review-actions">
+            <div class="case-claims">
+              <div class="claim">
+                <div class="tag">standing</div>
+                <div class="body">{item.against.body}</div>
+                <div class="meta">
+                  {item.against.author_name ? `@${item.against.author_name}` : 'unknown'} ·{' '}
+                  {ago(item.against.created_at)}
+                  {item.against.session_id && (
+                    <>
+                      {' · '}
+                      <a href={`#/sessions/${encodeURIComponent(item.against.session_id)}`}>the session</a>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div class="claim">
+                <div class="tag challenger">challenger</div>
+                <div class="body">{item.note.body}</div>
+                <div class="meta">
+                  {item.note.author_name ? `@${item.note.author_name}` : 'unknown'} ·{' '}
+                  {ago(item.note.created_at)}
+                  {item.note.session_id && (
+                    <>
+                      {' · '}
+                      <a href={`#/sessions/${encodeURIComponent(item.note.session_id)}`}>the session</a>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div class="case-verdict">
               <button
                 disabled={!canRule || busy}
                 onClick={() => rule(item.against!.id, 'prefer', item.note.id)}
@@ -1005,15 +1116,34 @@ function ReviewPage({ me }: { me: Me }) {
             </div>
           </div>
         ) : (
-          <div key={item.note.id} class="review-item">
-            <div class="aspect" style="margin-bottom:6px">
-              <span class="chip">{item.type}</span>{' '}
-              {item.type === 'stale'
-                ? 'the files this note came from have moved on since'
-                : 'someone flagged this note as wrong'}
+          <div key={item.note.id} class="case">
+            <div class="case-head">
+              <span class="chip">{item.type}</span>
+              <span class="title">
+                {item.note.entity} · {item.note.aspect}
+              </span>
+              <span>
+                {item.type === 'stale'
+                  ? `— ${item.note.stale_reason ?? 'its source files moved on'}`
+                  : '— flagged as wrong, evidence pending'}
+              </span>
             </div>
-            <ReviewNoteCard n={item.note} />
-            <div class="review-actions">
+            <div class="case-claims single">
+              <div class="claim">
+                <div class="body">{item.note.body}</div>
+                <div class="meta">
+                  {item.note.author_name ? `@${item.note.author_name}` : 'unknown'} ·{' '}
+                  {ago(item.note.created_at)}
+                  {item.note.session_id && (
+                    <>
+                      {' · '}
+                      <a href={`#/sessions/${encodeURIComponent(item.note.session_id)}`}>the session</a>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div class="case-verdict">
               <button
                 class="primary"
                 disabled={!canRule || busy}
@@ -1044,7 +1174,7 @@ function MemoryPage() {
       if (name === 'memory-updated') reload();
     });
   }, []);
-  if (!entities) return <div class="empty">Loading…</div>;
+  if (!entities) return <Skeleton rows={5} />;
   const kinds = ['decision', 'file', 'topic'];
   return (
     <div>
@@ -1388,6 +1518,7 @@ function App() {
           </a>
         </span>
       </div>
+      <Toasts />
       <div class="shell">
         <div class="sidebar">
           {nav.map(([href, label, re]) => (

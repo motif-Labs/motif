@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { MotifMessage, MotifSession } from '@motif/core';
+import { filePathMatches, type MotifMessage, type MotifSession } from '@motif/core';
 import { ensureTeamToken, openDb, type Db } from './db/database.js';
 import { LiveBus } from './live/bus.js';
 import { recall, renderRecall } from './retrieval.js';
@@ -345,12 +345,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     for (const row of rows) {
       if (!canView(row as never, viewer)) continue;
       const files = JSON.parse(row.files_touched || '[]') as string[];
-      const slash = (x: string): string => x.replace(/\\/g, '/');
-      const relN = slash(rel);
-      const hit = files.find((f) => {
-        const fN = slash(f);
-        return fN === relN || fN.endsWith(`/${relN}`) || relN.endsWith(`/${fN}`);
-      });
+      const hit = files.find((f) => filePathMatches(f, rel));
       if (!hit) continue;
       matches.push({
         id: row.id,

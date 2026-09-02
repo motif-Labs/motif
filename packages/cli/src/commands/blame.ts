@@ -1,7 +1,7 @@
 import type { Command } from 'commander';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
-import type { MotifSession } from '@motif/core';
+import { filePathMatches, type MotifSession } from '@motif/core';
 import { MotifClient } from '../api-client.js';
 import { loadConfig } from '../config.js';
 import { scanLocal } from '../local.js';
@@ -25,22 +25,13 @@ export interface BlameCandidate {
   exact: boolean;
 }
 
-/** Suffix-match both ways: stored paths may be absolute, asked paths relative.
- * Slashes are normalized first — readers store raw platform paths, and on
- * Windows path.relative() answers with backslashes. */
-function fileMatches(stored: string, rel: string): boolean {
-  const s = stored.replace(/\\/g, '/');
-  const r = rel.replace(/\\/g, '/');
-  return s === r || s.endsWith(`/${r}`) || r.endsWith(`/${s}`);
-}
-
 export function rankForFile(
   sessions: Pick<MotifSession, 'id' | 'source' | 'title' | 'updatedAt' | 'filesTouched'>[],
   rel: string,
 ): BlameCandidate[] {
   const out: BlameCandidate[] = [];
   for (const s of sessions) {
-    const hit = (s.filesTouched ?? []).find((f) => fileMatches(f, rel));
+    const hit = (s.filesTouched ?? []).find((f) => filePathMatches(f, rel));
     if (!hit) continue;
     out.push({
       id: s.id,

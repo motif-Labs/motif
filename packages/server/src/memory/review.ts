@@ -64,9 +64,17 @@ function viewable(note: ReviewNote, viewerId: number | undefined): boolean {
  * side by side), notes flagged stale, and notes someone disputed. Ordered by
  * age — the oldest doubt is the most expensive one.
  */
+/** The badge polls this and every dashboard tab holds it open; sweeping
+ * staleness on each read would tax the common case to serve the rare one. */
+let lastStaleSweep = 0;
+const STALE_SWEEP_MS = 30_000;
+
 export function listReviewQueue(db: Db, viewerId: number | undefined): ReviewItem[] {
-  // freshness is computed lazily on read: cheap, deterministic, and needs no scheduler
-  markStaleNotes(db);
+  // freshness is computed lazily on read — throttled, deterministic, schedulerless
+  if (Date.now() - lastStaleSweep > STALE_SWEEP_MS) {
+    lastStaleSweep = Date.now();
+    markStaleNotes(db);
+  }
   const noteById = (id: number): ReviewNote | undefined =>
     db.prepare(`${NOTE_SELECT} WHERE n.id = ?`).get(id) as ReviewNote | undefined;
 

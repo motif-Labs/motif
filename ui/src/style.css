@@ -11,6 +11,10 @@
   --red: #dc2626;
   --amber: #d97706;
   --chip-bg: #fafafa;
+  --shadow: 0 1px 2px rgba(16, 18, 22, 0.04), 0 8px 24px rgba(16, 18, 22, 0.06);
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --t-fast: 140ms;
+  --t: 240ms;
   font-family: -apple-system, 'SF Pro Text', 'Segoe UI', Inter, Roboto, sans-serif;
 }
 /* dark palette applies when the system prefers it (unless light is forced)… */
@@ -24,6 +28,7 @@
     --dim: #8b919a;
     --faint: #5c626b;
     --chip-bg: #1a1d22;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 10px 30px rgba(0, 0, 0, 0.35);
   }
 }
 /* …or when the user explicitly picks dark from the topbar toggle */
@@ -36,6 +41,7 @@
   --dim: #8b919a;
   --faint: #5c626b;
   --chip-bg: #1a1d22;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 10px 30px rgba(0, 0, 0, 0.35);
 }
 * {
   box-sizing: border-box;
@@ -73,7 +79,9 @@ code,
   gap: 10px;
   padding: 0 20px;
   height: 52px;
-  background: var(--panel);
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
+  -webkit-backdrop-filter: saturate(1.5) blur(14px);
+  backdrop-filter: saturate(1.5) blur(14px);
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
@@ -160,6 +168,9 @@ code,
   color: var(--dim);
   cursor: pointer;
   font-weight: 500;
+  transition:
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
 }
 .nav-item:hover {
   background: var(--hover);
@@ -451,6 +462,35 @@ h2 {
   padding: 11px 16px;
   border-bottom: 1px solid var(--border);
   cursor: pointer;
+  position: relative;
+  transition: background var(--t-fast) var(--ease);
+}
+/* a session that just streamed in announces itself, then settles */
+.row.fresh {
+  animation: rise var(--t) var(--ease);
+}
+.row.fresh::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  animation: settle 2.4s var(--ease) forwards;
+  pointer-events: none;
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes settle {
+  to {
+    opacity: 0;
+  }
 }
 .row:last-child {
   border-bottom: 0;
@@ -549,9 +589,23 @@ button {
   font-size: 12.5px;
   cursor: pointer;
   width: 100%;
+  transition:
+    background var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease),
+    transform var(--t-fast) var(--ease),
+    opacity var(--t-fast) var(--ease);
 }
 button:hover {
   background: var(--hover);
+}
+button:active {
+  transform: translateY(1px);
+}
+button:focus-visible,
+.nav-item:focus-visible,
+a:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 2px;
 }
 button.primary {
   background: var(--accent);
@@ -1066,16 +1120,178 @@ input:focus {
   border-left-color: var(--red);
 }
 
-/* ── memory review inbox ─────────────────────────────── */
-.review-item {
-  margin: 18px 0 26px;
-  padding: 14px;
+/* ── the review inbox: each item is a CASE ───────────────
+   Two claims crossing is the one moment the product exists for, so it gets
+   the house metaphor: two threads, a crossing, and a knot only a person can
+   tie. Quiet borders, weight from spacing — the ruling buttons are the only
+   loud thing on the card. */
+.case {
+  margin: 16px 0 28px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
+  background: var(--panel);
+  overflow: hidden;
+  animation: rise var(--t) var(--ease);
 }
-.review-actions {
+.case-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--dim);
+}
+.case-head .title {
+  font-weight: 600;
+  color: var(--text);
+}
+.case-claims {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  position: relative;
+}
+/* the crossing: a stitched divider between the two claims */
+.case-claims::before {
+  content: '';
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  left: 50%;
+  width: 1px;
+  background: repeating-linear-gradient(180deg, var(--border) 0 6px, transparent 6px 12px);
+}
+.case-claims.single {
+  grid-template-columns: 1fr;
+}
+.case-claims.single::before {
+  display: none;
+}
+.claim {
+  padding: 16px 18px;
+  min-width: 0;
+}
+.claim .tag {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  color: var(--faint);
+  margin-bottom: 8px;
+}
+.claim .tag.challenger {
+  color: var(--amber);
+}
+.claim .body {
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+.claim .meta {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--faint);
+}
+.claim .meta a {
+  color: var(--dim);
+  border-bottom: 1px dotted var(--faint);
+}
+.case-verdict {
   display: flex;
   gap: 8px;
-  margin-top: 10px;
-  flex-wrap: wrap;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 55%, var(--panel));
+}
+.case-verdict button {
+  width: auto;
+}
+
+/* ── toasts: the work, felt as it happens ────────────── */
+.toasts {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 50;
+  max-width: 380px;
+}
+.toast {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  font-size: 12.5px;
+  line-height: 1.45;
+  animation: rise var(--t) var(--ease);
+  cursor: pointer;
+}
+.toast .glyph {
+  font-size: 15px;
+  line-height: 1.2;
+}
+.toast .t-title {
+  font-weight: 600;
+}
+.toast .t-body {
+  color: var(--dim);
+}
+.toast.leaving {
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity var(--t) var(--ease),
+    transform var(--t) var(--ease);
+}
+
+/* ── skeletons: loading that keeps the rhythm ────────── */
+.skeleton {
+  max-width: 900px;
+}
+.skeleton .bone {
+  height: 46px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  background: linear-gradient(90deg, var(--hover) 25%, var(--chip-bg) 45%, var(--hover) 65%);
+  background-size: 220% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+@keyframes shimmer {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* a session that just streamed in rises, glows once, then belongs */
+.snode.fresh .scard {
+  animation:
+    rise var(--t) var(--ease),
+    glow 2.4s var(--ease);
+}
+@keyframes glow {
+  0% {
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 1px transparent;
+  }
 }
