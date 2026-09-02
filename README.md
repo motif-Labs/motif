@@ -1,11 +1,11 @@
 <h1 align="center">Motif</h1>
 
-<p align="center"><b>Software that maintains itself starts with software that remembers.</b></p>
+<p align="center"><b>Working memory for AI coding agents — yours, and your team's.</b></p>
 
 <p align="center">
-  Your team's AI sessions know things your repo doesn't — what was decided, what was tried, what broke.<br />
-  Motif turns them into shared memory your agents use, keeps that memory honest, and moves live<br />
-  sessions between tools and teammates. On a server you host.
+  Your AI sessions know things your repo doesn't: what was decided, what was tried, what broke.<br />
+  Motif remembers it, keeps that memory honest, and puts it to work — from recall to pull requests.<br />
+  Solo from the first minute; a team the moment you invite one. On infrastructure you own.
 </p>
 
 <p align="center">
