@@ -181,7 +181,18 @@ export async function performWeaverJob(job: WeaverJob, deps: WeaverDeps): Promis
           ]
             .filter(Boolean)
             .join('\n');
-    git(worktree, 'commit', '-m', `${title}\n\n${receipts}`);
+    // the Weaver is an automated author; it must not depend on the machine
+    // having a global git identity (a fresh CI checkout, or a bare repo, has none)
+    git(
+      worktree,
+      '-c',
+      'user.name=Motif Weaver',
+      '-c',
+      'user.email=weaver@motif.local',
+      'commit',
+      '-m',
+      `${title}\n\n${receipts}`,
+    );
 
     const body =
       payload.kind === 'missing-regression'
