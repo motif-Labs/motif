@@ -159,6 +159,10 @@ the tool, the session — and `motif show` opens the conversation.
 bundle of 1,496 tokens, **1,186× smaller** than the history it searched.
 Reproduce it on your own corpus with `npm run bench`.
 
+Every claim carries one **confidence** number — corroboration and a human's vouch
+raise it; conflict, staleness and age lower it — and recall ranks and labels by
+it, so an agent knows how much to trust each line.
+
 No embeddings, no vector store, no API key. Ranking comes from full-text search
 over the graph the sessions already form — handoff lineage, shared files, shared
 entities — plus the notes people pinned. Every item says why it was picked.
@@ -170,7 +174,9 @@ produced them — is a graph, not a list. The **Weave** view draws it: entities
 are diamonds, sessions are dots, and edges are the real relationships (a session
 that informs an entity, a note that contests another, a handoff lineage). It is
 the same graph recall walks to answer in ~1.5k tokens instead of the whole
-history — now visible.
+history — now visible. Two entities a single session both touched are drawn as
+**related**, so decisions and the files and topics they shaped form one causal
+weave, and each entity is sized by its confidence.
 
 ### Verify
 
@@ -228,9 +234,14 @@ job, works in a **throwaway worktree**, and opens a **draft PR** on a `motif/`
 branch — the ruling or the session that made the change cited in the body. The
 rails do not bend: your checkout is never touched, a default branch cannot be
 pushed, an agreeing repo produces no PR, and a job born from personal evidence
-is never queued. The agent is handed the record's own context, so it writes the
-change instead of searching for it — pointed at a receipt a human picked, never
-wandering.
+is never queued. The agent is handed the record's own context — the session that
+made the change — so it writes the change instead of searching for it: pointed at
+a receipt a human picked, never wandering, and cheap because it reads the graph
+rather than the whole tree.
+
+The loop closes: `motif weaver resolve <id> merged|closed` records a PR's fate,
+and a fix born from a ruling that gets **closed** returns that ruling to review —
+the record learning from what its own hands produced.
 
 ### 07 · Move — any agent, any teammate
 
