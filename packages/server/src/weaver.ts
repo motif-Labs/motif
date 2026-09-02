@@ -1,12 +1,12 @@
 /**
  * The Weaver's queue. When a ruling lands on team memory, the repository may
- * still say what the losing claim said — an ADR, a comment, a README. The
+ * still say what the losing claim said, an ADR, a comment, a README. The
  * server cannot fix that (it has no checkout and runs no agent), so it queues
  * the work: a daemon with the project on disk and the owner's explicit opt-in
  * claims the job, weaves the change in a throwaway worktree, and reports the
  * draft PR back.
  *
- * Claiming is atomic — two daemons cannot take the same job — and a job born
+ * Claiming is atomic, two daemons cannot take the same job, and a job born
  * from personal evidence is never queued at all: what a stranger cannot read,
  * the Weaver must not broadcast.
  */
@@ -25,8 +25,8 @@ export interface RulingPayload {
 }
 
 /** A gap the record can see but the repo hasn't closed: a change made in a
- * session with no test to hold it. The context travels WITH the job — the
- * session's own summary and the files it touched — so the agent writes the
+ * session with no test to hold it. The context travels WITH the job, the
+ * session's own summary and the files it touched, so the agent writes the
  * test instead of spelunking the whole tree for it. That is the point: the
  * work is aimed, not exploratory, and cheap because of it. */
 export interface GapPayload {
@@ -36,7 +36,7 @@ export interface GapPayload {
   sessionId: string;
   sessionTitle: string;
   memberName: string | null;
-  /** The distilled note(s) about this file — what the change was and why. */
+  /** The distilled note(s) about this file, what the change was and why. */
   context: string;
 }
 
@@ -77,8 +77,8 @@ const FEATURE_RE =
 /**
  * Untested changes the record can see: a session that changed code, added no
  * test, and either announced a fix/feature in its title or was distilled into
- * memory (so the change mattered). Deterministic — it reads only what sync
- * stored — and every gap carries the receipt that justifies the work, so the
+ * memory (so the change mattered). Deterministic, it reads only what sync
+ * stored, and every gap carries the receipt that justifies the work, so the
  * agent is aimed at a real change, never asked to invent one.
  */
 export function findRegressionGaps(db: Db, project?: string): RegressionGap[] {
@@ -197,7 +197,7 @@ export function resolveWeaverJob(
 }
 
 /** A claim is a lease, not a deed. A daemon that died mid-weave must not
- * strand the job in 'running' forever — completion only matches the claimer,
+ * strand the job in 'running' forever, completion only matches the claimer,
  * and claiming only matches 'pending', so without this nothing could ever
  * retry it. */
 const CLAIM_LEASE_MS = 30 * 60_000;

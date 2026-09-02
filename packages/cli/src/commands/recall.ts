@@ -33,11 +33,11 @@ export function registerRecall(program: Command): void {
       const bundle = await backend.recall(query, project, budget);
       console.log(bundle);
       // Read in a terminal this looks like an attempt at an answer, and it is
-      // not one: recall retrieves, it does not reason. Say so, once, here —
+      // not one: recall retrieves, it does not reason. Say so, once, here,
       // never in the bundle itself, which an agent pays tokens to read.
       if (!bundle.startsWith('No prior team context')) {
         console.log(
-          '\n\x1b[2m— This is raw context, not an answer: recall retrieves, it does not reason.\n' +
+          '\n\x1b[2mThis is raw context, not an answer: recall retrieves, it does not reason.\n' +
             '  Your agent turns it into an answer over MCP (motif mcp install).\n' +
             '  For an answer here, ask a session itself: motif ask <id> "…"\x1b[0m',
         );

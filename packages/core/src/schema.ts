@@ -45,7 +45,7 @@ export interface MotifSession {
   sourceSessionId: string;
   /** Absolute path of the source transcript on the originating machine. */
   sourcePath: string;
-  /** The project working directory — taken from message payloads, not file paths. */
+  /** The project working directory, taken from message payloads, not file paths. */
   projectPath: string;
   gitBranch?: string;
   title?: string;
@@ -54,7 +54,7 @@ export interface MotifSession {
   /** Version of the source tool that wrote the session, when known. */
   toolVersion?: string;
   /**
-   * 'team' — visible to every member; 'personal' — visible only to its
+   * 'team', visible to every member; 'personal', visible only to its
    * owner. Decided on the source machine per project; promotable later.
    */
   visibility?: 'team' | 'personal';

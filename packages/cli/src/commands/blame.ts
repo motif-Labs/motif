@@ -8,7 +8,7 @@ import { scanLocal } from '../local.js';
 
 /**
  * `git blame` says who last touched a line. This says which CONVERSATION the
- * work came from — the sessions that touched a file, newest first, so "why is
+ * work came from, the sessions that touched a file, newest first, so "why is
  * this like this" starts from the file itself instead of an archaeology dig.
  *
  * Attribution is honest about being inferred: sessions record which files they
@@ -60,7 +60,7 @@ function projectRoot(): string {
 export function registerBlame(program: Command): void {
   program
     .command('blame <file>')
-    .description('Which sessions produced this file — from the code back to the conversation')
+    .description('Which sessions produced this file, from the code back to the conversation')
     .option('--json', 'machine-readable output')
     .action(async (file: string, opts: { json?: boolean }) => {
       const root = projectRoot();
@@ -71,7 +71,7 @@ export function registerBlame(program: Command): void {
       const seen = new Set<string>();
       const candidates: BlameCandidate[] = [];
 
-      // the team's record first — it sees sessions from every machine
+      // the team's record first, it sees sessions from every machine
       if (cfg.serverUrl && (cfg.memberToken ?? cfg.token)) {
         try {
           const client = new MotifClient({
@@ -112,11 +112,11 @@ export function registerBlame(program: Command): void {
       if (candidates.length === 0) {
         console.log(`No session on record touched ${rel}.`);
         console.log(
-          '(Sessions know the files their tools wrote — work done outside an agent leaves no trail here.)',
+          '(Sessions know the files their tools wrote, work done outside an agent leaves no trail here.)',
         );
         return;
       }
-      console.log(`${rel} — worked on in ${candidates.length} session(s):\n`);
+      console.log(`${rel}, worked on in ${candidates.length} session(s):\n`);
       for (const c of candidates.slice(0, 5)) {
         const when = c.updatedAt ? c.updatedAt.slice(0, 10) : '????-??-??';
         const who = c.member ? `@${c.member}` : 'this machine';

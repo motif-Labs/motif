@@ -5,7 +5,7 @@
  * Format pinned by our own reader and real transcripts: one JSON line per
  * event in ~/.claude/projects/<mangled-cwd>/<sessionId>.jsonl, conversation
  * chained via parentUuid, `last-prompt` pointing at the leaf, `ai-title`
- * carrying the display title. Tool activity is rendered as readable text —
+ * carrying the display title. Tool activity is rendered as readable text,
  * handed-off history is context for the model, not a replayable trace, and
  * plain text survives every Claude Code version.
  */
@@ -123,7 +123,7 @@ export function toClaudeSessionLines(session: MotifSession, opts: ClaudeConvertO
     const earlier = session.messages.slice(0, -opts.digest.keepLast);
     toConvert = session.messages.slice(-opts.digest.keepLast);
     pushUser(
-      `[Condensed history — the first ${earlier.length} messages of this session, summarized]\n` +
+      `[Condensed history, the first ${earlier.length} messages of this session, summarized]\n` +
         buildDigest(earlier, { maxChars: 24_000 }),
       earlier[0]?.timestamp ?? nowIso,
     );

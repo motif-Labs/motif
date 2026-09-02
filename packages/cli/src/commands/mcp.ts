@@ -30,7 +30,7 @@ function installCursor(cmd: { command: string; args: string[] }, print: boolean)
       existing = JSON.parse(fs.readFileSync(file, 'utf8')) as typeof existing;
     } catch {
       throw new Error(
-        `${file} exists but is not valid JSON. A copy is at ${file}.motif-backup — ` +
+        `${file} exists but is not valid JSON. A copy is at ${file}.motif-backup, ` +
           'fix or move it, then run this again.',
       );
     }

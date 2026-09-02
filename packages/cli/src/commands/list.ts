@@ -40,7 +40,7 @@ export function registerList(program: Command): void {
           }
           return;
         } catch {
-          console.error('(server unreachable — falling back to local scan)');
+          console.error('(server unreachable, falling back to local scan)');
         }
       }
       const scan = scanLocal(claudeDir);

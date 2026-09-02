@@ -1,5 +1,5 @@
 /**
- * A complete invented team, written straight into a database — no reader ever
+ * A complete invented team, written straight into a database, no reader ever
  * runs, so `motif demo` cannot touch anyone's real agent history even by
  * accident. Everything here is synthetic, in the same spirit as fixtures/:
  * generic names, /workspace paths, hand-written content.
@@ -37,7 +37,7 @@ interface SeedSession {
 }
 
 const SESSIONS: SeedSession[] = [
-  // ── payments-api — the busy heart, many hands, many decisions ──────────
+  // ── payments-api, the busy heart, many hands, many decisions ──────────
   {
     id: 'pay-ratelimit',
     source: 'claude-code',
@@ -47,12 +47,12 @@ const SESSIONS: SeedSession[] = [
     day: 0,
     turns: [
       [
-        'The public API has no rate limiting. Add one that survives a restart — the in-memory attempt reset on every deploy.',
+        'The public API has no rate limiting. Add one that survives a restart, the in-memory attempt reset on every deploy.',
         'Redis token bucket keyed by API key, since several customers sit behind one NAT. 100 req/min, burst 20. State in Redis so a rolling deploy keeps quotas. Recorded in ADR-014.',
       ],
       [
         'What if Redis is down?',
-        'Fail open and log loudly — rejecting live payment traffic over a cache outage is worse. ADR-014.',
+        'Fail open and log loudly, rejecting live payment traffic over a cache outage is worse. ADR-014.',
       ],
     ],
   },
@@ -65,7 +65,7 @@ const SESSIONS: SeedSession[] = [
     day: 1,
     turns: [
       [
-        'Auth middleware fails open when the token service times out. That is backwards — make it fail closed.',
+        'Auth middleware fails open when the token service times out. That is backwards, make it fail closed.',
         'Flipped to fail closed, with one carve-out: the internal health route stays up so the load balancer does not pull every node on a blip.',
       ],
     ],
@@ -112,7 +112,7 @@ const SESSIONS: SeedSession[] = [
     turns: [
       [
         'Put a circuit breaker in front of the token service so a slow dependency cannot stall every request.',
-        'Opens after five consecutive timeouts, half-open probe every ten seconds. While open, auth fails closed. Different blast radius than the limiter — a deliberate policy split.',
+        'Opens after five consecutive timeouts, half-open probe every ten seconds. While open, auth fails closed. Different blast radius than the limiter, a deliberate policy split.',
       ],
     ],
   },
@@ -125,7 +125,7 @@ const SESSIONS: SeedSession[] = [
     day: 4,
     turns: [
       [
-        'Redis connections leak in staging — the pool is exhausted after a few hours.',
+        'Redis connections leak in staging, the pool is exhausted after a few hours.',
         'The limiter constructed a client per request. Moved to a shared pool created at boot; the limiter is on every public route, so a leak there takes the whole API down first.',
       ],
     ],
@@ -140,7 +140,7 @@ const SESSIONS: SeedSession[] = [
     turns: [
       [
         'Our 429s go out with no Retry-After, so clients retry immediately and make it worse.',
-        'Retry-After now computed from the bucket refill rate, and X-RateLimit-Remaining on every response — the header support keeps asking customers to screenshot.',
+        'Retry-After now computed from the bucket refill rate, and X-RateLimit-Remaining on every response, the header support keeps asking customers to screenshot.',
       ],
     ],
   },
@@ -153,7 +153,7 @@ const SESSIONS: SeedSession[] = [
     day: 6,
     turns: [
       [
-        'The checkout webhook test is flaky in CI — passes locally, fails maybe one run in five.',
+        'The checkout webhook test is flaky in CI, passes locally, fails maybe one run in five.',
         'The test asserted delivery attempts before the retry queue drained; it passed locally only because the machine is slower. Replaced the sleep with a wait on queue depth.',
       ],
     ],
@@ -181,12 +181,12 @@ const SESSIONS: SeedSession[] = [
     day: 9,
     turns: [
       [
-        'Add exponential backoff to webhook delivery — some endpoints are down for minutes.',
+        'Add exponential backoff to webhook delivery, some endpoints are down for minutes.',
         'Backoff 1s → 32s over six attempts, then a dead-letter row. Idempotency-Key travels with each retry so a slow endpoint that finally accepts does not process twice.',
       ],
     ],
   },
-  // ── billing-worker — the nightly job, moved to a queue ─────────────────
+  // ── billing-worker, the nightly job, moved to a queue ─────────────────
   {
     id: 'bill-cron',
     source: 'codex',
@@ -211,7 +211,7 @@ const SESSIONS: SeedSession[] = [
     turns: [
       [
         'A billing run partially failed and we double-charged three accounts on retry.',
-        'The retry re-ran the whole batch instead of the failed accounts. Now each account is its own idempotent unit, keyed like the payments API — a retry only touches what actually failed.',
+        'The retry re-ran the whole batch instead of the failed accounts. Now each account is its own idempotent unit, keyed like the payments API, a retry only touches what actually failed.',
       ],
     ],
   },
@@ -225,11 +225,11 @@ const SESSIONS: SeedSession[] = [
     turns: [
       [
         'Fix the off-by-one: some accounts billed a day early around DST.',
-        'The schedule computed the next run in UTC then displayed local, crossing the DST boundary. Compute in the account’s zone and store UTC — the display was never the source of truth.',
+        'The schedule computed the next run in UTC then displayed local, crossing the DST boundary. Compute in the account’s zone and store UTC, the display was never the source of truth.',
       ],
     ],
   },
-  // ── ops-runbooks — the on-call knowledge, sometimes at odds ────────────
+  // ── ops-runbooks, the on-call knowledge, sometimes at odds ────────────
   {
     id: 'ops-redis',
     source: 'codex',
@@ -240,7 +240,7 @@ const SESSIONS: SeedSession[] = [
     turns: [
       [
         'Write the on-call runbook for a Redis outage.',
-        'Documented the split people keep getting wrong: ADR-014 as WRITTEN says the limiter fails CLOSED on a Redis outage — the rate-limiting session remembered it the other way. During an outage expect 429s, not a traffic spike.',
+        'Documented the split people keep getting wrong: ADR-014 as WRITTEN says the limiter fails CLOSED on a Redis outage, the rate-limiting session remembered it the other way. During an outage expect 429s, not a traffic spike.',
       ],
     ],
   },
@@ -254,11 +254,11 @@ const SESSIONS: SeedSession[] = [
     turns: [
       [
         'Runbook for a token-service outage now that auth fails closed.',
-        'If the token service is down, expect 401s, not 500s — the breaker opens and auth fails closed. If you see a traffic spike instead, it is Redis, not the token service. Cross-linked both runbooks.',
+        'If the token service is down, expect 401s, not 500s, the breaker opens and auth fails closed. If you see a traffic spike instead, it is Redis, not the token service. Cross-linked both runbooks.',
       ],
     ],
   },
-  // ── web-dashboard — a different corner, its own history ────────────────
+  // ── web-dashboard, a different corner, its own history ────────────────
   {
     id: 'web-auth',
     source: 'claude-code',
@@ -268,7 +268,7 @@ const SESSIONS: SeedSession[] = [
     day: 2,
     turns: [
       [
-        'Sessions log users out after 30 minutes even while active — sliding expiry is broken.',
+        'Sessions log users out after 30 minutes even while active, sliding expiry is broken.',
         'The cookie max-age was set once at login and never refreshed. Now each authenticated request slides it forward, capped at an 8h absolute lifetime.',
       ],
     ],
@@ -282,7 +282,7 @@ const SESSIONS: SeedSession[] = [
     day: 6,
     turns: [
       [
-        'Build the usage chart for the billing page — requests per day, per plan.',
+        'Build the usage chart for the billing page, requests per day, per plan.',
         'Server aggregates by day and plan; the client just draws. No per-request fetch, so a customer with millions of calls still loads instantly.',
       ],
     ],
@@ -297,7 +297,7 @@ const SESSIONS: SeedSession[] = [
     turns: [
       [
         'The usage chart is off by a day for customers outside UTC.',
-        'Same class of bug as billing: aggregation bucketed by UTC day, displayed local. Now buckets by the viewer’s zone. Noted the pattern — this is the third timezone bug this month.',
+        'Same class of bug as billing: aggregation bucketed by UTC day, displayed local. Now buckets by the viewer’s zone. Noted the pattern, this is the third timezone bug this month.',
       ],
     ],
   },
@@ -344,7 +344,7 @@ export function insertSession(db: Db, members: DemoMembers, s: SeedSession): voi
 const sessionPk = (db: Db, id: string): number =>
   (db.prepare('SELECT pk FROM sessions WHERE source_session_id = ?').get(id) as { pk: number }).pk;
 
-/** The verified note and the stale one — quiet background for recall. */
+/** The verified note and the stale one, quiet background for recall. */
 export function seedBackgroundMemory(db: Db, members: DemoMembers): void {
   const ada = members.byName.get('ada')!.memberId;
   const ben = members.byName.get('ben')!.memberId;
@@ -362,7 +362,7 @@ export function seedBackgroundMemory(db: Db, members: DemoMembers): void {
       { projectPath: project, sessionPk: sessionPk(db, session), memberId: member },
     );
 
-  // idempotency — a decision AND the file it lives in, from one session:
+  // idempotency, a decision AND the file it lives in, from one session:
   // co-occurrence links them in the Weave. Then a human vouches for it.
   put('pay-idempotency', ben, PAY, [
     {
@@ -381,13 +381,13 @@ export function seedBackgroundMemory(db: Db, members: DemoMembers): void {
   const idem = db.prepare("SELECT id FROM memory_notes WHERE body LIKE '%422%'").get() as { id: number };
   applyVerdict(db, { noteId: idem.id, reviewerId: ben, verdict: 'confirm' });
 
-  // the recurring timezone lesson — a topic tying three files across projects
+  // the recurring timezone lesson, a topic tying three files across projects
   put('web-timezone', ada, '/workspace/web-dashboard', [
     {
       kind: 'topic',
       name: 'timezone bugs',
       aspect: 'pattern',
-      body: 'Aggregate/schedule in the viewer or account zone, store UTC. Display is never the source of truth — third such bug this month.',
+      body: 'Aggregate/schedule in the viewer or account zone, store UTC. Display is never the source of truth, third such bug this month.',
     },
     {
       kind: 'file',
@@ -397,7 +397,7 @@ export function seedBackgroundMemory(db: Db, members: DemoMembers): void {
     },
   ]);
 
-  // the breaker/auth policy split — a decision touching two files
+  // the breaker/auth policy split, a decision touching two files
   put('pay-breaker', members.byName.get('cleo')!.memberId, PAY, [
     {
       kind: 'decision',
@@ -413,7 +413,7 @@ export function seedBackgroundMemory(db: Db, members: DemoMembers): void {
     },
   ]);
 
-  // a note that will read as possibly stale — its file was reworked since
+  // a note that will read as possibly stale, its file was reworked since
   put('pay-ratelimit', ada, PAY, [
     {
       kind: 'file',
@@ -435,7 +435,7 @@ export function seedConflict(db: Db, members: DemoMembers): { standingId: number
       {
         entity: { kind: 'decision', name: 'redis outage policy' },
         aspect: 'limiter behaviour',
-        body: 'The limiter fails open when Redis is unreachable — rejecting payments over a cache is worse. (ADR-014)',
+        body: 'The limiter fails open when Redis is unreachable, rejecting payments over a cache is worse. (ADR-014)',
       },
     ],
     { projectPath: '/workspace/payments-api', sessionPk: sessionPk(db, 'pay-ratelimit'), memberId: ada },

@@ -28,7 +28,7 @@ async function purge(glob: string): Promise<void> {
   }
   console.log(`Purged ${deleted} session(s) matching ${glob} from the server.`);
   if (failed.length > 0) {
-    console.error(`\n${failed.length} session(s) could NOT be removed — they are still on the server:`);
+    console.error(`\n${failed.length} session(s) could NOT be removed, they are still on the server:`);
     for (const f of failed) console.error(`  ${f.id}: ${f.error}`);
     process.exitCode = 1;
   }
@@ -65,13 +65,13 @@ export function registerProjects(program: Command): void {
 
   projects
     .command('team <pathOrGlob>')
-    .description('Mark a project TEAM-visible — its sessions appear to the whole team (others stay personal)')
+    .description('Mark a project TEAM-visible, its sessions appear to the whole team (others stay personal)')
     .action((glob: string) => {
       const cfg = loadConfig();
       const value = glob.includes('*') ? glob : path.resolve(glob);
       saveConfig({ ...cfg, teamProjects: [...new Set([...(cfg.teamProjects ?? []), value])] });
       console.log(`Team-visible from now on: ${value}`);
-      console.log('(already-synced sessions keep their scope — promote them from the dashboard)');
+      console.log('(already-synced sessions keep their scope, promote them from the dashboard)');
     });
 
   projects
@@ -92,7 +92,7 @@ export function registerProjects(program: Command): void {
       saveConfig({ ...loadConfig(), syncMode: mode });
       console.log(
         mode === 'selected'
-          ? 'Selected mode: nothing syncs until you run `motif projects include <path>` — personal work stays personal.'
+          ? 'Selected mode: nothing syncs until you run `motif projects include <path>`, personal work stays personal.'
           : 'All mode: every project syncs unless excluded.',
       );
     });
@@ -107,7 +107,7 @@ export function registerProjects(program: Command): void {
       console.log(`Included: ${value}`);
       if ((cfg.syncMode ?? 'all') !== 'selected') {
         console.log(
-          "(note: the allowlist only takes effect in 'selected' mode — motif projects mode selected)",
+          "(note: the allowlist only takes effect in 'selected' mode, motif projects mode selected)",
         );
       }
     });
@@ -126,7 +126,7 @@ export function registerProjects(program: Command): void {
       });
       console.log(`Excluded: ${value}`);
       if (opts.purge) await purge(value);
-      else console.log('(already-synced sessions stay on the server — add --purge to withdraw them)');
+      else console.log('(already-synced sessions stay on the server, add --purge to withdraw them)');
     });
 
   projects

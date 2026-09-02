@@ -5,7 +5,7 @@ daemon on. This page is the whole thing, including the details that bite.
 
 ## 1. Someone runs the server
 
-On a machine the team can reach — a company box, a small VPS, or one person's
+On a machine the team can reach, a company box, a small VPS, or one person's
 laptop on the office network.
 
 ```bash
@@ -17,18 +17,18 @@ MOTIF_TOKEN=<pick-a-long-random-string> npx getmotif server --host 0.0.0.0
 It prints the team token and the exact command teammates should run.
 
 **Set `MOTIF_TOKEN` yourself.** If you leave it out, the server generates one and
-stores it, which is fine — but you cannot recover it except from the server's
+stores it, which is fine, but you cannot recover it except from the server's
 own output or its database, and if you ever start the server against a _fresh_
 database you will get a different token. Choosing it makes the whole thing
 reproducible.
 
 **Bind explicitly.** The default is `127.0.0.1`, which nobody else can reach.
 Teammates need `--host 0.0.0.0`, and then a firewall rule or a reverse proxy in
-front — see [TLS](#tls) below.
+front, see [TLS](#tls) below.
 
 ### The database is the team
 
-Everything — sessions, members, tokens, memory — lives in one SQLite file:
+Everything, sessions, members, tokens, memory, lives in one SQLite file:
 `~/.motif/motif.db`, or `/data/motif.db` in the Docker volume.
 
 That file **is** your team. As long as the server starts against the same file:
@@ -38,8 +38,8 @@ That file **is** your team. As long as the server starts against the same file:
 - an old invite token still works
 
 Start the server against a different path and you have a **new, empty team**:
-new token, no members, no history. Nobody is locked out permanently — the data
-is still in the old file — but everyone must reconnect.
+new token, no members, no history. Nobody is locked out permanently, the data
+is still in the old file, but everyone must reconnect.
 
 So: pin the path with `MOTIF_DB_PATH`, or use the Docker volume, and back the
 file up. Backup is `cp` while the server is stopped, or
@@ -64,7 +64,7 @@ they stay one person in the dashboard.
 ## 3. Nothing is shared until someone says so
 
 This is the part people get wrong. **Connecting shares nothing.** Every session
-uploads as `personal` — stored on the server, visible only to its owner.
+uploads as `personal`, stored on the server, visible only to its owner.
 
 To share a project with the team:
 
@@ -79,7 +79,7 @@ synced as well as new ones. Check what is happening with:
 motif projects list
 ```
 
-To keep something out entirely — not even uploaded as personal:
+To keep something out entirely, not even uploaded as personal:
 
 ```bash
 motif projects exclude ~/personal --purge
@@ -96,8 +96,8 @@ motif connect <url> --token <t> --name "Ada" --selected
 motif projects include ~/work/company-repo
 ```
 
-Promoting a single session by hand — from the dashboard, or
-`motif projects team` on its project — sticks. A later re-sync will not undo a
+Promoting a single session by hand, from the dashboard, or
+`motif projects team` on its project, sticks. A later re-sync will not undo a
 choice a person made deliberately.
 
 ## 4. Check it worked
@@ -109,14 +109,14 @@ motif list       # you should now see teammates' team-visible sessions
 ```
 
 If `doctor` says _member identity (writes enabled)_ is missing, you are signed in
-with the team token — re-run `connect`.
+with the team token, re-run `connect`.
 
 ## 5. What each person can do
 
 |                                            | team token | member token |
 | ------------------------------------------ | ---------- | ------------ |
 | read team-visible sessions, search, recall | yes        | yes          |
-| register a new machine                     | yes        | —            |
+| register a new machine                     | yes        |,            |
 | upload sessions                            | no         | yes          |
 | hand off, ask, pin notes                   | no         | yes          |
 | see their own personal sessions            | no         | yes          |

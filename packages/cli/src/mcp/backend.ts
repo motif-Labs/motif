@@ -1,10 +1,10 @@
 /**
  * Two ways to reach the team's context, behind one interface:
  *
- *   local  — open the SQLite file directly (the same one `motif up`/`motif
+ *   local , open the SQLite file directly (the same one `motif up`/`motif
  *            server` writes; SQLite WAL makes concurrent readers free). No
  *            HTTP, no port, works while the agent runs.
- *   remote — a teammate's server over HTTP with this machine's member token.
+ *   remote, a teammate's server over HTTP with this machine's member token.
  *
  * Remote wins when a non-local server is configured, because that database is
  * the team's; otherwise we read the local one.
@@ -33,7 +33,7 @@ import { askSessionLocally, canAnswerLocally, looksLive } from '../ask/perform.j
 export interface Backend {
   readonly kind: 'local' | 'remote';
   recall(query: string, project?: string, budget?: number): Promise<string>;
-  /** The same bundle, unrendered — for `--json` and the benchmark. */
+  /** The same bundle, unrendered, for `--json` and the benchmark. */
   recallJson(query: string, project?: string, budget?: number): Promise<unknown>;
   search(query: string, limit: number): Promise<string>;
   listSessions(project: string | undefined, limit: number): Promise<string>;
@@ -59,7 +59,7 @@ function renderSessionList(
   const lines = [heading, ''];
   for (const r of rows) {
     lines.push(
-      `- \`${r.id}\` **${r.title ?? '(untitled)'}** — @${r.memberName ?? '?'}, ${r.projectPath || '?'}, ${r.updatedAt?.slice(0, 10) ?? ''} (${r.messageCount} messages)`,
+      `- \`${r.id}\` **${r.title ?? '(untitled)'}**, @${r.memberName ?? '?'}, ${r.projectPath || '?'}, ${r.updatedAt?.slice(0, 10) ?? ''} (${r.messageCount} messages)`,
     );
     if (r.snippet) lines.push(`    …${r.snippet}…`);
   }
@@ -101,7 +101,7 @@ function renderAsk(
   if (status === 'error') {
     return `The session could not answer: ${error ?? 'unknown error'}`;
   }
-  return `Question queued for \`${sessionId}\`. Its owner's machine answers it — check back with the same tool, or read it in the dashboard.`;
+  return `Question queued for \`${sessionId}\`. Its owner's machine answers it, check back with the same tool, or read it in the dashboard.`;
 }
 
 class LocalBackend implements Backend {
@@ -148,7 +148,7 @@ class LocalBackend implements Backend {
     // fast path: it is our own session and the transcript is right here
     if (canAnswerLocally(session)) {
       if (looksLive(session)) {
-        return `\`${row.id}\` is still running right now — resuming it could collide with the live process. Read it with get_session instead.`;
+        return `\`${row.id}\` is still running right now, resuming it could collide with the live process. Read it with get_session instead.`;
       }
       const outcome = askSessionLocally(session, question);
       return renderAsk(row.id, question, 'done', outcome.answer);
@@ -232,8 +232,8 @@ export function createBackend(dbPath?: string): Backend {
   if (fs.existsSync(file)) return new LocalBackend(openDb(file), cfg);
 
   // Reading the file directly is only an optimisation. If it is not where this
-  // machine keeps its own state — a server started elsewhere, a different
-  // MOTIF_HOME, an SSH tunnel to localhost — ask the server we are connected to
+  // machine keeps its own state, a server started elsewhere, a different
+  // MOTIF_HOME, an SSH tunnel to localhost, ask the server we are connected to
   // rather than declaring there is no database.
   if (connected) return remote();
 

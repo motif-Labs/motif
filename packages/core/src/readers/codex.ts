@@ -58,7 +58,7 @@ export function discoverCodexSessions(codexDir = defaultCodexDir()): CodexSessio
 
 /**
  * A rollout Motif itself wrote (a handoff) that Codex has not touched yet is
- * a copy of a session we already have — syncing it back would duplicate the
+ * a copy of a session we already have, syncing it back would duplicate the
  * conversation. Codex appends turn_context lines the moment it resumes, so
  * "originator motif AND no turn_context" identifies the dormant copies.
  */
@@ -189,7 +189,7 @@ export function readCodexSession(filePath: string): MotifSession {
             break;
           }
           case 'reasoning':
-            // encrypted / summarized reasoning — no portable text to keep
+            // encrypted / summarized reasoning, no portable text to keep
             break;
           default:
             break;
@@ -197,7 +197,7 @@ export function readCodexSession(filePath: string): MotifSession {
         break;
       }
       default:
-        break; // event_msg, world_state, compacted — runtime telemetry
+        break; // event_msg, world_state, compacted, runtime telemetry
     }
   }
 

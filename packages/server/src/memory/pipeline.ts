@@ -1,5 +1,5 @@
 /**
- * Session memory — basic tier. A scheduler picks sessions that have gone
+ * Session memory, basic tier. A scheduler picks sessions that have gone
  * idle with unprocessed messages, digests only the new messages, shows the
  * model the current notes for that project, and applies the returned notes
  * with supersession (history kept, currency flagged) and conflict marking
@@ -113,7 +113,7 @@ export function applyNotes(
       }
     }
   })();
-  invalidateStaleSweep(db); // fresh notes may re-date staleness — next read sweeps
+  invalidateStaleSweep(db); // fresh notes may re-date staleness, next read sweeps
   return { entityIds, conflicts };
 }
 
@@ -154,7 +154,7 @@ export async function runMemoryTick(
   const idleMs = opts.idleMs ?? 10 * 60 * 1000;
   const budget = opts.dailyTokenBudget ?? Number(process.env.MOTIF_LLM_DAILY_BUDGET ?? 1_000_000);
   if (getSpend(db) >= budget) {
-    opts.log?.(`memory: daily token budget (${budget}) reached — extraction paused until tomorrow`);
+    opts.log?.(`memory: daily token budget (${budget}) reached, extraction paused until tomorrow`);
     return 0;
   }
   const cutoff = new Date(Date.now() - idleMs).toISOString();
@@ -196,7 +196,7 @@ export async function runMemoryTick(
     try {
       raw = await provider.completeJSON({ system: SYSTEM_PROMPT, user });
     } catch (err) {
-      // one repair retry, then skip — a stuck job must never wedge the queue
+      // one repair retry, then skip, a stuck job must never wedge the queue
       try {
         raw = await provider.completeJSON({
           system: SYSTEM_PROMPT,

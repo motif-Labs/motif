@@ -2,7 +2,7 @@
  * The native-handoff engine, shared by the `motif handoff` command and the
  * daemon (which fulfils dashboard-initiated handoff requests on this
  * machine). Writes the Codex rollout and registers the thread in Codex's
- * state DB; the server never touches ~/.codex — only this machine does.
+ * state DB; the server never touches ~/.codex, only this machine does.
  */
 
 import crypto from 'node:crypto';
@@ -121,18 +121,18 @@ export function performCodexHandoff(
   // A codex session whose rollout already lives on THIS machine needs no
   // conversion; one synced from a teammate's machine does. `force` skips the
   // check because a delivery from a teammate exists precisely because the
-  // session is not here — and the path test gives a false positive whenever
+  // session is not here, and the path test gives a false positive whenever
   // two people share a directory layout.
   if (!opts.force && session.source === 'codex' && session.sourcePath && fs.existsSync(session.sourcePath)) {
     throw new Error(
-      `Already a Codex session on this machine — continue it with: codex resume ${session.sourceSessionId}`,
+      `Already a Codex session on this machine, continue it with: codex resume ${session.sourceSessionId}`,
     );
   }
   if (opts.cwdOverride) session = { ...session, projectPath: path.resolve(opts.cwdOverride) };
 
   const home = codexHome();
   if (!fs.existsSync(home) && !opts.force) {
-    throw new Error(`${home} not found — is Codex installed? (--force to write anyway)`);
+    throw new Error(`${home} not found, is Codex installed? (--force to write anyway)`);
   }
 
   const now = new Date();
@@ -189,14 +189,14 @@ export function performClaudeHandoff(
     fs.existsSync(session.sourcePath)
   ) {
     throw new Error(
-      `Already a Claude Code session on this machine — continue it with: claude --resume ${session.sourceSessionId}`,
+      `Already a Claude Code session on this machine, continue it with: claude --resume ${session.sourceSessionId}`,
     );
   }
   if (opts.cwdOverride) session = { ...session, projectPath: path.resolve(opts.cwdOverride) };
 
   const home = opts.claudeDir ?? defaultClaudeDir();
   if (!fs.existsSync(home) && !opts.force) {
-    throw new Error(`${home} not found — is Claude Code installed? (--force to write anyway)`);
+    throw new Error(`${home} not found, is Claude Code installed? (--force to write anyway)`);
   }
 
   // mirror the locally installed version string when a real transcript is around to copy it from
@@ -215,7 +215,7 @@ export function performClaudeHandoff(
       }
     }
   } catch {
-    /* fresh install — default applies */
+    /* fresh install, default applies */
   }
 
   const result = toClaudeSessionLines(session, {
@@ -246,7 +246,7 @@ export function performClaudeHandoff(
  * A handoff writes a file at a path derived from session data, and for a
  * delivery from a teammate that data came off the network. Path mangling
  * already strips separators, but the containment guarantee should be stated
- * rather than left to emerge from a regex — a future change to the mangling
+ * rather than left to emerge from a regex, a future change to the mangling
  * must not be able to open a write outside the directory silently.
  */
 function assertInside(root: string, target: string, what: string): void {

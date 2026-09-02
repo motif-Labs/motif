@@ -134,7 +134,7 @@ export function setToken(token: string): void {
   try {
     localStorage.setItem(TOKEN_KEY, token);
   } catch {
-    // storage unavailable — session-only auth
+    // storage unavailable, session-only auth
   }
 }
 

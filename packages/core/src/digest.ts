@@ -2,7 +2,7 @@
  * Compact plain-text digest of session messages for LLM consumption
  * (memory extraction, summaries). Token-frugal by construction: reasoning is
  * excluded, tool results are truncated hardest, and the whole digest is
- * capped — callers pass only the message window they care about.
+ * capped, callers pass only the message window they care about.
  */
 
 import type { MotifMessage } from './schema.js';
@@ -45,7 +45,7 @@ export function buildDigest(messages: MotifMessage[], opts: DigestOptions = {}):
 
   let digest = parts.join('\n');
   if (digest.length > maxChars) {
-    // keep the tail — recent activity matters most for memory updates
+    // keep the tail, recent activity matters most for memory updates
     digest = `…(truncated)…\n${digest.slice(-maxChars)}`;
   }
   return digest;

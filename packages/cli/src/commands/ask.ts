@@ -10,7 +10,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export function registerAsk(program: Command): void {
   program
     .command('ask <id> <question...>')
-    .description('Ask a past session a question — the agent that lived it answers, with full context')
+    .description('Ask a past session a question, the agent that lived it answers, with full context')
     .option('--wait <seconds>', "how long to wait for a teammate's machine", '120')
     .action(async (id: string, questionParts: string[], opts: { wait: string }) => {
       const question = questionParts.join(' ');
@@ -32,7 +32,7 @@ export function registerAsk(program: Command): void {
       }
       if (local && canAnswerLocally(local)) {
         if (looksLive(local)) {
-          console.error(`${local.id} is still running — resuming it could collide with the live process.`);
+          console.error(`${local.id} is still running, resuming it could collide with the live process.`);
           process.exitCode = 1;
           return;
         }
@@ -60,7 +60,7 @@ export function registerAsk(program: Command): void {
         ? id
         : ((await client.exportSession(`claude-code:${id}`).catch(() => undefined))?.id ?? id);
       const request = await client.createAsk(sessionId, question);
-      console.error(`Queued for the machine that owns "${request.session_title ?? sessionId}" — waiting…`);
+      console.error(`Queued for the machine that owns "${request.session_title ?? sessionId}", waiting…`);
       const deadline = Date.now() + (Number(opts.wait) || 120) * 1000;
       while (Date.now() < deadline) {
         await sleep(2500);
@@ -76,7 +76,7 @@ export function registerAsk(program: Command): void {
         }
       }
       console.error(
-        `Still waiting — their daemon will answer when it is online. Check later: motif asks ${sessionId}`,
+        `Still waiting, their daemon will answer when it is online. Check later: motif asks ${sessionId}`,
       );
     });
 

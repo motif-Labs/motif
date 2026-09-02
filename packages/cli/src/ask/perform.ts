@@ -4,7 +4,7 @@
  * The transcript alone is a document; the agent that wrote it is a colleague.
  * This resumes a session headlessly on the machine that owns it and asks the
  * question, so the answer comes back with the session's full context instead
- * of a lossy summary. Only the owning machine can do this — which is exactly
+ * of a lossy summary. Only the owning machine can do this, which is exactly
  * why the request is queued for its daemon.
  */
 
@@ -36,7 +36,7 @@ function cleanCodexOutput(out: string): string {
 
 /**
  * A CLI that prints "you are out of credits" and exits 0 has not answered the
- * question — surfacing that text as the session's answer would be a lie.
+ * question, surfacing that text as the session's answer would be a lie.
  */
 const REFUSALS = [
   /out of usage credits/i,
@@ -67,7 +67,7 @@ const SAFE_SESSION_ID = /^[A-Za-z0-9._-]{1,128}$/;
 /**
  * Is this transcript genuinely one of ours? `fs.existsSync` alone answered "yes"
  * for any path that happens to exist, which let a session record uploaded by
- * someone else point the resume at a file — and a directory — of their choosing.
+ * someone else point the resume at a file, and a directory, of their choosing.
  */
 export function canAnswerLocally(session: MotifSession): boolean {
   if (session.source === 'cursor') return false; // no headless resume
@@ -93,7 +93,7 @@ export function askSessionLocally(
   opts: { timeoutMs?: number; allowNpxFallback?: boolean } = {},
 ): AskOutcome {
   if (session.source === 'cursor') {
-    throw new Error('Cursor sessions cannot be resumed headlessly — read the transcript instead.');
+    throw new Error('Cursor sessions cannot be resumed headlessly, read the transcript instead.');
   }
   if (!canAnswerLocally(session)) {
     throw new Error(`The transcript for ${session.id} is not on this machine.`);
@@ -101,7 +101,7 @@ export function askSessionLocally(
   const cwd = session.projectPath && fs.existsSync(session.projectPath) ? session.projectPath : os.homedir();
   // The question comes from a teammate. It is fenced so that the preamble can
   // say plainly that nothing inside it is an instruction, and it is delivered on
-  // stdin so it never becomes part of a command line — on Windows the CLIs are
+  // stdin so it never becomes part of a command line, on Windows the CLIs are
   // .cmd shims that need a shell, and a shell would interpret it.
   const prompt = `${READ_ONLY_PREAMBLE}<teammate-question>\n${question}\n</teammate-question>`;
   const timeout = opts.timeoutMs ?? 180_000;
@@ -132,7 +132,7 @@ export function askSessionLocally(
   // codex
   // `codex exec resume` has no --sandbox flag; the sandbox is set through a
   // config override. The trailing `-` is how it is told to read the prompt from
-  // stdin — verified against the installed CLI, both of them.
+  // stdin, verified against the installed CLI, both of them.
   const args = [
     'exec',
     'resume',

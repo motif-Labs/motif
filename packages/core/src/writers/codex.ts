@@ -2,9 +2,9 @@
  * MotifSession → Codex rollout conversion (the native-handoff hero).
  *
  * Format pinned against Codex 0.150.1: a real captured rollout
- * (fixtures/codex/rollout-0.150.1.jsonl — envelope captured from the real
+ * (fixtures/codex/rollout-0.150.1.jsonl, envelope captured from the real
  * CLI, message content replaced with synthetic text) plus the serde definitions
- * in openai/codex @ rust-v0.150.1 — RolloutLine {timestamp, ordinal, type,
+ * in openai/codex @ rust-v0.150.1, RolloutLine {timestamp, ordinal, type,
  * payload}; ResponseItem tagged `type`/snake_case with function_call
  * `arguments` as a JSON STRING and function_call_output `output` as a plain
  * string; SessionMeta requires session_id/id/timestamp/cwd/originator/
@@ -51,7 +51,7 @@ export interface ConvertResult {
   firstUserMessage: string;
 }
 
-/** UUIDv7 (time-ordered) — Codex ids are v7 and the picker benefits from id ordering. */
+/** UUIDv7 (time-ordered), Codex ids are v7 and the picker benefits from id ordering. */
 export function uuidv7(now: Date, random: () => number = Math.random): string {
   const ts = now.getTime();
   const bytes = new Uint8Array(16);
@@ -125,7 +125,7 @@ export function toRolloutLines(session: MotifSession, opts: ConvertOptions): Con
       content: [
         {
           type: 'input_text',
-          text: `[Condensed history — the first ${earlier.length} messages of this session, summarized]\n${buildDigest(earlier, { maxChars: 24_000 })}`,
+          text: `[Condensed history, the first ${earlier.length} messages of this session, summarized]\n${buildDigest(earlier, { maxChars: 24_000 })}`,
         },
       ],
     });

@@ -8,7 +8,7 @@ const src = path.join(here, '..', '..', '..', 'ui', 'dist');
 const dest = path.join(here, '..', 'dist', 'ui');
 
 if (!fs.existsSync(path.join(src, 'index.html'))) {
-  console.error('ui/dist not found — run `npm run build -w @motif/ui` first');
+  console.error('ui/dist not found, run `npm run build -w @motif/ui` first');
   process.exit(1);
 }
 fs.cpSync(src, dest, { recursive: true });

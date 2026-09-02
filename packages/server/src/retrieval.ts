@@ -1,16 +1,16 @@
 import { confidence, supportByEntity } from './memory/confidence.js';
 /**
- * Context retrieval — the engine behind `motif recall` and the MCP server.
+ * Context retrieval, the engine behind `motif recall` and the MCP server.
  *
  * Deliberately NOT a vector index: no embeddings, no model calls, nothing to
  * pay for. Relevance comes from three deterministic signals that a human can
  * audit, and every returned item carries the reason it was picked:
  *
- *   1. term match   — FTS5/bm25 over message text (message-level, so an
+ *   1. term match  , FTS5/bm25 over message text (message-level, so an
  *                     excerpt can be cited exactly)
- *   2. graph        — sessions linked by handoff lineage, shared memory
+ *   2. graph       , sessions linked by handoff lineage, shared memory
  *                     entities, or overlapping touched files
- *   3. curation     — distilled memory notes and human-pinned comments,
+ *   3. curation    , distilled memory notes and human-pinned comments,
  *                     which are worth far more per token than raw transcript
  *
  * Results are packed to a token budget: curated knowledge first (highest
@@ -91,7 +91,7 @@ export function queryTerms(query: string): string[] {
 
 /**
  * Search is AND ("find the session with these words"); recall is OR ("find
- * whatever relates to this question") — a natural-language question almost
+ * whatever relates to this question"), a natural-language question almost
  * never has all its words in one message. bm25 then ranks the messages that
  * matched the most, and the rarest, terms.
  */
@@ -101,7 +101,7 @@ export function ftsOrQuery(terms: string[]): string {
 
 /**
  * FTS matches with a stemmer ("charging" finds "charge"), so scoring must too
- * — otherwise the paragraph FTS just found gets thrown away for not containing
+ *, otherwise the paragraph FTS just found gets thrown away for not containing
  * the exact word. A short prefix is a cheap stand-in for a stemmer.
  */
 function termHitIndex(lower: string, term: string): number {
@@ -154,7 +154,7 @@ function dedupeKey(text: string): string {
 
 /**
  * The answer usually sits next to the words you searched for, not at the top
- * of a long paragraph — so quote the window around the first match.
+ * of a long paragraph, so quote the window around the first match.
  */
 export function windowAround(text: string, terms: string[], width: number): string {
   const trimmed = text.trim();
@@ -293,7 +293,7 @@ export function recall(db: Db, opts: RecallOptions): RecallResult {
         )
         .all(ftsOrQuery(terms)) as Hit[];
     } catch {
-      hits = []; // malformed match expression — fall back to graph/curation only
+      hits = []; // malformed match expression, fall back to graph/curation only
     }
   }
   hits = hits.filter((h) => sessions.has(h.sessionPk));
@@ -323,7 +323,7 @@ export function recall(db: Db, opts: RecallOptions): RecallResult {
 
   if (seeds.length > 0) {
     const inSeeds = seeds.map(() => '?').join(',');
-    // handoff lineage: the strongest link — one session literally continues another
+    // handoff lineage: the strongest link, one session literally continues another
     for (const row of db
       .prepare(
         `SELECT h.session_pk AS fromPk, s2.pk AS toPk
@@ -387,7 +387,7 @@ export function recall(db: Db, opts: RecallOptions): RecallResult {
     const cov = termCoverage(`${n.entity} ${n.aspect} ${n.body}`, terms);
     if (cov === 0 && terms.length > 0) continue;
     // trust is one number: corroboration + human vouch, tempered by conflict,
-    // staleness and age — it both ranks the note and is shown to the reader
+    // staleness and age, it both ranks the note and is shown to the reader
     const conf = confidence({
       status: n.status,
       verification: n.verification,
@@ -411,11 +411,11 @@ export function recall(db: Db, opts: RecallOptions): RecallResult {
       text,
       why:
         n.status === 'conflicted'
-          ? 'team memory — unresolved conflict'
+          ? 'team memory, unresolved conflict'
           : n.verification === 'verified'
             ? 'team memory (human-verified)'
             : n.stale
-              ? 'team memory — possibly stale, its files moved on'
+              ? 'team memory, possibly stale, its files moved on'
               : 'team memory (current)',
       score,
       tokens: approxTokens(text),
@@ -507,7 +507,7 @@ export function recall(db: Db, opts: RecallOptions): RecallResult {
     used += item.tokens;
   }
 
-  // ── 7. related sessions (links, not content — cheap to include) ─────────
+  // ── 7. related sessions (links, not content, cheap to include) ─────────
   const related: RecallRelated[] = [];
   const relatedPks = new Set<number>();
   for (const [pk, boost] of [...graphBoost.entries()].sort((a, b) => b[1].score - a[1].score).slice(0, 6)) {
@@ -538,7 +538,7 @@ export function recall(db: Db, opts: RecallOptions): RecallResult {
   };
 }
 
-/** Markdown rendering used by the MCP tool and the CLI — one shape everywhere. */
+/** Markdown rendering used by the MCP tool and the CLI, one shape everywhere. */
 export function renderRecall(result: RecallResult): string {
   if (result.items.length === 0 && result.related.length === 0) {
     return `No prior team context found for "${result.query}".`;
@@ -559,7 +559,7 @@ export function renderRecall(result: RecallResult): string {
   if (excerpts.length > 0) {
     lines.push('\n## From past sessions');
     // Excerpts from one session share a header rather than repeating it, and an
-    // excerpt that only restates the title carries no information — the title is
+    // excerpt that only restates the title carries no information, the title is
     // already on the line above it.
     const bySession = new Map<string, typeof excerpts>();
     for (const e of excerpts) {
@@ -577,14 +577,14 @@ export function renderRecall(result: RecallResult): string {
       // every quote was just the title again: the header alone would say nothing
       if (quotes.length === 0) continue;
       lines.push(
-        `\n**${head.sessionTitle ?? 'session'}** — @${head.member ?? '?'}, ${head.when?.slice(0, 10) ?? ''} · \`${sessionId}\``,
+        `\n**${head.sessionTitle ?? 'session'}**, @${head.member ?? '?'}, ${head.when?.slice(0, 10) ?? ''} · \`${sessionId}\``,
       );
       for (const body of quotes) lines.push(`> ${body.replace(/\n/g, '\n> ')}`);
     }
   }
   if (result.related.length > 0) {
     lines.push('\n## Related sessions (not included above)');
-    for (const r of result.related) lines.push(`- \`${r.sessionId}\` ${r.title ?? ''} — ${r.why}`);
+    for (const r of result.related) lines.push(`- \`${r.sessionId}\` ${r.title ?? ''}, ${r.why}`);
   }
   lines.push(
     `\n---\n_${result.tokensApprox} tokens from ${result.stats.candidateSessions} sessions. Cite session ids when you use this. Ask a session directly with the ask_session tool._`,

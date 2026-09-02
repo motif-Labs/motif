@@ -17,28 +17,28 @@ import { performWeaverJob } from '../weaver/perform.js';
 import { SESSIONS, insertSession, seedBackgroundMemory, seedConflict, seedMembers } from '../demo/seed.js';
 
 /**
- * Not a museum — a show. A team's week replays in front of you in five acts:
+ * Not a museum, a show. A team's week replays in front of you in five acts:
  * sessions stream in live, memory catches two of them contradicting each
  * other, YOU rule on it, the Weaver aligns a real git repository with your
  * ruling, and recall answers with your verdict marked verified.
  *
  * Everything is invented and everything is isolated: the seed writes straight
  * into a throwaway database, the repository the Weaver touches is one this
- * command just created, and no reader ever runs — your own history cannot be
+ * command just created, and no reader ever runs, your own history cannot be
  * opened even by accident.
  */
 
 const LOSING_LINE =
-  'Fail **open** when Redis is unreachable — rejecting live payment traffic over a cache is worse than briefly serving unlimited requests.';
+  'Fail **open** when Redis is unreachable, rejecting live payment traffic over a cache is worse than briefly serving unlimited requests.';
 const WINNING_LINE =
-  'Fail **closed** when Redis is unreachable. (Ruled by @you — the ADR as written wins; see the ruling record.)';
+  'Fail **closed** when Redis is unreachable. (Ruled by @you, the ADR as written wins; see the ruling record.)';
 
 function makeDemoRepo(dir: string): string {
   const repo = path.join(dir, 'payments-api');
   fs.mkdirSync(path.join(repo, 'docs', 'adr'), { recursive: true });
   fs.writeFileSync(
     path.join(repo, 'docs', 'adr', '014-rate-limiting.md'),
-    `# ADR-014 — Rate limiting\n\nToken bucket in Redis, not in-memory: the previous attempt reset on every deploy.\n\n${LOSING_LINE}\n`,
+    `# ADR-014, Rate limiting\n\nToken bucket in Redis, not in-memory: the previous attempt reset on every deploy.\n\n${LOSING_LINE}\n`,
   );
   fs.writeFileSync(
     path.join(repo, 'limiter-notes.md'),
@@ -60,7 +60,7 @@ function makeDemoRepo(dir: string): string {
 export function registerDemo(program: Command): void {
   program
     .command('demo')
-    .description('A team’s week, replayed live in five acts — you rule, the Weaver acts')
+    .description('A team’s week, replayed live in five acts, you rule, the Weaver acts')
     .option('--port <n>', 'port to listen on', '4699')
     .option('--no-open', 'do not open the dashboard in a browser')
     .option('--fast', 'no dramatic pauses')
@@ -75,7 +75,7 @@ export function registerDemo(program: Command): void {
           return;
         }
 
-        // a fresh take every run — the demo is a stage, not a workspace
+        // a fresh take every run, the demo is a stage, not a workspace
         fs.rmSync(dir, { recursive: true, force: true });
         fs.mkdirSync(dir, { recursive: true });
 
@@ -91,9 +91,9 @@ export function registerDemo(program: Command): void {
         const base = `http://127.0.0.1:${port}`;
 
         console.log(
-          `\n  MOTIF ENGINEERING — two weeks of a real team's work, replayed. Nothing real is touched.\n`,
+          `\n  MOTIF ENGINEERING, two weeks of a real team's work, replayed. Nothing real is touched.\n`,
         );
-        console.log(`  Dashboard (watch it fill): ${base}  — signed in as "you"\n`);
+        console.log(`  Dashboard (watch it fill): ${base} , signed in as "you"\n`);
         if (opts.open) {
           const url = `${base}/?token=${encodeURIComponent(you.memberToken)}`;
           if (process.platform === 'win32') {
@@ -107,7 +107,7 @@ export function registerDemo(program: Command): void {
 
         // ── Act 1 · sessions stream in, live ─────────────────────────────
         console.log(
-          `  ▸ Act 1 · Collect — ${new Set(SESSIONS.map((x) => x.member)).size} people, two tools, ${new Set(SESSIONS.map((x) => x.project)).size} projects, one record\n`,
+          `  ▸ Act 1 · Collect, ${new Set(SESSIONS.map((x) => x.member)).size} people, two tools, ${new Set(SESSIONS.map((x) => x.project)).size} projects, one record\n`,
         );
         SESSIONS.forEach((s) => insertSession(server.db, members, s));
         // stream the recent ones on screen; the rest are already in the record
@@ -131,7 +131,7 @@ export function registerDemo(program: Command): void {
 
         // ── Act 2 · memory catches a contradiction ───────────────────────
         await beat(900);
-        console.log('\n  ▸ Act 2 · Memory distils — and catches two sessions disagreeing\n');
+        console.log('\n  ▸ Act 2 · Memory distils, and catches two sessions disagreeing\n');
         seedBackgroundMemory(server.db, members);
         const { standingId, challengerId } = seedConflict(server.db, members);
         server.bus.publish('memory-conflict', {
@@ -139,13 +139,13 @@ export function registerDemo(program: Command): void {
           aspect: 'limiter behaviour',
         });
         await beat(600);
-        console.log('    ⚖️  CONFLICT — “redis outage policy”');
+        console.log('    ⚖️  CONFLICT, “redis outage policy”');
         console.log('        ada, in the rate-limiting session:  the limiter fails OPEN  (cites ADR-014)');
         console.log('        iris, writing the runbook:          ADR-014 as WRITTEN says fail CLOSED');
         console.log('        until someone rules, agents are shown BOTH sides with a warning.\n');
 
         // ── Act 3 · you rule ─────────────────────────────────────────────
-        console.log('  ▸ Act 3 · A human rules — that human is you\n');
+        console.log('  ▸ Act 3 · A human rules, that human is you\n');
         let pick = '2';
         if (!opts.auto && process.stdin.isTTY) {
           const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -180,7 +180,7 @@ export function registerDemo(program: Command): void {
 
         // ── Act 4 · the Weaver acts on your ruling ───────────────────────
         await beat(700);
-        console.log('  ▸ Act 4 · The Weaver — your ruling grows hands\n');
+        console.log('  ▸ Act 4 · The Weaver, your ruling grows hands\n');
         const repo = makeDemoRepo(dir);
         console.log('    a real git repository (a scratch dir) still says:');
         console.log(`      "${LOSING_LINE.slice(0, 60)}…"\n`);
@@ -209,7 +209,7 @@ export function registerDemo(program: Command): void {
                 fs.writeFileSync(adr, text.replace(LOSING_LINE, WINNING_LINE));
               }
             },
-            publishBranch: ({ branch }) => `(local branch ${branch} — in real use: a draft PR via gh)`,
+            publishBranch: ({ branch }) => `(local branch ${branch}, in real use: a draft PR via gh)`,
           },
         );
         if (outcome.prUrl) {
@@ -226,19 +226,19 @@ export function registerDemo(program: Command): void {
           console.log(`    committed on motif/weaver-${job.id}:\n\n${diff}\n`);
           console.log(`    ${outcome.prUrl}\n`);
         } else {
-          console.log(`    ${outcome.result} — no branch, no PR, no noise.`);
+          console.log(`    ${outcome.result}, no branch, no PR, no noise.`);
           console.log('    (you ruled for what the repo already says; the Weaver refuses to invent work)\n');
         }
 
         // ── Act 4b · the Weaver finds an untested fix, on its own ────────
         await beat(700);
-        console.log('  ▸ Act 4b · The Weaver scans — and finds a fix nobody tested\n');
+        console.log('  ▸ Act 4b · The Weaver scans, and finds a fix nobody tested\n');
         const gaps = findRegressionGaps(server.db);
-        // prefer a fix for the demo — an untested bug fix is the sharper story
+        // prefer a fix for the demo, an untested bug fix is the sharper story
         const gap = gaps.find((g) => g.changeKind === 'fix') ?? gaps[0];
         if (gap) {
           console.log(`    it found: ${gap.file}`);
-          console.log(`    from "${gap.sessionTitle}" — ${gap.changeKind}, no test\n`);
+          console.log(`    from "${gap.sessionTitle}", ${gap.changeKind}, no test\n`);
           await beat(700);
           // wire the demo repo to hold this file, then let the Weaver write the test
           const srcDir = path.join(repo, path.dirname(gap.file));
@@ -273,12 +273,12 @@ export function registerDemo(program: Command): void {
                   "import { charge } from './payments';\n\ntest('a retried key replays instead of charging twice', () => {\n  charge('k1', 10);\n  expect(charge('k1', 10)).toBe(replay('k1'));\n});\n",
                 );
               },
-              publishBranch: ({ branch }) => `(local branch ${branch} — in real use: a draft PR)`,
+              publishBranch: ({ branch }) => `(local branch ${branch}, in real use: a draft PR)`,
             },
           );
           if (testOut.prUrl) {
-            console.log(`    the Weaver wrote the test — ${testOut.result}`);
-            console.log('    (aimed at the fix, from the record — no wandering the tree)\n');
+            console.log(`    the Weaver wrote the test, ${testOut.result}`);
+            console.log('    (aimed at the fix, from the record, no wandering the tree)\n');
           }
         } else {
           console.log('    every recorded change already has a test.\n');
@@ -286,7 +286,7 @@ export function registerDemo(program: Command): void {
 
         // ── Act 5 · ask the memory ───────────────────────────────────────
         await beat(700);
-        console.log('  ▸ Act 5 · Recall — what agents are told now\n');
+        console.log('  ▸ Act 5 · Recall, what agents are told now\n');
         const out = recall(server.db, {
           query: 'what happens when redis is down',
           viewerId: you.memberId,
@@ -294,16 +294,16 @@ export function registerDemo(program: Command): void {
         });
         for (const item of out.items.filter((i) => i.kind === 'note').slice(0, 2)) {
           console.log(`    ${item.text.split('\n').join('\n    ')}`);
-          console.log(`      — ${item.why}\n`);
+          console.log(`     , ${item.why}\n`);
         }
 
         console.log('  Invented data, real engine: a ruling, a test the agent wrote from a receipt,');
-        console.log('  a worktree, a diff — all of it the code that ships.\n');
+        console.log('  a worktree, a diff, all of it the code that ships.\n');
         console.log(`  Now open the dashboard: ${base}`);
-        console.log('    Overview — the team’s pulse at a glance');
-        console.log('    Weave    — the whole record as a living graph');
-        console.log('    Review   — the conflict you just ruled on, and how');
-        console.log('    Memory   — decisions, each with a confidence\n');
+        console.log('    Overview, the team’s pulse at a glance');
+        console.log('    Weave   , the whole record as a living graph');
+        console.log('    Review  , the conflict you just ruled on, and how');
+        console.log('    Memory  , decisions, each with a confidence\n');
         console.log(
           '  On your own history:  motif up     ·     Again:  motif demo     ·     Remove:  motif demo --clean\n',
         );

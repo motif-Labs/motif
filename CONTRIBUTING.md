@@ -1,6 +1,6 @@
 # Contributing to Motif
 
-Thanks for helping. This file is short on purpose — read it once and you know
+Thanks for helping. This file is short on purpose, read it once and you know
 what a merged change looks like here.
 
 By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
@@ -21,7 +21,7 @@ To run the CLI from source instead of the bundle:
 npx tsx packages/cli/src/index.ts --help
 ```
 
-Layout: `packages/core` (schema, readers, writers — pure, no I/O beyond files),
+Layout: `packages/core` (schema, readers, writers, pure, no I/O beyond files),
 `packages/cli` (the `motif` binary, the sync daemon, the MCP server),
 `packages/server` (Hono + SQLite, retrieval, memory), `ui/` (Preact dashboard).
 The published npm package is `getmotif`; the binary it installs is `motif`.
@@ -54,20 +54,20 @@ options open without ever relicensing anyone's work without their consent.
 
 ### Never commit
 
-- personal data — real names, home-directory paths, machine names, emails
+- personal data, real names, home-directory paths, machine names, emails
 - captured session content from a real run, yours or anyone's
 - third-party proprietary text (vendor system prompts, base instructions)
 - real credentials, including expired ones; test tokens must be obviously fake
 
 Fixtures are written by hand. If a new format needs one, keep the envelope and
-replace the content with synthetic text — `fixtures/codex/rollout-0.150.1.jsonl`
+replace the content with synthetic text, `fixtures/codex/rollout-0.150.1.jsonl`
 is the pattern.
 
 ## Things especially worth contributing
 
 - **New session readers.** The most welcome contribution by far. Model them on
   `packages/core/src/readers/codex.ts`: tolerant line-by-line parsing,
-  fixture-backed tests, never fatal on schema drift — these formats change
+  fixture-backed tests, never fatal on schema drift, these formats change
   without notice, and a reader that throws takes the whole sync down.
 - **Format fixes** when Claude Code, Codex or Cursor changes something under us.
   A failing fixture test plus the corrected parse is a perfect PR.
@@ -76,12 +76,12 @@ is the pattern.
 
 ## Architecture notes
 
-Read [CLAUDE.md](CLAUDE.md) before changing sync, handoff or scope — it records
+Read [CLAUDE.md](CLAUDE.md) before changing sync, handoff or scope, it records
 the non-obvious invariants (the Claude Code transcript DAG, the Codex rollout
 envelope, the prefix-hash sync protocol, why identity is the member token, and
 why scope globs are prefix-matching).
 
 ## Security issues
 
-Please do not open public issues for exploitable problems — see
+Please do not open public issues for exploitable problems, see
 [SECURITY.md](SECURITY.md) for private reporting.

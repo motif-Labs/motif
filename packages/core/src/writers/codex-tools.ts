@@ -2,7 +2,7 @@
  * Claude Code → Codex tool-call translation. Handed-off history is context
  * for the model, never re-executed, so fidelity of meaning beats fidelity of
  * schema: each call is rendered as the Codex-native tool that would have done
- * the same job. Unknown tools pass through under their original name —
+ * the same job. Unknown tools pass through under their original name,
  * unknown function names in history are inert.
  */
 

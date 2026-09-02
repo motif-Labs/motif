@@ -41,12 +41,12 @@ function hashToken(token: string): string {
 
 /**
  * Registers (or re-recognizes) a member and mints a per-device member token.
- * Identity on every later request comes from that token — never from a
+ * Identity on every later request comes from that token, never from a
  * client-claimed header. The first member becomes the owner.
  */
 /**
  * Registering against an identity that already exists used to return a fresh,
- * fully valid token for that member — so anyone holding the shared read-only
+ * fully valid token for that member, so anyone holding the shared read-only
  * team token could read `GET /api/members`, repeat a name and email back, and
  * receive the owner's credential. Re-enrolling an existing member now requires
  * proof: either that member's own current token, or the owner's.
@@ -137,7 +137,7 @@ export function touchMember(db: Db, memberId: number): void {
 
 function upsertSessionRow(db: Db, memberId: number, meta: SessionMetaPayload): SessionRow {
   // A daemon may set visibility from the project scope it was told about, but
-  // it must never undo a choice a person made by hand in the dashboard — that
+  // it must never undo a choice a person made by hand in the dashboard, that
   // is what visibility_locked marks. The conflict key includes member_id, so a
   // daemon can only ever touch rows it owns.
   db.prepare(
@@ -183,7 +183,7 @@ function insertMessages(db: Db, sessionPk: number, startSeq: number, messages: M
   let seq = startSeq;
   for (const m of messages) {
     const res = insertMsg.run(sessionPk, m.id, seq, m.role, JSON.stringify(m), m.timestamp ?? null);
-    if (res.changes === 0) continue; // duplicate id — first occurrence wins
+    if (res.changes === 0) continue; // duplicate id, first occurrence wins
     seq++;
     if ((m.role === 'user' || m.role === 'assistant') && m.text) {
       insertFts.run(m.text, sessionPk, m.id);
@@ -486,7 +486,7 @@ export function completeHandoffRequest(
   return db.prepare('SELECT * FROM handoff_requests WHERE id = ?').get(requestId) as HandoffRequestRow;
 }
 
-/** Resolves a teammate reference — id, exact name, or @handle-ish prefix. */
+/** Resolves a teammate reference, id, exact name, or @handle-ish prefix. */
 export function resolveMember(db: Db, ref: string): { id: number; name: string } | undefined {
   const clean = ref.replace(/^@/, '').trim();
   if (/^\d+$/.test(clean)) {
@@ -675,7 +675,7 @@ export function listAskRequests(db: Db, memberId: number, status?: string): AskR
     : (db.prepare(`${base} ORDER BY a.id DESC LIMIT 50`).all(memberId) as AskRequestRow[]);
 }
 
-/** Everything asked about one session — the "asked & answered" log. */
+/** Everything asked about one session, the "asked & answered" log. */
 export function listAsksForSession(db: Db, sessionId: string): AskRequestRow[] {
   return db
     .prepare(

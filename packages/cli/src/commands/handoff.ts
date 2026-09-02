@@ -33,7 +33,7 @@ export function registerHandoff(program: Command): void {
     .option('--digest [n]', 'compress all but the last n messages into a summary (default n: 60)')
     .option(
       '--to-member <name>',
-      'hand the session to a TEAMMATE — their daemon materializes it on their machine',
+      'hand the session to a TEAMMATE, their daemon materializes it on their machine',
     )
     .option('--dry-run', 'show what would be written without writing')
     .option('--wait <seconds>', "how long to wait for a teammate's machine", '45')
@@ -106,7 +106,7 @@ export function registerHandoff(program: Command): void {
             }
           }
           if (!settled) {
-            console.log(`Still queued — their daemon will pick it up when it is online.`);
+            console.log(`Still queued, their daemon will pick it up when it is online.`);
           }
           return;
         }
@@ -134,7 +134,7 @@ export function registerHandoff(program: Command): void {
             : undefined;
         if (!digest && session.messages.length > 300 && !opts.json) {
           console.log(
-            `(note: ${session.messages.length} messages — consider --digest to keep the resume light in the target tool)`,
+            `(note: ${session.messages.length} messages, consider --digest to keep the resume light in the target tool)`,
           );
         }
 
@@ -152,7 +152,7 @@ export function registerHandoff(program: Command): void {
             console.log(`Would write ${preview.messageCount} messages to:\n  ${preview.target}`);
             if (preview.droppedReasoning) {
               console.log(
-                `(${preview.droppedReasoning} reasoning blocks dropped — not portable across providers)`,
+                `(${preview.droppedReasoning} reasoning blocks dropped, not portable across providers)`,
               );
             }
           }
@@ -180,7 +180,7 @@ export function registerHandoff(program: Command): void {
             console.log(`Would write ${preview.lines.length} lines to:\n  ${targetPath}`);
             if (preview.droppedReasoning)
               console.log(
-                `(${preview.droppedReasoning} reasoning blocks dropped — not portable across providers)`,
+                `(${preview.droppedReasoning} reasoning blocks dropped, not portable across providers)`,
               );
             for (const l of [...preview.lines.slice(0, 2), ...preview.lines.slice(-1)]) {
               console.log(`  ${JSON.stringify(l).slice(0, 140)}…`);
@@ -214,9 +214,7 @@ export function registerHandoff(program: Command): void {
         }
         console.log(`Handed off ${result.messageCount} messages → ${result.target}`);
         if (result.droppedReasoning)
-          console.log(
-            `(${result.droppedReasoning} reasoning blocks dropped — not portable across providers)`,
-          );
+          console.log(`(${result.droppedReasoning} reasoning blocks dropped, not portable across providers)`);
         if (target === 'codex') {
           console.log(
             result.registered ? 'Registered in Codex state DB.' : 'Codex will pick the session up from disk.',

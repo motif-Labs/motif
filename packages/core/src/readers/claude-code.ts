@@ -6,7 +6,7 @@
  * the active path is found by walking back from the last `last-prompt` line's
  * leafUuid. Attachment/system lines carry uuids and sit inside the parent
  * chain, so the walk traverses them but only user/assistant lines emit
- * messages. Parsing is tolerant: unreadable lines are counted and skipped —
+ * messages. Parsing is tolerant: unreadable lines are counted and skipped,
  * a live session's last line is often truncated mid-append.
  */
 
@@ -85,7 +85,7 @@ export function getLiveSessionIds(claudeDir = defaultClaudeDir()): Set<string> {
       process.kill(reg.pid, 0); // throws if the process is gone
       live.add(reg.sessionId);
     } catch {
-      // unreadable registry entry or dead pid — not live
+      // unreadable registry entry or dead pid, not live
     }
   }
   return live;
@@ -161,7 +161,7 @@ export function readClaudeSession(filePath: string): MotifSession {
       case 'ai-title':
         if (typeof line.aiTitle === 'string') aiTitle = line.aiTitle;
         continue;
-      case 'summary': // legacy compaction summaries — no uuid chain participation needed
+      case 'summary': // legacy compaction summaries, no uuid chain participation needed
         continue;
     }
     if (typeof line.uuid !== 'string') continue; // mode/permission-mode/atis-latch/etc.

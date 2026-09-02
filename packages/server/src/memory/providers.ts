@@ -1,13 +1,13 @@
 /**
- * Pluggable LLM providers for memory extraction. Raw HTTP by design — the
+ * Pluggable LLM providers for memory extraction. Raw HTTP by design, the
  * server is provider-neutral and self-hosted, so we avoid vendor SDK
  * dependencies. Selected via MOTIF_LLM_PROVIDER:
- *   anthropic          — Anthropic Messages API (MOTIF_LLM_API_KEY)
- *   openai             — OpenAI chat completions (MOTIF_LLM_API_KEY)
- *   openai-compatible  — any compatible endpoint (MOTIF_LLM_BASE_URL), e.g.
+ *   anthropic         , Anthropic Messages API (MOTIF_LLM_API_KEY)
+ *   openai            , OpenAI chat completions (MOTIF_LLM_API_KEY)
+ *   openai-compatible , any compatible endpoint (MOTIF_LLM_BASE_URL), e.g.
  *                        Ollama, vLLM, OpenRouter
- *   claude-code        — shells out to the local `claude` CLI; no API key
- *   off                — memory disabled (default)
+ *   claude-code       , shells out to the local `claude` CLI; no API key
+ *   off               , memory disabled (default)
  */
 
 import { spawn } from 'node:child_process';

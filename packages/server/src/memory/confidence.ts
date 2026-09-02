@@ -1,6 +1,6 @@
 /**
  * How much a claim can be trusted, as one number. A labs-grade memory does not
- * hide uncertainty — it shows it. Confidence rises with corroboration (other
+ * hide uncertainty, it shows it. Confidence rises with corroboration (other
  * sessions that reached the same entity) and a human's vouch; it falls with
  * conflict, dispute, staleness and age. Deterministic and cheap: it reads only
  * columns the record already keeps, so recall and the UI compute the same value.
@@ -18,7 +18,7 @@ export interface NoteSignals {
 
 const DAY = 86_400_000;
 
-/** 1.0 fresh, decaying to ~0.4 over ~120 days — old knowledge is not wrong, just less certain. */
+/** 1.0 fresh, decaying to ~0.4 over ~120 days, old knowledge is not wrong, just less certain. */
 export function freshness(createdAt: string, now = Date.now()): number {
   const age = Math.max(0, now - Date.parse(createdAt)) / DAY;
   return 0.4 + 0.6 * Math.exp(-age / 120);

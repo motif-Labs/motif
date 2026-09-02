@@ -20,7 +20,7 @@ function renderNote(n: MemoryReviewNote, label?: string): string {
   return [
     `  ${label ? `${label} ` : ''}#${n.id} [${n.kind}] ${n.entity} · ${n.aspect}${marks ? ` (${marks})` : ''}`,
     `     ${n.body}`,
-    `     — ${who}, ${n.created_at.slice(0, 10)}${src}`,
+    `    , ${who}, ${n.created_at.slice(0, 10)}${src}`,
   ].join('\n');
 }
 
@@ -40,26 +40,26 @@ export function registerMemory(program: Command): void {
         return;
       }
       if (items.length === 0) {
-        console.log('Nothing waits for a ruling — the memory is at peace.');
+        console.log('Nothing waits for a ruling, the memory is at peace.');
         return;
       }
       console.log(`${items.length} item(s) need a human:\n`);
       for (const item of items) {
         if (item.type === 'conflict' && item.against) {
-          console.log('CONFLICT — two sessions disagree, both are shown to agents until you rule:');
+          console.log('CONFLICT, two sessions disagree, both are shown to agents until you rule:');
           console.log(renderNote(item.against, 'standing:'));
           console.log(renderNote(item.note, 'challenger:'));
           console.log(
             `     rule: motif memory prefer ${item.note.id} --over ${item.against.id}   (or swap the ids)\n`,
           );
         } else if (item.type === 'stale') {
-          console.log('STALE — the files this note came from have moved on since:');
+          console.log('STALE, the files this note came from have moved on since:');
           console.log(renderNote(item.note));
           console.log(
             `     rule: motif memory confirm ${item.note.id}   ·   motif memory retire ${item.note.id}\n`,
           );
         } else {
-          console.log('DISPUTED — someone flagged this, evidence pending:');
+          console.log('DISPUTED, someone flagged this, evidence pending:');
           console.log(renderNote(item.note));
           console.log(
             `     rule: motif memory confirm ${item.note.id}   ·   motif memory retire ${item.note.id}\n`,
@@ -70,7 +70,7 @@ export function registerMemory(program: Command): void {
 
   memory
     .command('confirm <noteId>')
-    .description('Vouch for a note — verified notes outrank machine-only ones in recall')
+    .description('Vouch for a note, verified notes outrank machine-only ones in recall')
     .option('--reason <text>', 'why (recorded with the ruling)')
     .action(async (noteId: string, opts: { reason?: string }) => {
       await client().postMemoryVerdict(Number(noteId), 'confirm', { reason: opts.reason });
@@ -92,11 +92,11 @@ export function registerMemory(program: Command): void {
 
   memory
     .command('retire <noteId>')
-    .description('Take a note out of service — it stays in the record, agents stop seeing it')
+    .description('Take a note out of service, it stays in the record, agents stop seeing it')
     .option('--reason <text>', 'why (recorded with the ruling)')
     .action(async (noteId: string, opts: { reason?: string }) => {
       await client().postMemoryVerdict(Number(noteId), 'retire', { reason: opts.reason });
-      console.log(`Note #${noteId} retired — out of recall, still in the record.`);
+      console.log(`Note #${noteId} retired, out of recall, still in the record.`);
     });
 
   memory
@@ -105,6 +105,6 @@ export function registerMemory(program: Command): void {
     .option('--reason <text>', 'why (recorded with the ruling)')
     .action(async (noteId: string, opts: { reason?: string }) => {
       await client().postMemoryVerdict(Number(noteId), 'dispute', { reason: opts.reason });
-      console.log(`Note #${noteId} marked disputed — it joins the review queue.`);
+      console.log(`Note #${noteId} marked disputed, it joins the review queue.`);
     });
 }

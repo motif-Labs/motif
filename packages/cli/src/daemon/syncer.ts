@@ -2,7 +2,7 @@
  * Push local sessions to the server. Incremental by default: the daemon
  * remembers how many messages of each session the server has confirmed
  * (count + hash of the id prefix). If the local parse no longer matches that
- * prefix (rewind/re-linearization) — or the server disagrees (409) — it falls
+ * prefix (rewind/re-linearization), or the server disagrees (409), it falls
  * back to a full PUT. The source jsonl files are the durable queue; state
  * only memoizes what was already acknowledged.
  */
@@ -89,7 +89,7 @@ export function isExcluded(projectPath: string, excludes: string[] = []): boolea
 
 /**
  * The sync gate. 'all' mode syncs everything not excluded; 'selected' mode
- * syncs nothing unless the project is explicitly included — the safe default
+ * syncs nothing unless the project is explicitly included, the safe default
  * for machines that also do personal work.
  */
 export function shouldSyncProject(projectPath: string, cfg: MotifConfig): boolean {
@@ -152,7 +152,7 @@ export function redactSession(session: MotifSession, patterns: string[] = []): M
   };
   const redactInput = (input: unknown): unknown => {
     if (input === undefined) return input;
-    // tool inputs carry commands and file contents — redact their serialized form too
+    // tool inputs carry commands and file contents, redact their serialized form too
     const serialized = redactText(JSON.stringify(input))!;
     try {
       return JSON.parse(serialized);
@@ -186,7 +186,7 @@ export function isPaused(): boolean {
 }
 
 interface SyncItem {
-  /** State key: `${source}:${sourceSessionId}` — sources may reuse ids. */
+  /** State key: `${source}:${sourceSessionId}`, sources may reuse ids. */
   key: string;
   mtimeMs: number;
   size: number;
@@ -256,7 +256,7 @@ export async function syncOnce(
       continue;
     }
     if (session.messages.length === 0) {
-      // nothing to share (e.g. Cursor cloud-cache stubs) — remember and move on
+      // nothing to share (e.g. Cursor cloud-cache stubs), remember and move on
       state[file.key] = { count: 0, hash: await idPrefixHash([]), mtimeMs: file.mtimeMs, size: file.size };
       report.excluded++;
       continue;
@@ -363,7 +363,7 @@ export function watchAndSync(
       const report = await syncOnce(client, config, { claudeDir: opts.claudeDir });
       opts.onReport?.(report);
     } catch {
-      // network down — the next sweep retries
+      // network down, the next sweep retries
     } finally {
       running = false;
       if (queued) {
@@ -382,7 +382,7 @@ export function watchAndSync(
         }),
       );
     } catch {
-      // directory missing or watch unsupported — sweeps still cover it
+      // directory missing or watch unsupported, sweeps still cover it
     }
   };
   watchDir(path.join(opts.claudeDir ?? path.join(os.homedir(), '.claude'), 'projects'));
@@ -416,13 +416,13 @@ export function watchAndSync(
       if (event === 'ask-answered') {
         const d = data as { sessionId?: string; askedBy?: number; status?: string };
         if (config.memberId !== undefined && d.askedBy === config.memberId) {
-          log(`💬 your question about ${d.sessionId} was answered (${d.status}) — motif asks ${d.sessionId}`);
+          log(`💬 your question about ${d.sessionId} was answered (${d.status}), motif asks ${d.sessionId}`);
         }
       }
       if (event === 'comment-added') {
         const d = data as { sessionId?: string; authorName?: string; mentionIds?: number[] };
         if (config.memberId !== undefined && d.mentionIds?.includes(config.memberId)) {
-          log(`💬 @${d.authorName ?? 'someone'} mentioned you on ${d.sessionId} — open it in the dashboard`);
+          log(`💬 @${d.authorName ?? 'someone'} mentioned you on ${d.sessionId}, open it in the dashboard`);
         }
       }
     });

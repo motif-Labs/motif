@@ -4,7 +4,7 @@
  *
  *   npx tsx bench/run.ts [--db <path>] [--questions <file>] [--budget 1500]
  *
- * This measures RETRIEVAL, deterministically and for free — no model calls, so
+ * This measures RETRIEVAL, deterministically and for free, no model calls, so
  * anyone can reproduce it on their own corpus. It deliberately does not claim
  * an end-to-end "we cut your bill by X%": that needs live agent runs, which are
  * nondeterministic and cost money (see the --live note in the README).
@@ -61,7 +61,7 @@ for (const question of questions) {
     query: question.q,
     project: question.project,
     budget,
-    // the benchmark runs on the owner's own corpus — measure what THEY would
+    // the benchmark runs on the owner's own corpus, measure what THEY would
     // see, or personal-sourced notes silently vanish from the score
     viewerId: anyMember,
   });
@@ -90,7 +90,7 @@ console.log(
 console.log('| question | answer present | tokens | items | sessions cited |');
 console.log('|---|---|---|---|---|');
 for (const r of rows) {
-  console.log(`| ${r.q} | ${r.hit ? '✅' : '—'} | ${r.tokens} | ${r.items} | ${r.sessions} |`);
+  console.log(`| ${r.q} | ${r.hit ? '✅' : '-'} | ${r.tokens} | ${r.items} | ${r.sessions} |`);
 }
 console.log(
   `\n**hit rate ${hits}/${rows.length} (${Math.round((hits / rows.length) * 100)}%)** · median ${median} tokens per answer · ` +

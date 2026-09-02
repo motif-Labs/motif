@@ -1,6 +1,6 @@
 /**
  * The Weaver's hands. A ruling on team memory says which claim won; the
- * repository may still say what the loser said — an ADR, a comment, a README.
+ * repository may still say what the loser said, an ADR, a comment, a README.
  * This takes one queued job and weaves the repo back into agreement, under
  * rails that do not bend:
  *
@@ -68,7 +68,7 @@ export interface WeaverOutcome {
 }
 
 const git = (cwd: string, ...args: string[]): string =>
-  // stderr is piped, not inherited — git narrates worktree creation on stderr,
+  // stderr is piped, not inherited, git narrates worktree creation on stderr,
   // and that narration does not belong in the daemon's (or the demo's) output
   execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 
@@ -77,11 +77,11 @@ export function buildPrompt(p: AnyWeaverPayload): string {
     const noun = p.changeKind === 'feature' ? 'the new behaviour' : 'the change';
     return [
       `A ${p.changeKind} shipped to this repository with no test to hold it. The`,
-      'context from the team record is below — use it so you do not have to search:',
+      'context from the team record is below, use it so you do not have to search:',
       '',
       p.context,
       '',
-      `Task: cover ${p.file} with focused tests for ${noun} the session made — and`,
+      `Task: cover ${p.file} with focused tests for ${noun} the session made, and`,
       'nothing else. If a test file already exists but misses this behaviour,',
       'extend it rather than duplicate it; if it already covers this, change',
       'nothing at all. Do not refactor, do not touch unrelated files, do not test',
@@ -118,12 +118,12 @@ export async function performWeaverJob(job: WeaverJob, deps: WeaverDeps): Promis
   const branch = `motif/weaver-${job.id}`;
   // A re-claimed job whose branch already exists was woven before and only the
   // completion report was lost. Weaving again would burn ten agent-minutes to
-  // fail on the branch name — or worse, push a duplicate PR from another machine.
+  // fail on the branch name, or worse, push a duplicate PR from another machine.
   try {
     git(repo, 'rev-parse', '--verify', '--quiet', `refs/heads/${branch}`);
     return {
       status: 'done',
-      result: `branch ${branch} already exists — woven by a previous attempt whose report was lost`,
+      result: `branch ${branch} already exists, woven by a previous attempt whose report was lost`,
     };
   } catch {
     /* no branch: this is a first attempt */
@@ -199,7 +199,7 @@ export async function performWeaverJob(job: WeaverJob, deps: WeaverDeps): Promis
         ? [
             `A ${payload.changeKind} to \`${payload.file}\` shipped without a test. This adds one, aimed at exactly that change.`,
             '',
-            `**From:** session \`${payload.sessionId}\`${payload.memberName ? ` — @${payload.memberName}` : ''}`,
+            `**From:** session \`${payload.sessionId}\`${payload.memberName ? `, @${payload.memberName}` : ''}`,
             `> ${payload.sessionTitle}`,
             '',
             `Drafted by the Motif Weaver from job #${job.id}. Files changed: ${staged.split('\n').join(', ')}`,
@@ -238,7 +238,7 @@ import { spawn, spawnSync } from 'node:child_process';
 
 export function defaultRunAgent(prompt: string, cwd: string): Promise<void> {
   // Non-interactive Claude Code with an explicit tool allowlist: it may read
-  // and edit inside the worktree, and nothing else. No Bash — the Weaver
+  // and edit inside the worktree, and nothing else. No Bash, the Weaver
   // aligns text with a ruling; it does not get a shell. Async on purpose: a
   // ten-minute agent run must not freeze the daemon that also answers asks,
   // delivers handoffs and syncs sessions.
@@ -283,7 +283,7 @@ export function defaultPublishBranch(opts: {
     ['pr', 'create', '--draft', '--head', opts.branch, '--title', opts.title, '--body', opts.body],
     { cwd: opts.worktree, encoding: 'utf8' },
   );
-  if (out.error) throw new Error('gh CLI is not installed — the branch is pushed, open the PR by hand');
+  if (out.error) throw new Error('gh CLI is not installed, the branch is pushed, open the PR by hand');
   if (out.status !== 0) throw new Error(`gh pr create failed: ${(out.stderr ?? '').slice(0, 200)}`);
   const url = (out.stdout ?? '').trim().split('\n').pop() ?? '';
   if (!url.startsWith('http')) throw new Error(`unexpected gh output: ${url.slice(0, 120)}`);

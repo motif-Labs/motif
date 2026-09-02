@@ -69,7 +69,7 @@ export function registerUp(program: Command): void {
 
       console.log(`Motif up at ${serverUrl} (member: ${name})`);
       // The member token, not the team token: whoever ran `up` owns this server,
-      // and the team token is read-only — signing in with it disables handoff,
+      // and the team token is read-only, signing in with it disables handoff,
       // ask and notes, which is most of the product.
       console.log(`Dashboard login: ${memberToken}`);
       console.log(`   or just run: motif ui`);

@@ -124,9 +124,7 @@ export function registerSync(program: Command): void {
     .action(() => {
       const pid = daemonPid();
       const paused = fs.existsSync(path.join(motifHome(), 'paused'));
-      console.log(
-        pid ? `Daemon running (pid ${pid})${paused ? ' — paused' : ''}.` : 'Daemon is not running.',
-      );
+      console.log(pid ? `Daemon running (pid ${pid})${paused ? ', paused' : ''}.` : 'Daemon is not running.');
     });
 
   daemon
@@ -135,7 +133,7 @@ export function registerSync(program: Command): void {
     .action(() => {
       fs.mkdirSync(motifHome(), { recursive: true });
       fs.writeFileSync(path.join(motifHome(), 'paused'), new Date().toISOString());
-      console.log('Paused — nothing leaves this machine until `motif daemon resume`.');
+      console.log('Paused, nothing leaves this machine until `motif daemon resume`.');
     });
 
   daemon
@@ -143,7 +141,7 @@ export function registerSync(program: Command): void {
     .description('Resume shipping sessions')
     .action(() => {
       fs.rmSync(path.join(motifHome(), 'paused'), { force: true });
-      console.log('Resumed — the next sweep syncs any backlog.');
+      console.log('Resumed, the next sweep syncs any backlog.');
     });
 
   daemon

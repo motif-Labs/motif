@@ -217,7 +217,7 @@ code,
   font-size: 11px;
   color: var(--faint);
 }
-/* the content floats as a sheet over the chrome layer — the macOS two-layer
+/* the content floats as a sheet over the chrome layer, the macOS two-layer
    window: sidebar lives on the desk, the document sits on top of it */
 .main {
   flex: 1;
@@ -1159,7 +1159,7 @@ input:focus {
 /* ── the review inbox: each item is a CASE ───────────────
    Two claims crossing is the one moment the product exists for, so it gets
    the house metaphor: two threads, a crossing, and a knot only a person can
-   tie. Quiet borders, weight from spacing — the ruling buttons are the only
+   tie. Quiet borders, weight from spacing, the ruling buttons are the only
    loud thing on the card. */
 .case {
   margin: 16px 0 30px;
@@ -1374,7 +1374,7 @@ input:focus {
   background: color-mix(in srgb, var(--accent) 24%, transparent);
 }
 
-/* a session's title is content, not chrome — a sentence never shouts */
+/* a session's title is content, not chrome, a sentence never shouts */
 h1.session-title {
   font-size: 20px;
   font-weight: 620;
@@ -1388,7 +1388,7 @@ h1.session-title {
   height: calc(100vh - 170px);
   min-height: 480px;
   /* the dotted ground and the soft centre glow are static CSS, not redrawn
-     every frame — the canvas only draws the graph itself */
+     every frame, the canvas only draws the graph itself */
   background:
     radial-gradient(circle, color-mix(in srgb, var(--faint) 40%, transparent) 0.8px, transparent 0.8px) 0 0 /
       26px 26px,
@@ -1465,7 +1465,7 @@ h1.session-title {
   background: var(--amber);
 }
 
-/* ── Overview: the record's pulse — activity first, not stat cards ─────
+/* ── Overview: the record's pulse, activity first, not stat cards ─────
    Premium is showing the work, not a wall of numbers. The pulse is one thin
    typographic line; the space belongs to a live thread of what happened and a
    short list of what needs a person. */
@@ -1490,7 +1490,7 @@ h1.session-title {
   }
 }
 
-/* the activity thread — knots on a stitched line, the product's own metaphor */
+/* the activity thread, knots on a stitched line, the product's own metaphor */
 .act-thread {
   position: relative;
   padding-left: 26px;
@@ -1564,7 +1564,7 @@ a.act:hover {
   color: var(--faint);
 }
 
-/* needs you — actionable, not decorative */
+/* needs you, actionable, not decorative */
 .needs,
 .latest {
   background: var(--panel);
@@ -1644,7 +1644,7 @@ a.act:hover {
   height: calc(100vh - 170px);
   min-height: 480px;
   /* the dotted ground and the soft centre glow are static CSS, not redrawn
-     every frame — the canvas only draws the graph itself */
+     every frame, the canvas only draws the graph itself */
   background:
     radial-gradient(circle, color-mix(in srgb, var(--faint) 40%, transparent) 0.8px, transparent 0.8px) 0 0 /
       26px 26px,
@@ -1857,7 +1857,7 @@ a.act:hover {
   max-width: none;
 }
 
-/* avatars get a touch of depth — a subtle top-light gradient and inner ring */
+/* avatars get a touch of depth, a subtle top-light gradient and inner ring */
 .avatar {
   background-image: linear-gradient(160deg, rgba(255, 255, 255, 0.22), transparent 55%);
   box-shadow:

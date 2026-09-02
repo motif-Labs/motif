@@ -4,16 +4,16 @@ import path from 'node:path';
 
 export interface MotifConfig {
   serverUrl?: string;
-  /** Team token — bootstrap/registration and read-only dashboard login. */
+  /** Team token, bootstrap/registration and read-only dashboard login. */
   token?: string;
-  /** Per-device member token — identity for every write; minted by `motif connect`. */
+  /** Per-device member token, identity for every write; minted by `motif connect`. */
   memberToken?: string;
   memberId?: number;
   name?: string;
   email?: string;
   /**
    * 'all' (default): every project syncs except `exclude` matches.
-   * 'selected': ONLY `include` matches sync — for machines that also do
+   * 'selected': ONLY `include` matches sync, for machines that also do
    * personal / non-company work.
    */
   syncMode?: 'all' | 'selected';
@@ -36,7 +36,7 @@ export interface MotifConfig {
   /**
    * Projects (absolute paths) where the Weaver may act on this machine:
    * when a ruling lands, it aligns the repo in a throwaway worktree and opens
-   * a DRAFT PR. Off unless a path is listed — `motif weaver enable <path>`.
+   * a DRAFT PR. Off unless a path is listed, `motif weaver enable <path>`.
    */
   weaverProjects?: string[];
 }

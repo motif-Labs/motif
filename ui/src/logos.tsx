@@ -1,5 +1,5 @@
 /**
- * Simplified, recognizable agent marks (nominative use — every dashboard
+ * Simplified, recognizable agent marks (nominative use, every dashboard
  * identifies tools by their marks). Drawn inline so they inherit sizing and
  * never fetch anything.
  */

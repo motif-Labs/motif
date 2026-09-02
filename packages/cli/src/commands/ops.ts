@@ -83,16 +83,16 @@ name: motif
 description: Query the team's past AI coding sessions (Claude Code, Codex, Cursor) before exploring unfamiliar code, and continue or hand off sessions across tools. Trigger when the user asks "did anyone work on X", "why is this like this", "what did <teammate> do", "continue this in Codex", or when you are about to grep around a codebase you have not seen this session.
 ---
 
-# Motif — the team's session memory
+# Motif, the team's session memory
 
 Your team already solved things in earlier agent sessions. Check before rediscovering.
 
 ## If the Motif MCP server is connected (preferred)
 Use its tools directly:
-- \`recall\` — the distilled answer: past decisions, human notes, cited excerpts (~1.5k tokens). **Call this first.**
-- \`search_sessions\` / \`list_sessions\` — find the session itself
-- \`get_session\` — read a transcript (use \`tail\`, they are long)
-- \`ask_session\` — ask a past session a question; the agent that lived it answers with full context
+- \`recall\`, the distilled answer: past decisions, human notes, cited excerpts (~1.5k tokens). **Call this first.**
+- \`search_sessions\` / \`list_sessions\`, find the session itself
+- \`get_session\`, read a transcript (use \`tail\`, they are long)
+- \`ask_session\`, ask a past session a question; the agent that lived it answers with full context
 
 Not connected? Run \`motif mcp install\` once.
 
@@ -108,7 +108,7 @@ motif handoff <id> --open                  # continue it in another agent
 ## Rules
 - Cite session ids (\`claude-code:…\`, \`codex:…\`) so humans can open them in the dashboard.
 - Prefer recall over grep for "why" questions; prefer the codebase for "what does this code do".
-- If recall returns nothing, say so and proceed normally — do not invent history.
+- If recall returns nothing, say so and proceed normally, do not invent history.
 `;
 
 export function registerOps(program: Command): void {
@@ -125,7 +125,7 @@ export function registerOps(program: Command): void {
       }
       console.log(`motif ${s.version}`);
       console.log(
-        `server     ${s.serverUrl ?? '(not connected)'}${s.server.reachable ? `  ✓ ${s.server.team ?? ''} — ${s.server.identity}` : s.serverUrl ? '  ✗ unreachable' : ''}`,
+        `server     ${s.serverUrl ?? '(not connected)'}${s.server.reachable ? `  ✓ ${s.server.team ?? ''}, ${s.server.identity}` : s.serverUrl ? '  ✗ unreachable' : ''}`,
       );
       console.log(
         `daemon     ${s.daemon.running ? `running (pid ${s.daemon.pid})` : 'not running'}${s.daemon.paused ? '  ⏸ paused' : ''}`,
@@ -159,7 +159,7 @@ export function registerOps(program: Command): void {
           name: 'member identity (writes enabled)',
           ok: writesEnabled(s.server, s.hasMemberToken),
           fix: s.hasMemberToken
-            ? 'this machine holds a read-only team token — re-run motif connect with your name'
+            ? 'this machine holds a read-only team token, re-run motif connect with your name'
             : 're-run motif connect to mint a member token',
         },
         {
@@ -176,7 +176,7 @@ export function registerOps(program: Command): void {
         {
           name: 'codex installed (handoff target)',
           ok: fs.existsSync(defaultCodexDir()),
-          fix: 'npm i -g @openai/codex — handoff still works elsewhere without it',
+          fix: 'npm i -g @openai/codex, handoff still works elsewhere without it',
         },
         {
           name: 'claude data dir present',
@@ -274,7 +274,7 @@ export function registerOps(program: Command): void {
         fs.rmSync(motifHome(), { recursive: true, force: true });
         console.log(`Deleted ${motifHome()}.`);
       } else {
-        console.log(`Kept ${motifHome()} (config + tokens) — delete it yourself or re-run with --purge.`);
+        console.log(`Kept ${motifHome()} (config + tokens), delete it yourself or re-run with --purge.`);
       }
       console.log('Your Claude Code / Codex / Cursor sessions were never moved and remain untouched.');
       console.log(

@@ -49,7 +49,7 @@ export function dedupeMembers(db: Db): void {
 }
 
 const MIGRATIONS: string[] = [
-  // v1 — initial schema
+  // v1, initial schema
   `
   CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 
@@ -133,7 +133,7 @@ const MIGRATIONS: string[] = [
     created_at TEXT NOT NULL
   );
   `,
-  // v2 — identity from per-member tokens (never from a claimed header) + web-initiated handoffs
+  // v2, identity from per-member tokens (never from a claimed header) + web-initiated handoffs
   `
   ALTER TABLE members ADD COLUMN role TEXT NOT NULL DEFAULT 'member';
 
@@ -161,18 +161,18 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_handoff_requests_member ON handoff_requests(requested_by, status);
   `,
-  // v3 — merge duplicate members created before identity dedup existed
+  // v3, merge duplicate members created before identity dedup existed
   DEDUPE_MEMBERS_SQL,
-  // v4 — handoffs can be assigned to a teammate (their daemon executes)
+  // v4, handoffs can be assigned to a teammate (their daemon executes)
   `
   ALTER TABLE handoff_requests ADD COLUMN assignee_id INTEGER REFERENCES members(id);
   `,
-  // v5 — team vs personal scope; existing rows were knowingly shared → team
+  // v5, team vs personal scope; existing rows were knowingly shared → team
   `
   ALTER TABLE sessions ADD COLUMN visibility TEXT NOT NULL DEFAULT 'team'
     CHECK (visibility IN ('team','personal'));
   `,
-  // v6 — comments pinned onto sessions (annotation layer; transcripts stay immutable)
+  // v6, comments pinned onto sessions (annotation layer; transcripts stay immutable)
   `
   CREATE TABLE session_comments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -185,7 +185,7 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_comments_session ON session_comments(session_pk, id);
   `,
-  // v7 — retrieval: message-level FTS (so excerpts can be cited exactly) + ask requests
+  // v7, retrieval: message-level FTS (so excerpts can be cited exactly) + ask requests
   `
   DROP TABLE IF EXISTS messages_fts;
   CREATE VIRTUAL TABLE messages_fts USING fts5(
@@ -216,15 +216,15 @@ const MIGRATIONS: string[] = [
   CREATE INDEX idx_ask_session ON ask_requests(session_id, id);
   `,
 
-  // v8 — tell an explicit choice apart from a computed one. Visibility used to
+  // v8, tell an explicit choice apart from a computed one. Visibility used to
   // be frozen after INSERT so a re-sync could not undo a promotion made in the
   // dashboard; the cost was that `motif projects team <path>` did nothing to
   // sessions already synced, which is all of them. Now only a hand-made choice
   // is sticky.
   `ALTER TABLE sessions ADD COLUMN visibility_locked INTEGER NOT NULL DEFAULT 0;`,
-  // v9 — memory becomes reviewable. A distilled note is a machine-made CLAIM;
+  // v9, memory becomes reviewable. A distilled note is a machine-made CLAIM;
   // this migration gives it a human axis (unverified → verified/disputed/retired)
-  // and a freshness axis (stale), and records every human verdict — who ruled,
+  // and a freshness axis (stale), and records every human verdict, who ruled,
   // over what, and why. Nothing is ever deleted: a wrong note is retired, and
   // the ruling itself is part of the record.
   `
@@ -246,7 +246,7 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_reviews_note ON memory_reviews(note_id);
   `,
-  // v10 — the Weaver's queue. A ruling on memory can imply work in the repo
+  // v10, the Weaver's queue. A ruling on memory can imply work in the repo
   // (docs that state the losing claim, code that follows it). Jobs are queued
   // server-side and claimed atomically by a daemon that has the project and
   // the owner's opt-in; the server never runs an agent itself.
@@ -264,7 +264,7 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_weaver_status ON weaver_jobs(status, created_at);
   `,
-  // v12 — close the loop. A Weaver PR has a fate (merged or closed), and that
+  // v12, close the loop. A Weaver PR has a fate (merged or closed), and that
   // fate is a signal: a ruling's fix that gets rejected means the ruling may be
   // wrong. The job remembers which note it came from, so resolving it can feed
   // the outcome back into memory.
@@ -273,7 +273,7 @@ const MIGRATIONS: string[] = [
     CHECK (resolution IN ('merged','closed') OR resolution IS NULL);
   ALTER TABLE weaver_jobs ADD COLUMN source_note_id INTEGER REFERENCES memory_notes(id);
   `,
-  // v11 — a note must not become MORE visible because its evidence was
+  // v11, a note must not become MORE visible because its evidence was
   // deleted. Deleting or purging a session used to null the note's session
   // link, and every visibility predicate treated "no session" as team-visible:
   // deleting personal evidence PUBLISHED the claim. The orphaned note now

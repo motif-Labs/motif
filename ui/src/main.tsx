@@ -157,7 +157,7 @@ function Toasts() {
         push({
           glyph: '⚖️',
           title: 'Two sessions disagree',
-          body: `“${d.entity}” — agents see both sides until someone rules`,
+          body: `“${d.entity}”, agents see both sides until someone rules`,
           href: '#/review',
         });
       }
@@ -166,7 +166,7 @@ function Toasts() {
         push({
           glyph: '✓',
           title: 'A ruling landed',
-          body: `${d.verdict} — recorded, recall obeys`,
+          body: `${d.verdict}, recorded, recall obeys`,
           href: '#/review',
         });
       }
@@ -255,7 +255,7 @@ function clock(iso: string | null | undefined): string {
 }
 
 function fullDate(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   return new Date(iso).toLocaleString([], {
     month: 'short',
     day: 'numeric',
@@ -269,10 +269,10 @@ const projName = (p: string | null | undefined) => (p ?? '').split('/').filter(B
 const isActive = (iso: string | null | undefined) =>
   !!iso && Date.now() - new Date(iso).getTime() < 5 * 60 * 1000;
 const kb = (b?: number) =>
-  b === undefined ? '—' : b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${(b / 1024).toFixed(1)} KB`;
+  b === undefined ? '-' : b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${(b / 1024).toFixed(1)} KB`;
 
 const AVATAR_COLORS = [
-  // muted ink family — identity through hue, never through candy
+  // muted ink family, identity through hue, never through candy
   '#5b647a',
   '#6b5e73',
   '#566a66',
@@ -395,7 +395,7 @@ function SessionsPage({ me }: { me: Me }) {
       if (name !== 'session-upserted') return;
       const id = (data as { id?: string }).id;
       if (id) {
-        // the freshness highlight is per-id and cheap — keep it immediate
+        // the freshness highlight is per-id and cheap, keep it immediate
         setFresh((f) => new Set(f).add(id));
         setTimeout(
           () =>
@@ -486,7 +486,7 @@ function SessionsPage({ me }: { me: Me }) {
         <div class="empty">
           {scope === 'personal' ? (
             <>
-              Your personal drawer is empty — sessions of projects not marked with{' '}
+              Your personal drawer is empty, sessions of projects not marked with{' '}
               <code>motif projects team</code> land here, visible only to you.
             </>
           ) : (
@@ -776,7 +776,7 @@ function HandoffPanel({ session, me }: { session: SessionDetail; me: Me }) {
           {slow && !sentTo && (
             <>
               <br />
-              Taking long — is the daemon running? <code>motif daemon start</code>
+              Taking long, is the daemon running? <code>motif daemon start</code>
             </>
           )}
           {slow && sentTo && (
@@ -791,7 +791,7 @@ function HandoffPanel({ session, me }: { session: SessionDetail; me: Me }) {
         <div class="hint status-ok">
           {sentTo ? (
             <>
-              Delivered — {sentTo} has it in their {AGENT_LABELS[target] ?? target} now, with a ready-to-run
+              Delivered, {sentTo} has it in their {AGENT_LABELS[target] ?? target} now, with a ready-to-run
               resume command.
             </>
           ) : (
@@ -1104,7 +1104,7 @@ function PeoplePage({ me }: { me: Me }) {
       </div>
       {amOwner && (
         <div class="hint" style="margin-top:10px">
-          Revoking removes a member's device tokens — they stop syncing instantly. To keep them out for good,
+          Revoking removes a member's device tokens, they stop syncing instantly. To keep them out for good,
           also rotate the team token (restart the server with a new MOTIF_TOKEN).
         </div>
       )}
@@ -1148,9 +1148,9 @@ function ReviewPage({ me }: { me: Me }) {
   return (
     <div style="max-width:820px">
       <h1>Review</h1>
-      {items.length === 0 && <div class="empty">Nothing waits for a ruling — the memory is at peace.</div>}
+      {items.length === 0 && <div class="empty">Nothing waits for a ruling, the memory is at peace.</div>}
       {!canRule && items.length > 0 && (
-        <div class="empty">Signed in with the team token — rulings need a member token.</div>
+        <div class="empty">Signed in with the team token, rulings need a member token.</div>
       )}
       {items.map((item) =>
         item.type === 'conflict' && item.against ? (
@@ -1160,7 +1160,7 @@ function ReviewPage({ me }: { me: Me }) {
               <span class="title">
                 {item.against.entity} · {item.against.aspect}
               </span>
-              <span>— agents see both sides until someone rules</span>
+              <span>agents see both sides until someone rules</span>
             </div>
             <div class="case-claims">
               <div class="claim">
@@ -1220,8 +1220,8 @@ function ReviewPage({ me }: { me: Me }) {
               </span>
               <span>
                 {item.type === 'stale'
-                  ? `— ${item.note.stale_reason ?? 'its source files moved on'}`
-                  : '— flagged as wrong, evidence pending'}
+                  ? `${item.note.stale_reason ?? 'its source files moved on'}`
+                  : 'flagged as wrong, evidence pending'}
               </span>
             </div>
             <div class="case-claims single">
@@ -1279,7 +1279,7 @@ interface GEdge {
 /**
  * The Weave: the record drawn instead of searched. Entities are diamonds,
  * sessions are dots, edges are the real relationships in the tables. A
- * hand-rolled force layout on a canvas — no dependency, fine to a few hundred
+ * hand-rolled force layout on a canvas, no dependency, fine to a few hundred
  * nodes. Hover lights a node's neighbourhood; click an entity opens it.
  */
 interface ActivityItem {
@@ -1423,7 +1423,7 @@ function OverviewPage({ me: _me }: { me: Me }) {
               <h2>Latest decisions</h2>
               {d.recentDecisions.length === 0 ? (
                 <div class="ov-muted">
-                  Decisions appear as sessions are distilled — enable it with <code>MOTIF_LLM_PROVIDER</code>.
+                  Decisions appear as sessions are distilled, enable it with <code>MOTIF_LLM_PROVIDER</code>.
                 </div>
               ) : (
                 d.recentDecisions.map((r, i) => (
@@ -1552,7 +1552,7 @@ function WeavePage() {
       ctx.clearRect(0, 0, W(), H());
       const hov = hoverRef.current;
       const near = hov ? (adj.get(hov) ?? new Set()) : null;
-      // edges — gentle curves, lit ones glow like a synapse firing
+      // edges, gentle curves, lit ones glow like a synapse firing
       for (const e of data.edges) {
         const a = byId.get(e.a);
         const b = byId.get(e.b);
@@ -1618,7 +1618,7 @@ function WeavePage() {
       ctx.globalAlpha = 1;
     };
 
-    // run the physics until it settles, then STOP — no frames burned while the
+    // run the physics until it settles, then STOP, no frames burned while the
     // graph sits still. A hover or a redraw request wakes it (see wake()).
     let running = false;
     let lastHover: string | null = null;
@@ -1744,7 +1744,7 @@ function MemoryPage() {
       <h1>Memory</h1>
       {entities.length === 0 && (
         <div class="empty">
-          No memory yet. Enable it on the server with <code>MOTIF_LLM_PROVIDER</code> — notes appear as
+          No memory yet. Enable it on the server with <code>MOTIF_LLM_PROVIDER</code>, notes appear as
           sessions go idle.
         </div>
       )}
@@ -1900,12 +1900,12 @@ function SetupPage({ me }: { me: Me }) {
       <div class="meta-card">
         {me.kind === 'member' ? (
           <p style="color:var(--dim)">
-            Signed in as <b>@{me.member?.name}</b> ({me.member?.role}) with your personal member token —
+            Signed in as <b>@{me.member?.name}</b> ({me.member?.role}) with your personal member token,
             actions like handoff are enabled.
           </p>
         ) : (
           <p style="color:var(--dim)">
-            Signed in with the shared <b>team token</b> — read-only. To enable actions, sign out and log in
+            Signed in with the shared <b>team token</b>, read-only. To enable actions, sign out and log in
             with your personal member token from <code>~/.motif/config.json</code> on your machine.
           </p>
         )}
@@ -1913,7 +1913,7 @@ function SetupPage({ me }: { me: Me }) {
       <h2>Privacy</h2>
       <div class="meta-card">
         <p style="color:var(--dim); line-height:1.6">
-          Sessions stay on this server — nothing leaves your infrastructure. Doing personal work on the same
+          Sessions stay on this server, nothing leaves your infrastructure. Doing personal work on the same
           machine? Switch that machine to allowlist mode so <b>only</b> company projects sync:
         </p>
         <div class="cmd">motif projects mode selected</div>

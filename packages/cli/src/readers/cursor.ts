@@ -1,6 +1,6 @@
 /**
  * Cursor session reader. Cursor keeps chats in SQLite:
- * <Cursor dir>/User/globalStorage/state.vscdb, table cursorDiskKV —
+ * <Cursor dir>/User/globalStorage/state.vscdb, table cursorDiskKV,
  * `composerData:<id>` rows hold conversation metadata (with an ordered
  * bubble list), `bubbleId:<composerId>:<bubbleId>` rows hold messages
  * (type 1 = user, type 2 = assistant). Schemas drift between Cursor
@@ -18,7 +18,7 @@ import { motifSessionId, type MotifMessage, type MotifSession } from '@motif/cor
 
 /**
  * Cursor stores the workspace folder as a file URL. fileURLToPath is right for
- * the platform we are on, but it throws on a URL from another one — a POSIX
+ * the platform we are on, but it throws on a URL from another one, a POSIX
  * URL read on Windows, most often a synced or copied profile. Falling back to
  * the decoded pathname keeps that workspace's sessions mapped instead of
  * dropping every conversation in it.
@@ -36,7 +36,7 @@ function folderFromUrl(url: string): string | undefined {
 }
 
 export function defaultCursorDb(): string | undefined {
-  // MOTIF_CURSOR_DIR points the reader somewhere else — used by the demo and by
+  // MOTIF_CURSOR_DIR points the reader somewhere else, used by the demo and by
   // tests. When it is set, the real Cursor directory is never consulted: an
   // override that silently falls back would sync somebody's actual history.
   const override = process.env.MOTIF_CURSOR_DIR;
@@ -84,7 +84,7 @@ function openRo(dbPath: string): Database.Database {
  * Maps composerId → project path. Cursor keeps the workspace link one level
  * away: User/workspaceStorage/<hash>/workspace.json names the folder, and
  * that workspace's own state.vscdb lists its composers under the
- * 'composer.composerData' ItemTable key. Best-effort — an unmapped
+ * 'composer.composerData' ItemTable key. Best-effort, an unmapped
  * conversation simply stays project-less.
  */
 export function loadCursorProjectMap(dbPath = defaultCursorDb()): Map<string, string> {
@@ -147,7 +147,7 @@ export function discoverCursorConversations(dbPath = defaultCursorDb()): CursorC
       db.close();
     }
   } catch {
-    return []; // db locked/missing/schema drift — treat as "no cursor sessions"
+    return []; // db locked/missing/schema drift, treat as "no cursor sessions"
   }
 }
 

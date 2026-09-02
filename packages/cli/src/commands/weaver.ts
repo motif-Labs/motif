@@ -5,7 +5,7 @@ import { loadConfig, requireConnection, saveConfig } from '../config.js';
 
 /**
  * The Weaver: an agent grown from the team's memory. When a person rules on a
- * contradiction, the repository may still say what the losing claim said — the
+ * contradiction, the repository may still say what the losing claim said, the
  * Weaver aligns it, in a throwaway worktree, as a draft PR with the ruling
  * cited. It acts only in projects you name, only on this machine, and it can
  * never touch a default branch.
@@ -13,7 +13,7 @@ import { loadConfig, requireConnection, saveConfig } from '../config.js';
 export function registerWeaver(program: Command): void {
   const weaver = program
     .command('weaver')
-    .description('The agent that keeps the repo true to the team’s rulings — opt-in, per project');
+    .description('The agent that keeps the repo true to the team’s rulings, opt-in, per project');
 
   weaver
     .command('enable <path>')
@@ -40,7 +40,7 @@ export function registerWeaver(program: Command): void {
 
   weaver
     .command('scan')
-    .description('Find gaps the record can see but the repo has not closed — untested fixes')
+    .description('Find gaps the record can see but the repo has not closed, untested fixes')
     .option('--project <path>', 'limit to one project')
     .option('--json', 'machine-readable output')
     .action(async (opts: { project?: string; json?: boolean }) => {
@@ -53,13 +53,13 @@ export function registerWeaver(program: Command): void {
         return;
       }
       if (gaps.length === 0) {
-        console.log('No open gaps — every recorded fix has a test.');
+        console.log('No open gaps, every recorded fix has a test.');
         return;
       }
       console.log(`${gaps.length} untested fix(es) the Weaver could close:\n`);
       for (const g of gaps) {
         console.log(`  ${g.file}`);
-        console.log(`    ${g.sessionTitle}${g.memberName ? ` — @${g.memberName}` : ''}`);
+        console.log(`    ${g.sessionTitle}${g.memberName ? `, @${g.memberName}` : ''}`);
         console.log(`    close it:  motif weaver run ${g.file}\n`);
       }
     });
@@ -80,7 +80,7 @@ export function registerWeaver(program: Command): void {
 
   weaver
     .command('resolve <jobId> <fate>')
-    .description('Record a Weaver PR’s fate (merged | closed) — a closed ruling-fix reopens the ruling')
+    .description('Record a Weaver PR’s fate (merged | closed), a closed ruling-fix reopens the ruling')
     .action(async (jobId: string, fate: string) => {
       if (fate !== 'merged' && fate !== 'closed') {
         console.error('fate must be: merged | closed');
@@ -93,7 +93,7 @@ export function registerWeaver(program: Command): void {
       const { reopenedNote } = await client.resolveWeaverJob(Number(jobId), fate);
       console.log(`Recorded: #${jobId} ${fate}.`);
       if (reopenedNote) {
-        console.log('That fix came from a ruling, and it was closed — the ruling is back in review.');
+        console.log('That fix came from a ruling, and it was closed, the ruling is back in review.');
       }
     });
 
@@ -107,7 +107,7 @@ export function registerWeaver(program: Command): void {
       if (!opts.json) {
         console.log(
           enabled.length === 0
-            ? 'The Weaver is idle on this machine — enable it per project: motif weaver enable <path>'
+            ? 'The Weaver is idle on this machine, enable it per project: motif weaver enable <path>'
             : `Enabled here:\n${enabled.map((p) => `  ${p}`).join('\n')}`,
         );
       }
@@ -128,7 +128,7 @@ export function registerWeaver(program: Command): void {
           j.status === 'done' ? '✓' : j.status === 'error' ? '✗' : j.status === 'running' ? '…' : '·';
         console.log(
           `  ${mark} #${j.id} ${j.project_path}  ${j.status}${j.pr_url ? `  ${j.pr_url}` : ''}${
-            j.result && !j.pr_url ? `  — ${j.result}` : ''
+            j.result && !j.pr_url ? ` , ${j.result}` : ''
           }`,
         );
       }

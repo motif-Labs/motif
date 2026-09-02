@@ -1,6 +1,6 @@
 /**
  * One matcher for "does this stored path mean that asked path". Readers store
- * tool inputs verbatim — absolute, relative, and on Windows backslashed — while
+ * tool inputs verbatim, absolute, relative, and on Windows backslashed, while
  * callers ask with whatever their platform's path.relative() produced. The CLI
  * and the server must agree on the answer, so they both import this.
  */

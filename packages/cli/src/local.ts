@@ -1,6 +1,6 @@
 /**
  * Local session access shared by CLI commands. In solo/offline use (and until
- * the daemon+server land in M2) commands parse straight from ~/.claude — the
+ * the daemon+server land in M2) commands parse straight from ~/.claude, the
  * files are small enough that a full parse is milliseconds and always fresh.
  */
 
@@ -45,7 +45,7 @@ export function resolveSession(sessions: MotifSession[], id: string): MotifSessi
     throw new Error(`No session matches "${id}". Try \`motif list\`.`);
   }
   throw new Error(
-    `Ambiguous id "${id}" — matches:\n` +
+    `Ambiguous id "${id}", matches:\n` +
       matches.map((m) => `  ${m.sourceSessionId}  ${m.title ?? ''}`).join('\n'),
   );
 }

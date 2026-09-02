@@ -68,7 +68,7 @@ export interface MotifServer {
 }
 
 export function defaultDbPath(): string {
-  // MOTIF_HOME relocates every piece of local state, the database included —
+  // MOTIF_HOME relocates every piece of local state, the database included,
   // otherwise a sandboxed run (demo, tests) would read the real one.
   const home = process.env.MOTIF_HOME ?? path.join(os.homedir(), '.motif');
   return process.env.MOTIF_DB_PATH ?? path.join(home, 'motif.db');
@@ -104,7 +104,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   const FAIL_LIMIT = 20;
   const FAIL_WINDOW_MS = 60_000;
   // A forwarded-for header is written by the client, so trusting it by default
-  // let anyone rotate their own key and guess without limit — and grow this map
+  // let anyone rotate their own key and guess without limit, and grow this map
   // forever while doing it. Trust it only when the operator says a proxy is in
   // front (MOTIF_TRUST_PROXY=1).
   const trustProxy = process.env.MOTIF_TRUST_PROXY === '1';
@@ -138,7 +138,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     const key = clientKey(c);
     const failures = failuresFor(key);
     if (failures.count >= FAIL_LIMIT) {
-      return c.json({ error: 'too many failed attempts — try again later' }, 429);
+      return c.json({ error: 'too many failed attempts, try again later' }, 429);
     }
     const header = c.req.header('authorization');
     // EventSource cannot set headers, so ?token= is accepted as an equivalent
@@ -187,7 +187,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   });
 
   // Retention: owner prunes sessions older than N days. Memory notes and
-  // handoff records survive (their session link is nulled) — distilled
+  // handoff records survive (their session link is nulled), distilled
   // knowledge is the point of keeping less raw history around.
   app.post('/api/admin/prune', async (c) => {
     if (!isOwner(memberId(c))) return c.json({ error: 'owner only' }, 403);
@@ -318,7 +318,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
 
   // From the code back to the conversation: sessions that touched a file,
   // most specific and freshest first. Attribution is inferred from what each
-  // session recorded about itself — canView applies like everywhere else.
+  // session recorded about itself, canView applies like everywhere else.
   app.get('/api/sessions/by-file', (c) => {
     const viewer = memberId(c);
     const rel = c.req.query('path');
@@ -358,7 +358,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
         exact: filePathExact(hit, rel),
       });
     }
-    // sort BEFORE trimming — an early break would let twenty fresh loose
+    // sort BEFORE trimming, an early break would let twenty fresh loose
     // matches evict an older exact one
     matches.sort(
       (a, b) => Number(b.exact) - Number(a.exact) || (b.updated_at ?? '').localeCompare(a.updated_at ?? ''),
@@ -391,7 +391,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   });
 
   // Retrieval: the context bundle an agent should get instead of re-deriving
-  // everything. Deterministic, no model calls — see retrieval.ts.
+  // everything. Deterministic, no model calls, see retrieval.ts.
   app.get('/api/recall', (c) => {
     const q = c.req.query('q');
     if (!q?.trim()) return c.json({ error: 'q required' }, 400);
@@ -404,7 +404,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     return c.req.query('format') === 'markdown' ? c.text(renderRecall(result)) : c.json(result);
   });
 
-  // Ask a past session a question — the owning machine answers it.
+  // Ask a past session a question, the owning machine answers it.
   app.post('/api/sessions/:id/asks', async (c) => {
     const member = memberId(c);
     if (member === undefined) return c.json({ error: 'member token required' }, 403);
@@ -461,7 +461,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   });
 
   // Comments: an annotation layer pinned onto a session. The transcript is
-  // never touched — this is where humans discuss what the agent did.
+  // never touched, this is where humans discuss what the agent did.
   app.get('/api/sessions/:id/comments', (c) => {
     const row = getSessionRow(db, c.req.param('id'));
     if (!row || !canView(row, memberId(c))) return c.json({ error: 'not found' }, 404);
@@ -549,8 +549,8 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     if (session.id !== c.req.param('id')) return c.json({ error: 'id mismatch' }, 400);
 
     // A full replace deletes the stored messages and writes what arrived. If a
-    // client's local copy got shorter — a truncated file, or a reader that
-    // stopped understanding a format after an upstream release — that would
+    // client's local copy got shorter, a truncated file, or a reader that
+    // stopped understanding a format after an upstream release, that would
     // silently destroy the team's record. Shrinking is legitimate (rewinding a
     // session onto another branch re-linearises it shorter), so it is allowed,
     // but only when the client says it meant to.
@@ -619,7 +619,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     const member = memberId(c);
     if (member === undefined) {
       return c.json(
-        { error: 'handoff runs on your machine via your daemon — log in with your member token' },
+        { error: 'handoff runs on your machine via your daemon, log in with your member token' },
         403,
       );
     }
@@ -647,7 +647,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       assigneeId,
       target: body.target,
     });
-    // wake the EXECUTOR's daemon — the assignee when handing to a teammate
+    // wake the EXECUTOR's daemon, the assignee when handing to a teammate
     bus.publish('handoff-requested', {
       requestId: request.id,
       sessionId: request.session_id,
@@ -720,7 +720,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     return c.json({ ok: true });
   });
 
-  // An entity's name and notes are distilled from sessions — they inherit the
+  // An entity's name and notes are distilled from sessions, they inherit the
   // visibility of their evidence. A note from a personal session reaches only
   // its owner, exactly as the session itself would.
   const NOTE_VISIBLE = `(COALESCE(s.visibility, n.orphan_visibility, 'team') != 'personal' OR COALESCE(s.member_id, n.member_id) = ?)`;
@@ -790,7 +790,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     return c.json({ entity, notes });
   });
 
-  // The record can see gaps the repo hasn't closed — an untested fix. Scanning
+  // The record can see gaps the repo hasn't closed, an untested fix. Scanning
   // lists them; queueing one is a deliberate act, never automatic, so the agent
   // only ever works on gaps a person chose. This is the answer to "autonomous
   // agents wander": ours is pointed at a receipt a human picked.
@@ -826,7 +826,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     const out = resolveWeaverJob(db, Number(c.req.param('id')), body.resolution);
     if (!out) return c.json({ error: 'no such job' }, 404);
     if (out.reopenedNoteId) {
-      // a ruling's fix was rejected — the ruling is back in doubt
+      // a ruling's fix was rejected, the ruling is back in doubt
       bus.publish('memory-reviewed', { noteId: out.reopenedNoteId, verdict: 'disputed', reviewerId: -1 });
     }
     return c.json({ job: out.job, reopenedNote: out.reopenedNoteId ?? null });
@@ -871,11 +871,11 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   });
 
   // The whole record as a graph: entities and sessions are nodes, edges are the
-  // real relationships already in the tables — a session that produced a note,
+  // real relationships already in the tables, a session that produced a note,
   // a note that supersedes or contradicts another, a handoff lineage. This is
   // the same knowledge recall walks, drawn instead of searched; visibility is
   // enforced the same way, so nobody sees a node their evidence would hide.
-  // The pulse of the record in one payload — counts, the open review load,
+  // The pulse of the record in one payload, counts, the open review load,
   // the most-touched projects, the freshest decisions. Cheap aggregates so the
   // overview loads instantly; visibility is respected on every count.
   app.get('/api/overview', (c) => {
@@ -917,8 +917,8 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       )
       .all(viewer);
 
-    // one timeline of what actually happened — sessions, rulings, handoffs,
-    // the Weaver's PRs — merged and sorted, so the overview shows work, not
+    // one timeline of what actually happened, sessions, rulings, handoffs,
+    // the Weaver's PRs, merged and sorted, so the overview shows work, not
     // just numbers. Visibility is respected per source.
     const activity: {
       type: string;
@@ -1123,7 +1123,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       }
     }
 
-    // two entities a single session both informed are related — this is the
+    // two entities a single session both informed are related, this is the
     // causal weave: decisions and the files/topics they touch, linked
     // liveEntities already gates both ends to visible entities; this filters at
     // the source too, so a personal session cannot even form a candidate edge
@@ -1167,7 +1167,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   });
 
   app.post('/api/memory/notes/:id/verdict', async (c) => {
-    // a verdict changes what the whole team is told is true — it must carry a name
+    // a verdict changes what the whole team is told is true, it must carry a name
     const reviewer = memberId(c);
     if (reviewer === undefined) return c.json({ error: 'a member token is required to rule on memory' }, 403);
     const body = (await c.req.json().catch(() => ({}))) as {
@@ -1182,7 +1182,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       const noteId = Number(c.req.param('id'));
       // A verdict both mutates a claim and echoes it back. A note whose
       // evidence is someone else's personal session must be as invisible to
-      // this caller on the write path as it is on every read path — 404, not
+      // this caller on the write path as it is on every read path, 404, not
       // 403, because even its existence is not this caller's to learn.
       const gate = db
         .prepare(
@@ -1229,7 +1229,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       bus.publish('memory-reviewed', { noteId: note.id, verdict: body.verdict!, reviewerId: reviewer });
 
       // A ruling can imply work in the repo: docs and code may still say what
-      // the losing claim said. Queue it for the Weaver — unless either side's
+      // the losing claim said. Queue it for the Weaver, unless either side's
       // evidence is personal, because a job broadcast to daemons must never
       // carry what a stranger could not read.
       if (body.verdict === 'prefer' && loserId !== null) {
@@ -1267,7 +1267,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     streamSSE(c, async (stream) => {
       // Session titles are the first user prompt, and project paths are absolute.
       // Publishing them unfiltered handed every token holder a live feed of
-      // everyone's personal work — the one thing canView exists to withhold.
+      // everyone's personal work, the one thing canView exists to withhold.
       const viewer = memberId(c);
       const unsubscribe = bus.subscribe((e) => {
         const d = e.data as { memberId?: number; visibility?: string } | undefined;
@@ -1284,7 +1284,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   );
 
   // Registered after every real API route and before the static handler, so an
-  // unknown /api path always answers JSON — with or without a bundled dashboard.
+  // unknown /api path always answers JSON, with or without a bundled dashboard.
   app.all('/api/*', (c) => c.json({ error: 'not found' }, 404));
 
   serveUi(app);
@@ -1377,7 +1377,7 @@ export function startServer(
   const listener = serve({ fetch: server.app.fetch, port, hostname });
 
   // Without this, a busy port surfaces as an unhandled 'error' event and Node
-  // prints a stack trace — which is what a first-time user sees.
+  // prints a stack trace, which is what a first-time user sees.
   listener.on('error', (err: NodeJS.ErrnoException) => {
     if (opts.onListenError) {
       opts.onListenError(err);
@@ -1394,7 +1394,7 @@ export function startServer(
 
 /**
  * Resolves once the port is actually bound. Callers must await this before
- * doing anything that assumes a running server — otherwise a failed bind races
+ * doing anything that assumes a running server, otherwise a failed bind races
  * ahead and produces a confusing error from the *next* step instead of a clear
  * one about the port.
  */

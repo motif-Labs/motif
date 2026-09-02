@@ -68,22 +68,22 @@ reporter of any incident.
 Community leaders will follow these Community Impact Guidelines in determining
 the consequences for any action they deem in violation of this Code of Conduct:
 
-**1. Correction** — _Community Impact:_ Use of inappropriate language or other
+**1. Correction**, _Community Impact:_ Use of inappropriate language or other
 behavior deemed unprofessional or unwelcome. _Consequence:_ A private, written
 warning, providing clarity around the nature of the violation and an explanation
 of why the behavior was inappropriate. A public apology may be requested.
 
-**2. Warning** — _Community Impact:_ A violation through a single incident or
+**2. Warning**, _Community Impact:_ A violation through a single incident or
 series of actions. _Consequence:_ A warning with consequences for continued
 behavior. No interaction with the people involved for a specified period of
 time. Violating these terms may lead to a temporary or permanent ban.
 
-**3. Temporary Ban** — _Community Impact:_ A serious violation of community
+**3. Temporary Ban**, _Community Impact:_ A serious violation of community
 standards, including sustained inappropriate behavior. _Consequence:_ A
 temporary ban from any sort of interaction or public communication with the
 community for a specified period of time.
 
-**4. Permanent Ban** — _Community Impact:_ Demonstrating a pattern of violation
+**4. Permanent Ban**, _Community Impact:_ Demonstrating a pattern of violation
 of community standards, including sustained inappropriate behavior, harassment
 of an individual, or aggression toward or disparagement of classes of
 individuals. _Consequence:_ A permanent ban from any sort of public interaction

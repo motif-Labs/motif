@@ -1,5 +1,5 @@
 /**
- * Motif as an MCP server — the way agents actually reach the team's memory.
+ * Motif as an MCP server, the way agents actually reach the team's memory.
  *
  * Hand-rolled JSON-RPC over stdio (newline-delimited, per the MCP stdio
  * transport) so the package keeps its four runtime dependencies. Nothing but
@@ -23,7 +23,7 @@ export const TOOLS = [
   {
     name: 'recall',
     description:
-      'Recall what this team already learned about a topic, from every past AI coding session (Claude Code, Codex, Cursor). Returns distilled decisions, human notes and cited transcript excerpts within a small token budget. USE THIS FIRST — before grepping files or asking the user to re-explain — whenever you touch unfamiliar code, wonder why something is the way it is, or start a task in a project you have not seen this session.',
+      'Recall what this team already learned about a topic, from every past AI coding session (Claude Code, Codex, Cursor). Returns distilled decisions, human notes and cited transcript excerpts within a small token budget. USE THIS FIRST, before grepping files or asking the user to re-explain, whenever you touch unfamiliar code, wonder why something is the way it is, or start a task in a project you have not seen this session.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -37,7 +37,7 @@ export const TOOLS = [
   {
     name: 'search_sessions',
     description:
-      "Full-text search across every teammate's agent sessions. Returns session ids with snippets — use recall for answers, this for finding the session itself.",
+      "Full-text search across every teammate's agent sessions. Returns session ids with snippets, use recall for answers, this for finding the session itself.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -61,7 +61,7 @@ export const TOOLS = [
   {
     name: 'get_session',
     description:
-      'Read a session transcript by id (from recall/search results). Prefer the tail — these can be very long.',
+      'Read a session transcript by id (from recall/search results). Prefer the tail, these can be very long.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -74,7 +74,7 @@ export const TOOLS = [
   {
     name: 'ask_session',
     description:
-      "Ask a past Claude Code or Codex session a question and get an answer from the agent that lived it, with its full context — not a summary. The session is resumed read-only on the machine that owns it, so this can take a minute; teammates' sessions are answered by their machine. Use when recall's excerpts are not enough and you need the reasoning behind a decision.",
+      "Ask a past Claude Code or Codex session a question and get an answer from the agent that lived it, with its full context, not a summary. The session is resumed read-only on the machine that owns it, so this can take a minute; teammates' sessions are answered by their machine. Use when recall's excerpts are not enough and you need the reasoning behind a decision.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -155,7 +155,7 @@ export async function handleRpc(
         const text = await callTool(getBackend(), name, args);
         return ok({ content: [{ type: 'text', text }], isError: false });
       } catch (err) {
-        // tool failures are results, not protocol errors — the model should see them
+        // tool failures are results, not protocol errors, the model should see them
         return ok({
           content: [{ type: 'text', text: `Motif error: ${(err as Error).message}` }],
           isError: true,

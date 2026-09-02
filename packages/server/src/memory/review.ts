@@ -7,7 +7,7 @@
  * still true. This module builds that queue and applies the verdicts.
  *
  * Verdicts never delete. A wrong note is retired, a losing note is superseded,
- * and the ruling itself — who, over what, why — is recorded in memory_reviews.
+ * and the ruling itself, who, over what, why, is recorded in memory_reviews.
  */
 import { filePathMatches } from '@motif/core';
 import type { Db } from '../db/database.js';
@@ -57,7 +57,7 @@ const NOTE_SELECT = `
   LEFT JOIN members m ON m.id = n.member_id
   LEFT JOIN sessions s ON s.pk = n.source_session_pk`;
 
-/** A note is shown only when its evidence would be — same rule as sessions.
+/** A note is shown only when its evidence would be, same rule as sessions.
  * When the evidence is gone, the note keeps the visibility it died with:
  * deleting a personal session must never PUBLISH its distilled claims. */
 function viewable(
@@ -73,7 +73,7 @@ function viewable(
 /**
  * Everything waiting for a human: unresolved conflicts (challenger + incumbent,
  * side by side), notes flagged stale, and notes someone disputed. Ordered by
- * age — the oldest doubt is the most expensive one.
+ * age, the oldest doubt is the most expensive one.
  */
 /** The badge polls this and every dashboard tab holds it open; sweeping
  * staleness on each read would tax the common case to serve the rare one.
@@ -87,7 +87,7 @@ export function invalidateStaleSweep(db: Db): void {
 }
 
 export function listReviewQueue(db: Db, viewerId: number | undefined): ReviewItem[] {
-  // freshness is computed lazily on read — throttled, deterministic, schedulerless
+  // freshness is computed lazily on read, throttled, deterministic, schedulerless
   if (Date.now() - (lastStaleSweep.get(db) ?? 0) > STALE_SWEEP_MS) {
     lastStaleSweep.set(db, Date.now());
     markStaleNotes(db);
@@ -136,7 +136,7 @@ export interface StaleOptions {
 /**
  * Deterministic staleness: a machine-made note whose source files have since
  * been worked on repeatedly, with no newer note on the same entity, is probably
- * describing code that no longer exists that way. No model call — this reads
+ * describing code that no longer exists that way. No model call, this reads
  * only what the sync already stored, so it works with no LLM configured.
  *
  * Human-verified notes are exempt: a person's word is not overruled by a
@@ -173,7 +173,7 @@ export function markStaleNotes(db: Db, opts: StaleOptions = {}): number {
   for (const n of candidates) {
     const files = JSON.parse(n.files_touched || '[]') as string[];
     if (files.length === 0) continue;
-    // distillation kept up with this entity — the note is contested or refreshed, not stale
+    // distillation kept up with this entity, the note is contested or refreshed, not stale
     if (newerNote.get(n.entity_id, n.created_at, n.id)) continue;
     let touching = 0;
     for (const later of laterSessions.all(n.project_path, n.src_updated, n.source_session_pk) as {
@@ -221,7 +221,7 @@ export function applyVerdict(db: Db, input: VerdictInput): ReviewNote {
         ).run(input.reviewerId, now, input.noteId);
         // confirming a conflicted challenger without naming a loser is ambiguous
         if (note.status === 'conflicted') {
-          throw new Error(`note #${input.noteId} is in conflict — use 'prefer' to pick the winner`);
+          throw new Error(`note #${input.noteId} is in conflict, use 'prefer' to pick the winner`);
         }
         break;
       }
@@ -235,7 +235,7 @@ export function applyVerdict(db: Db, input: VerdictInput): ReviewNote {
           { id: number; entity_id: number; aspect: string; conflict_with: number | null } | undefined;
         if (!loser) throw new Error(`no note #${loserId}`);
         // A ruling resolves a CONFLICT. Two notes are in conflict only when one
-        // challenges the other on the same claim — anything else is a typo'd
+        // challenges the other on the same claim, anything else is a typo'd
         // id, and superseding an unrelated live note over a typo is how memory
         // gets quietly corrupted.
         const linked = note.conflict_with === loserId || loser.conflict_with === input.noteId;
@@ -264,7 +264,7 @@ export function applyVerdict(db: Db, input: VerdictInput): ReviewNote {
         ).run(input.reviewerId, now, input.noteId);
         if (note.status === 'conflicted') {
           // the challenge is withdrawn: the incumbent stands, and the challenger
-          // stops COUNTING as a conflict — left 'conflicted', the dashboard
+          // stops COUNTING as a conflict, left 'conflicted', the dashboard
           // would show a conflict no ruling could ever clear
           db.prepare(
             `UPDATE memory_notes SET status = 'superseded', superseded_by = ?, conflict_with = NULL WHERE id = ?`,

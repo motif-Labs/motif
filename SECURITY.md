@@ -13,27 +13,27 @@ Two credentials, two levels:
 | **Team token**   | shared once, out-of-band                         | read dashboards/search; register a new member      |
 | **Member token** | one per person/device, minted by `motif connect` | everything; every write is attributed to its owner |
 
-- Identity always derives from the member token — never from a claimed
+- Identity always derives from the member token, never from a claimed
   name or header. Members cannot write as each other.
 - Tokens are 192-bit random values and comparisons are constant-time;
   repeated failures are rate-limited per client (20/min → 429).
-- **Member tokens are stored as SHA-256 hashes** — the server cannot recover
+- **Member tokens are stored as SHA-256 hashes**, the server cannot recover
   one, so a stolen database does not yield anybody's write credential.
 - **The team token is stored in plaintext**, because the server prints it on
   every start so a teammate can be invited. It is a read-only credential, and
-  anyone who can read the database file already has every session in it — but
+  anyone who can read the database file already has every session in it, but
   it is stored differently from member tokens and that is worth knowing.
 - Every synced session carries a scope, and **joining a team never
   auto-shares your history**: a freshly connected machine uploads
-  everything as `personal` — stored on the server but visible to _you
-  alone_ (lists, search, detail, export all filter it) — until you mark
+  everything as `personal`, stored on the server but visible to _you
+  alone_ (lists, search, detail, export all filter it), until you mark
   projects team-visible (`motif projects team <path>`) or promote
   individual sessions from the dashboard. Handing a personal session to
   a teammate promotes it (handing it over _is_ sharing it), and only
   team-visible sessions feed the shared memory. Keeping something off
   the server entirely still happens on the source machine (below).
 - Handoffs and asks execute on the machine that **owns** the session, through
-  its own daemon — which for a handoff you were sent means a teammate's request
+  its own daemon, which for a handoff you were sent means a teammate's request
   runs on yours. That is the feature, and the section below states exactly what
   it can and cannot do.
 - The owner (first member) can rename the team and revoke any member's
@@ -43,7 +43,7 @@ Two credentials, two levels:
 ## What a teammate can cause on your machine
 
 Motif is a team tool, and two of its features let someone else's request reach
-your computer. Neither is a loophole — they are the product — but you should
+your computer. Neither is a loophole, they are the product, but you should
 know their exact shape before you leave the daemon running.
 
 **A teammate can:**
@@ -77,13 +77,13 @@ whatever it prints goes back to the person who asked. **A question is therefore
 a request to read something on your machine and report it.** Ask yourself
 whether you would answer it if a colleague walked over and asked out loud.
 
-**The levers you hold.** The daemon is opt-in — nothing arrives if it is not
+**The levers you hold.** The daemon is opt-in, nothing arrives if it is not
 running. `motif daemon pause` stops delivery while keeping everything else.
 Every request is logged to `~/.motif/daemon.log`. If you would rather answer by
 hand, leave the daemon off and run `motif asks <id>` yourself.
 
 This is a trust model, not a sandbox. It assumes your teammates are your
-teammates — the same assumption you already make by sharing a repository with
+teammates, the same assumption you already make by sharing a repository with
 them. Do not hand the team token to anyone you would not give read access to
 your work, and rotate it (restart the server with a new `MOTIF_TOKEN`, and
 revoke the member) when someone leaves.
@@ -124,7 +124,7 @@ motif.internal.example.com {
 Releases will be published from CI with npm provenance attestations;
 dependencies are deliberately minimal (4 runtime packages); the package
 has no install scripts of its own. Pin versions, review diffs between
-releases, or build from source — it's all here.
+releases, or build from source, it's all here.
 
 ## Reporting a vulnerability
 
@@ -139,6 +139,6 @@ Please do not open a public issue for anything exploitable. Include what you
 did, what happened, and the version (`motif --version`); a proof of concept
 helps but is not required to file.
 
-Expect an acknowledgement within a few days. Fixes land on the latest release —
-there are no maintained back-branches — and the advisory is published once a
+Expect an acknowledgement within a few days. Fixes land on the latest release,
+there are no maintained back-branches, and the advisory is published once a
 fixed version is out, crediting you unless you would rather stay anonymous.
