@@ -1,3 +1,4 @@
+import { confidence, supportByEntity } from './memory/confidence.js';
 /**
  * Context retrieval — the engine behind `motif recall` and the MCP server.
  *
@@ -358,9 +359,10 @@ export function recall(db: Db, opts: RecallOptions): RecallResult {
   }
 
   // ── 3. curated knowledge: memory notes ──────────────────────────────────
+  const supportMap = supportByEntity(db, opts.project);
   const noteRows = db
     .prepare(
-      `SELECT n.body, n.aspect, n.created_at, n.status, n.verification, n.stale, e.name AS entity, e.kind, e.project_path
+      `SELECT n.body, n.aspect, n.created_at, n.status, n.verification, n.stale, n.entity_id, e.name AS entity, e.kind, e.project_path
        FROM memory_notes n JOIN memory_entities e ON e.id = n.entity_id
        LEFT JOIN sessions s ON s.pk = n.source_session_pk
        WHERE n.status IN ('current','conflicted') AND n.verification != 'retired'
@@ -374,6 +376,7 @@ export function recall(db: Db, opts: RecallOptions): RecallResult {
     status: string;
     verification: string;
     stale: number;
+    entity_id: number;
     entity: string;
     kind: string;
     project_path: string;
@@ -383,17 +386,25 @@ export function recall(db: Db, opts: RecallOptions): RecallResult {
   for (const n of noteRows) {
     const cov = termCoverage(`${n.entity} ${n.aspect} ${n.body}`, terms);
     if (cov === 0 && terms.length > 0) continue;
-    // a claim a person vouched for outranks one only a model produced
-    const authority = n.verification === 'verified' ? 0.2 : n.status === 'conflicted' || n.stale ? 0.1 : 0.15;
-    const score = 0.65 * cov + 0.2 * recencyScore(n.created_at) + authority;
+    // trust is one number: corroboration + human vouch, tempered by conflict,
+    // staleness and age — it both ranks the note and is shown to the reader
+    const conf = confidence({
+      status: n.status,
+      verification: n.verification,
+      stale: n.stale,
+      createdAt: n.created_at,
+      support: supportMap.get(n.entity_id) ?? 1,
+    });
+    const score = 0.6 * cov + 0.15 * recencyScore(n.created_at) + 0.25 * conf;
+    const trust = conf >= 0.75 ? 'high' : conf >= 0.5 ? 'medium' : 'low';
     const mark =
       n.status === 'conflicted'
         ? ' (CONFLICTED)'
         : n.verification === 'verified'
-          ? ' (verified)'
+          ? ` (verified · ${trust} confidence)`
           : n.stale
             ? ' (possibly stale)'
-            : '';
+            : ` (${trust} confidence)`;
     const text = `[${n.kind}] ${n.entity} · ${n.aspect}${mark}\n${n.body}`;
     items.push({
       kind: 'note',

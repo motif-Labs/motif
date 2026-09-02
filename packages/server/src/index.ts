@@ -11,6 +11,7 @@ import { ensureTeamToken, openDb, type Db } from './db/database.js';
 import { LiveBus } from './live/bus.js';
 import { recall, renderRecall } from './retrieval.js';
 import { applyVerdict, listReviewQueue } from './memory/review.js';
+import { confidence, supportByEntity } from './memory/confidence.js';
 import {
   claimWeaverJob,
   completeWeaverJob,
@@ -862,6 +863,37 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     }[];
     const liveSessions = new Set(sessions.map((x) => x.pk));
 
+    const support = supportByEntity(db, project);
+    // one representative note per entity carries its confidence to the graph
+    const noteByEntity = db
+      .prepare(
+        `SELECT entity_id, status, verification, stale, created_at,
+                ROW_NUMBER() OVER (PARTITION BY entity_id ORDER BY created_at DESC) AS rn
+         FROM memory_notes WHERE status = 'current' AND verification != 'retired'`,
+      )
+      .all() as {
+      entity_id: number;
+      status: string;
+      verification: string;
+      stale: number;
+      created_at: string;
+      rn: number;
+    }[];
+    const confByEntity = new Map<number, number>();
+    for (const r of noteByEntity) {
+      if (r.rn !== 1) continue;
+      confByEntity.set(
+        r.entity_id,
+        confidence({
+          status: r.status,
+          verification: r.verification,
+          stale: r.stale,
+          createdAt: r.created_at,
+          support: support.get(r.entity_id) ?? 1,
+        }),
+      );
+    }
+
     const nodes = [
       ...entities.map((e) => ({
         id: `e${e.id}`,
@@ -869,6 +901,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
         kind: e.kind,
         label: e.name,
         project: e.project_path,
+        confidence: confByEntity.get(e.id) ?? 0.5,
       })),
       ...sessions.map((x) => ({
         id: `s${x.pk}`,
@@ -898,6 +931,25 @@ export function createServer(config: ServerConfig = {}): MotifServer {
           b: `e${l.entity_id}`,
           kind: l.status === 'conflicted' ? 'contests' : 'informs',
         });
+      }
+    }
+
+    // two entities a single session both informed are related — this is the
+    // causal weave: decisions and the files/topics they touch, linked
+    const cooccur = db
+      .prepare(
+        `SELECT DISTINCT a.entity_id AS ea, b.entity_id AS eb
+         FROM memory_notes a JOIN memory_notes b
+           ON a.source_session_pk = b.source_session_pk AND a.entity_id < b.entity_id
+         WHERE a.status = 'current' AND b.status = 'current'
+           AND a.verification != 'retired' AND b.verification != 'retired'
+           AND a.source_session_pk IS NOT NULL`,
+      )
+      .all() as { ea: number; eb: number }[];
+    const liveEntities = new Set(entities.map((e) => e.id));
+    for (const l of cooccur) {
+      if (liveEntities.has(l.ea) && liveEntities.has(l.eb)) {
+        edges.push({ a: `e${l.ea}`, b: `e${l.eb}`, kind: 'relates' });
       }
     }
 
@@ -1170,6 +1222,13 @@ export * from './store.js';
 export { LiveBus } from './live/bus.js';
 export { createProvider, type LLMProvider } from './memory/providers.js';
 export { applyNotes, runMemoryTick, startMemoryScheduler } from './memory/pipeline.js';
+export {
+  confidence,
+  confidenceLabel,
+  freshness,
+  supportByEntity,
+  type NoteSignals,
+} from './memory/confidence.js';
 export {
   applyVerdict,
   listReviewQueue,
