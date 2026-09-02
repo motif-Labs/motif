@@ -310,21 +310,27 @@ describe('regression gaps — the record sees an untested fix', () => {
     fullReplaceSession2(db2, m, sess('b', 'Fix the flaky webhook', ['src/hook.ts', 'src/hook.test.ts']));
     fullReplaceSession2(db2, m, sess('c', 'Add a new dashboard page', ['src/page.ts']));
 
+    fullReplaceSession2(db2, m, sess('d', 'Add rate limiting to the public API', ['src/limiter.ts']));
     const gaps = findRegressionGaps(db2);
-    expect(gaps.map((g) => g.file)).toEqual(['src/pay.ts']);
-    expect(gaps[0]!.sessionId).toBe('claude-code:a');
+    // every untested change is caught — the fix, and both features — but never
+    // the one that shipped with its test (src/hook.ts had src/hook.test.ts)
+    expect(gaps.map((g) => g.file).sort()).toEqual(['src/limiter.ts', 'src/page.ts', 'src/pay.ts']);
+    expect(gaps.find((g) => g.file === 'src/pay.ts')!.changeKind).toBe('fix');
+    expect(gaps.find((g) => g.file === 'src/limiter.ts')!.changeKind).toBe('feature');
 
     // the prompt carries the receipt, so the agent does not have to search
     const prompt = buildPrompt({
       kind: 'missing-regression',
       file: gaps[0]!.file,
+      changeKind: gaps[0]!.changeKind,
       sessionId: gaps[0]!.sessionId,
       sessionTitle: gaps[0]!.sessionTitle,
       memberName: 'ada',
       context: gaps[0]!.context,
     });
     expect(prompt).toContain('src/pay.ts');
-    expect(prompt).toContain('ONE focused regression test');
+    expect(prompt).toContain('focused tests');
     expect(prompt).toContain('double-charge');
+    expect(gaps[0]!.changeKind).toBe('fix');
   });
 });

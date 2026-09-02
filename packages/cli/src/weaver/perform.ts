@@ -32,6 +32,7 @@ export interface WeaverRulingPayload {
 export interface WeaverGapPayload {
   kind: 'missing-regression';
   file: string;
+  changeKind: 'fix' | 'feature' | 'change';
   sessionId: string;
   sessionTitle: string;
   memberName: string | null;
@@ -73,17 +74,19 @@ const git = (cwd: string, ...args: string[]): string =>
 
 export function buildPrompt(p: AnyWeaverPayload): string {
   if (p.kind === 'missing-regression') {
+    const noun = p.changeKind === 'feature' ? 'the new behaviour' : 'the change';
     return [
-      'A change was made to this repository with no test to hold it. The context',
-      'from the team record is below — use it so you do not have to search:',
+      `A ${p.changeKind} shipped to this repository with no test to hold it. The`,
+      'context from the team record is below — use it so you do not have to search:',
       '',
       p.context,
       '',
-      `Task: add ONE focused regression test for ${p.file} that would fail if the`,
-      'fix were reverted, and nothing else. Do not refactor, do not touch',
-      'unrelated files, do not add tests for behaviour the change did not affect.',
-      'Match the repository’s existing test style and framework. If a suitable',
-      'test already exists, change nothing at all.',
+      `Task: cover ${p.file} with focused tests for ${noun} the session made — and`,
+      'nothing else. If a test file already exists but misses this behaviour,',
+      'extend it rather than duplicate it; if it already covers this, change',
+      'nothing at all. Do not refactor, do not touch unrelated files, do not test',
+      'behaviour this change did not affect. Match the repository’s existing test',
+      'style and framework.',
     ].join('\n');
   }
   return [
@@ -166,7 +169,7 @@ export async function performWeaverJob(job: WeaverJob, deps: WeaverDeps): Promis
 
     const title =
       payload.kind === 'missing-regression'
-        ? `Add a regression test for ${payload.file}`
+        ? `Add tests for ${payload.file}`
         : `Align with the team ruling on ${payload.entity} · ${payload.aspect}`;
     const receipts =
       payload.kind === 'missing-regression'
@@ -183,7 +186,7 @@ export async function performWeaverJob(job: WeaverJob, deps: WeaverDeps): Promis
     const body =
       payload.kind === 'missing-regression'
         ? [
-            `A change to \`${payload.file}\` shipped without a test. This adds one, aimed at exactly that change.`,
+            `A ${payload.changeKind} to \`${payload.file}\` shipped without a test. This adds one, aimed at exactly that change.`,
             '',
             `**From:** session \`${payload.sessionId}\`${payload.memberName ? ` — @${payload.memberName}` : ''}`,
             `> ${payload.sessionTitle}`,

@@ -772,6 +772,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     const job = createWeaverJob(db, gap.project, {
       kind: 'missing-regression',
       file: gap.file,
+      changeKind: gap.changeKind,
       sessionId: gap.sessionId,
       sessionTitle: gap.sessionTitle,
       memberName: gap.memberName,

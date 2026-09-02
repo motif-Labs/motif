@@ -32,6 +32,7 @@ export interface RulingPayload {
 export interface GapPayload {
   kind: 'missing-regression';
   file: string;
+  changeKind: ChangeKind;
   sessionId: string;
   sessionTitle: string;
   memberName: string | null;
@@ -53,8 +54,11 @@ export interface WeaverJobRow {
   updated_at: string;
 }
 
+export type ChangeKind = 'fix' | 'feature' | 'change';
+
 export interface RegressionGap {
   file: string;
+  changeKind: ChangeKind;
   sessionId: string;
   sessionTitle: string;
   memberName: string | null;
@@ -64,21 +68,28 @@ export interface RegressionGap {
 
 const TEST_RE = /(^|\/)(tests?|__tests__|spec)\/|\.(test|spec)\.[jt]sx?$/i;
 const CODE_RE = /\.[jt]sx?$|\.(py|go|rb|rs|java|kt|swift)$/i;
-const FIX_RE = /\b(fix|bug|broke|broken|regression|crash|failing|flaky|incorrect|wrong)\b/i;
+const FIX_RE = /\b(fix|fixed|bug|broke|broken|regression|crash|failing|flaky|incorrect|wrong|revert)\b/i;
+const FEATURE_RE =
+  /\b(add|added|implement|introduce|build|create|support|enable|new|wire up|endpoint|feature)\b/i;
 
-/** Sessions that changed code, left no test, and whose work the memory thought
- * worth recording — the shape of an untested fix. Deterministic: it reads only
- * what sync already stored, and each gap carries the receipt that justifies it. */
+/**
+ * Untested changes the record can see: a session that changed code, added no
+ * test, and either announced a fix/feature in its title or was distilled into
+ * memory (so the change mattered). Deterministic — it reads only what sync
+ * stored — and every gap carries the receipt that justifies the work, so the
+ * agent is aimed at a real change, never asked to invent one.
+ */
 export function findRegressionGaps(db: Db, project?: string): RegressionGap[] {
   const rows = db
     .prepare(
-      `SELECT s.id, s.title, s.files_touched, s.project_path, m.name AS member_name
+      `SELECT s.pk, s.id, s.title, s.files_touched, s.project_path, m.name AS member_name
        FROM sessions s LEFT JOIN members m ON m.id = s.member_id
        WHERE s.visibility = 'team'
        ${project ? 'AND s.project_path = ?' : ''}
        ORDER BY s.updated_at DESC LIMIT 400`,
     )
     .all(...(project ? [project] : [])) as {
+    pk: number;
     id: string;
     title: string | null;
     files_touched: string;
@@ -90,32 +101,40 @@ export function findRegressionGaps(db: Db, project?: string): RegressionGap[] {
   const seen = new Set<string>();
   for (const r of rows) {
     const files = JSON.parse(r.files_touched || '[]') as string[];
-    const looksLikeFix = FIX_RE.test(r.title ?? '');
-    const touchedCode = files.some((f) => CODE_RE.test(f) && !TEST_RE.test(f));
+    const codeFile = files.find((f) => CODE_RE.test(f) && !TEST_RE.test(f));
     const touchedTest = files.some((f) => TEST_RE.test(f));
-    if (!looksLikeFix || !touchedCode || touchedTest) continue;
+    if (!codeFile || touchedTest) continue;
 
-    const codeFile = files.find((f) => CODE_RE.test(f) && !TEST_RE.test(f))!;
+    const title = r.title ?? '';
+    const isFix = FIX_RE.test(title);
+    const isFeature = FEATURE_RE.test(title);
+
+    // the receipt: what the record already knows about this change
+    const notes = db
+      .prepare(
+        `SELECT n.body FROM memory_notes n
+         WHERE n.source_session_pk = ? AND n.status = 'current' AND n.verification != 'retired' LIMIT 3`,
+      )
+      .all(r.pk) as { body: string }[];
+
+    // a change earns a gap if it looks like a fix/feature OR the memory kept it
+    if (!isFix && !isFeature && notes.length === 0) continue;
+
     const key = `${r.project_path}::${codeFile}`;
     if (seen.has(key)) continue; // one gap per file, freshest wins
     seen.add(key);
 
-    // the receipt: what the record already knows about this file
-    const notes = db
-      .prepare(
-        `SELECT n.body FROM memory_notes n JOIN memory_entities e ON e.id = n.entity_id
-         WHERE e.name = ? AND e.project_path = ? AND n.status = 'current' AND n.verification != 'retired' LIMIT 3`,
-      )
-      .all(codeFile.replace(/^.*?([^/]+\/[^/]+)$/, '$1'), r.project_path) as { body: string }[];
+    const changeKind: ChangeKind = isFix ? 'fix' : isFeature ? 'feature' : 'change';
     const context = [
-      `Session "${r.title}" changed ${codeFile} and added no test.`,
+      `Session "${title}" changed ${codeFile} and added no test.`,
       ...notes.map((n) => `Record: ${n.body}`),
     ].join('\n');
 
     gaps.push({
       file: codeFile,
+      changeKind,
       sessionId: r.id,
-      sessionTitle: r.title ?? '(untitled)',
+      sessionTitle: title || '(untitled)',
       memberName: r.member_name,
       project: r.project_path,
       context,
