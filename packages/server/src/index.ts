@@ -738,8 +738,31 @@ export function createServer(config: ServerConfig = {}): MotifServer {
          WHERE ${NOTE_VISIBLE}
          GROUP BY e.id ORDER BY e.kind, e.name`,
       )
-      .all(viewer);
-    return c.json(rows);
+      .all(viewer) as { id: number; current_notes: number; conflicts: number }[];
+    // attach the same confidence the graph and recall use
+    const support = supportByEntity(db);
+    const latest = db.prepare(
+      `SELECT status, verification, stale, created_at FROM memory_notes
+       WHERE entity_id = ? AND status = 'current' AND verification != 'retired'
+       ORDER BY created_at DESC LIMIT 1`,
+    );
+    const out = rows.map((r) => {
+      const n = latest.get(r.id) as
+        { status: string; verification: string; stale: number; created_at: string } | undefined;
+      return {
+        ...r,
+        confidence: n
+          ? confidence({
+              status: n.status,
+              verification: n.verification,
+              stale: n.stale,
+              createdAt: n.created_at,
+              support: support.get(r.id) ?? 1,
+            })
+          : 0.5,
+      };
+    });
+    return c.json(out);
   });
 
   app.get('/api/memory/entities/:id', (c) => {

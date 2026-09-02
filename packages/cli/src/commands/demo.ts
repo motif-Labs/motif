@@ -109,7 +109,7 @@ export function registerDemo(program: Command): void {
         console.log(
           `  ▸ Act 1 · Collect — ${new Set(SESSIONS.map((x) => x.member)).size} people, two tools, ${new Set(SESSIONS.map((x) => x.project)).size} projects, one record\n`,
         );
-        SESSIONS.forEach((s, i) => insertSession(server.db, members, s));
+        SESSIONS.forEach((s) => insertSession(server.db, members, s));
         // stream the recent ones on screen; the rest are already in the record
         const shown = SESSIONS.slice(-9);
         for (const s of shown) {

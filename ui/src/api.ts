@@ -53,6 +53,7 @@ export interface MemoryEntity {
   project_path: string;
   current_notes: number;
   conflicts: number;
+  confidence?: number;
 }
 
 export interface MemoryNote {

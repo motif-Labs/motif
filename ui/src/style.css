@@ -1427,5 +1427,35 @@ h1.session-title {
 .wl-line {
   width: 16px;
   height: 0;
+}
+.wl-line.relate {
+  border-top: 1.5px solid var(--accent);
+}
+.wl-line.contest {
   border-top: 1.5px dashed var(--red);
+}
+
+/* confidence: uncertainty made visible, quietly */
+.conf {
+  display: inline-block;
+  width: 46px;
+  height: 5px;
+  border-radius: 99px;
+  background: var(--fill);
+  overflow: hidden;
+  vertical-align: middle;
+}
+.conf-fill {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+}
+.conf-high .conf-fill {
+  background: var(--green);
+}
+.conf-medium .conf-fill {
+  background: var(--dim);
+}
+.conf-low .conf-fill {
+  background: var(--amber);
 }

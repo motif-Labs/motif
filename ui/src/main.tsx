@@ -92,6 +92,15 @@ const NAV_ICONS: Record<string, JSX.Element> = {
   ),
 };
 
+function ConfidenceBar({ value }: { value: number }) {
+  const level = value >= 0.75 ? 'high' : value >= 0.5 ? 'medium' : 'low';
+  return (
+    <span class={`conf conf-${level}`} title={`${level} confidence`}>
+      <span class="conf-fill" style={`width:${Math.round(value * 100)}%`} />
+    </span>
+  );
+}
+
 function Skeleton({ rows = 5 }: { rows?: number }) {
   return (
     <div class="skeleton">
@@ -1237,6 +1246,7 @@ interface GNode {
   kind: string;
   label: string;
   project: string;
+  confidence?: number;
   x?: number;
   y?: number;
   vx?: number;
@@ -1363,9 +1373,9 @@ function WeavePage() {
         const b = byId.get(e.b);
         if (!a || !b) continue;
         const lit = hov && (e.a === hov || e.b === hov);
-        ctx.strokeStyle = e.kind === 'contests' ? red : lit ? accent : border;
-        ctx.globalAlpha = hov ? (lit ? 0.9 : 0.15) : 0.5;
-        ctx.lineWidth = lit ? 1.4 : 1;
+        ctx.strokeStyle = e.kind === 'contests' ? red : e.kind === 'relates' ? accent : lit ? accent : border;
+        ctx.globalAlpha = hov ? (lit ? 0.95 : 0.12) : e.kind === 'relates' ? 0.5 : 0.4;
+        ctx.lineWidth = lit ? 1.5 : e.kind === 'relates' ? 1.2 : 1;
         if (e.kind === 'contests') ctx.setLineDash([3, 3]);
         ctx.beginPath();
         ctx.moveTo(a.x!, a.y!);
@@ -1379,7 +1389,8 @@ function WeavePage() {
         const dim = hov && n.id !== hov && !near?.has(n.id);
         ctx.globalAlpha = dim ? 0.25 : 1;
         if (n.type === 'entity') {
-          const r = 5.5;
+          // confidence sizes the diamond — a trusted decision reads larger
+          const r = 4 + (n.confidence ?? 0.5) * 5;
           ctx.fillStyle = n.kind === 'decision' ? accent : ink;
           ctx.beginPath();
           ctx.moveTo(n.x!, n.y! - r);
@@ -1388,6 +1399,12 @@ function WeavePage() {
           ctx.lineTo(n.x! - r, n.y!);
           ctx.closePath();
           ctx.fill();
+          if ((n.confidence ?? 1) < 0.5) {
+            ctx.strokeStyle = faint;
+            ctx.globalAlpha = dim ? 0.15 : 0.5;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          }
         } else {
           ctx.fillStyle = faint;
           ctx.beginPath();
@@ -1471,6 +1488,9 @@ function WeavePage() {
               <i class="wl-dot" /> session
             </span>
             <span>
+              <i class="wl-line relate" /> related
+            </span>
+            <span>
               <i class="wl-line contest" /> contested
             </span>
           </div>
@@ -1523,7 +1543,11 @@ function MemoryPage() {
                     <span class="chip">{e.current_notes} notes</span>
                   </span>
                   <span class="ago">
-                    {e.conflicts > 0 && <span class="chip conflict">{e.conflicts} conflict</span>}
+                    {e.conflicts > 0 ? (
+                      <span class="chip conflict">{e.conflicts} conflict</span>
+                    ) : (
+                      <ConfidenceBar value={e.confidence ?? 0.5} />
+                    )}
                   </span>
                 </a>
               ))}
