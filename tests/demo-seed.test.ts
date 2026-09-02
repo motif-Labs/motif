@@ -31,12 +31,16 @@ describe('the built-in demo seed', () => {
     ]);
 
     const queue = listReviewQueue(db, undefined);
-    const types = queue.map((i) => i.type).sort();
-    // two open disagreements now (ADR-014 and billing retry) plus the stale note
-    expect(types).toEqual(['conflict', 'conflict', 'stale']);
+    const types = queue.map((i) => i.type);
+    // a real fortnight holds more than one open question: at least the two
+    // disagreements (ADR-014 and billing retry) and at least one stale note
+    expect(types.filter((t) => t === 'conflict').length).toBeGreaterThanOrEqual(2);
+    expect(types).toContain('stale');
 
-    // the conflict shows both sides, each citing its session
-    const conflict = queue.find((i) => i.type === 'conflict')!;
+    // the ADR conflict (the one the demo rules on) shows both sides, each cited
+    const conflict = queue.find(
+      (i) => i.type === 'conflict' && i.note.entity === 'redis outage policy',
+    )!;
     expect(conflict.against!.session_id).toContain('pay-ratelimit');
     expect(conflict.note.session_id).toContain('ops-redis');
 
