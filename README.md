@@ -25,10 +25,10 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/motif-Labs/motif/main/docs/assets/handoff.gif" alt="Handing a live Claude Code session to a teammate, who picks it up in Codex" width="820" />
+  <img src="https://raw.githubusercontent.com/motif-Labs/motif/main/docs/assets/hero.png" alt="The Weave: every decision, file and session a team's agents produced, drawn as one living graph, with a hovered node showing its confidence and ties" width="900" />
 </p>
 
-<p align="center"><sub>One command hands a live Claude Code session to a teammate. Her daemon materialises it as a Codex<br />thread on her own machine, and <code>codex resume</code> opens it as history, not as a paste.</sub></p>
+<p align="center"><sub>Every decision, file and session your team's agents produced, drawn as one living graph.<br />Hover a node for its confidence and how many ties it holds.</sub></p>
 
 ---
 
@@ -265,6 +265,12 @@ the thread in its state database, so the tool opens it as its own history.
 motif handoff 4f2a9c --open                # continue it here, in the other tool
 motif handoff 4f2a9c --to-member "Ada"     # hand it over, lands in THEIR tool
 ```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/motif-Labs/motif/main/docs/assets/handoff.gif" alt="Handing a live Claude Code session to a teammate, who picks it up in Codex" width="820" />
+</p>
+
+<p align="center"><sub>One command hands a live Claude Code session to a teammate. Their daemon materialises it as a Codex<br />thread on their own machine, and <code>codex resume</code> opens it as history, not as a paste.</sub></p>
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/motif-Labs/motif/main/docs/assets/codex-takeover.png" alt="The Claude Code conversation, resumed inside Codex on another machine, answering a teammate's question about it" width="880" />
