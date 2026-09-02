@@ -1,4 +1,4 @@
-import { render } from 'preact';
+import { render, type ComponentChildren, type JSX } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { AgentMark, AGENT_LABELS } from './logos.js';
 import {
@@ -25,6 +25,64 @@ import {
 
 type Theme = 'system' | 'light' | 'dark';
 const THEME_KEY = 'motif-theme';
+
+const ic = (d: ComponentChildren) => (
+  <svg
+    class="nav-ic"
+    width="16"
+    height="16"
+    viewBox="0 0 16 16"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    {d}
+  </svg>
+);
+/* the sidebar speaks SF Symbols' dialect: geometric, stroked, quiet */
+const NAV_ICONS: Record<string, JSX.Element> = {
+  '#/': ic(
+    <>
+      <path d="M3 4.5h10M3 8h10M3 11.5h6" />
+      <circle cx="12.5" cy="11.5" r="1.6" fill="currentColor" stroke="none" />
+    </>,
+  ),
+  '#/people': ic(
+    <>
+      <circle cx="5.5" cy="5.5" r="2.4" />
+      <path d="M1.8 13.2c.5-2.6 1.9-3.9 3.7-3.9s3.2 1.3 3.7 3.9" />
+      <circle cx="11.5" cy="6" r="1.9" />
+      <path d="M10.6 9.6c1.9.1 3.1 1.3 3.6 3.4" />
+    </>,
+  ),
+  '#/memory': ic(
+    <>
+      <path d="M8 1.8 14.2 8 8 14.2 1.8 8Z" />
+      <circle cx="8" cy="8" r="1.4" fill="currentColor" stroke="none" />
+    </>,
+  ),
+  '#/review': ic(
+    <>
+      <path d="M8 2.5v11M4.5 13.5h7M4 5l8-1.5" />
+      <path d="M4 5 2.2 8.6a2 2 0 0 0 3.6 0ZM12 3.5l-1.8 3.6a2 2 0 0 0 3.6 0Z" />
+    </>,
+  ),
+  '#/search': ic(
+    <>
+      <circle cx="7" cy="7" r="4.2" />
+      <path d="m10.2 10.2 3.4 3.4" />
+    </>,
+  ),
+  '#/setup': ic(
+    <>
+      <path d="M2.5 5h4.4m3.2 0h5.4M2.5 11h7.4m3.2 0h2.4" />
+      <circle cx="8.5" cy="5" r="1.7" />
+      <circle cx="11.5" cy="11" r="1.7" />
+    </>,
+  ),
+};
 
 function Skeleton({ rows = 5 }: { rows?: number }) {
   return (
@@ -339,49 +397,51 @@ function SessionsPage({ me }: { me: Me }) {
 
   return (
     <div>
-      <h1>Sessions</h1>
-      <div class="filters">
-        {me.kind === 'member' && (
-          <span class="scope-pills">
-            <button class={scope === 'team' ? 'on' : ''} onClick={() => setScope('team')}>
-              Team
-            </button>
-            <button class={scope === 'personal' ? 'on' : ''} onClick={() => setScope('personal')}>
-              Personal
-            </button>
-          </span>
-        )}
-        <select value={agent} onChange={(e) => setAgent((e.target as HTMLSelectElement).value)}>
-          <option value="">all agents</option>
-          {agents.map((a) => (
-            <option value={a}>{AGENT_LABELS[a] ?? a}</option>
-          ))}
-        </select>
-        <select value={member} onChange={(e) => setMember((e.target as HTMLSelectElement).value)}>
-          <option value="">everyone</option>
-          {members.map((m) => (
-            <option value={m}>{m}</option>
-          ))}
-        </select>
-        <select value={project} onChange={(e) => setProject((e.target as HTMLSelectElement).value)}>
-          <option value="">all projects</option>
-          {projects.map((p) => (
-            <option value={p}>{p}</option>
-          ))}
-        </select>
-        {(project || member || agent) && (
-          <a
-            class="nav-item"
-            style="padding:4px 8px"
-            onClick={() => {
-              setProject('');
-              setMember('');
-              setAgent('');
-            }}
-          >
-            clear
-          </a>
-        )}
+      <div class="page-head">
+        <h1>Sessions</h1>
+        <div class="filters">
+          {me.kind === 'member' && (
+            <span class="scope-pills">
+              <button class={scope === 'team' ? 'on' : ''} onClick={() => setScope('team')}>
+                Team
+              </button>
+              <button class={scope === 'personal' ? 'on' : ''} onClick={() => setScope('personal')}>
+                Personal
+              </button>
+            </span>
+          )}
+          <select value={agent} onChange={(e) => setAgent((e.target as HTMLSelectElement).value)}>
+            <option value="">all agents</option>
+            {agents.map((a) => (
+              <option value={a}>{AGENT_LABELS[a] ?? a}</option>
+            ))}
+          </select>
+          <select value={member} onChange={(e) => setMember((e.target as HTMLSelectElement).value)}>
+            <option value="">everyone</option>
+            {members.map((m) => (
+              <option value={m}>{m}</option>
+            ))}
+          </select>
+          <select value={project} onChange={(e) => setProject((e.target as HTMLSelectElement).value)}>
+            <option value="">all projects</option>
+            {projects.map((p) => (
+              <option value={p}>{p}</option>
+            ))}
+          </select>
+          {(project || member || agent) && (
+            <a
+              class="nav-item"
+              style="padding:4px 8px"
+              onClick={() => {
+                setProject('');
+                setMember('');
+                setAgent('');
+              }}
+            >
+              clear
+            </a>
+          )}
+        </div>
       </div>
       <NowWorking sessions={sessions} />
       {sessions.length > 0 && filtered.length === 0 ? (
@@ -1525,6 +1585,7 @@ function App() {
         <div class="sidebar">
           {nav.map(([href, label, re]) => (
             <a key={href} class={`nav-item ${re.test(hash) ? 'active' : ''}`} href={href}>
+              {NAV_ICONS[href]}
               {label}
               {href === '#/review' && reviewCount > 0 && (
                 <span class="chip conflict" style="margin-left:6px">

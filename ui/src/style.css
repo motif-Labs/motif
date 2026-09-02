@@ -1,5 +1,6 @@
 :root {
-  --bg: #f7f7f8;
+  --bg: #ebedf0;
+  --sheet: #fafafc;
   --panel: #ffffff;
   --hover: #f2f3f5;
   --border: #e4e5e9;
@@ -22,8 +23,9 @@
 /* dark palette applies when the system prefers it (unless light is forced)… */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #101216;
-    --panel: #16181d;
+    --bg: #0b0c0e;
+    --sheet: #151619;
+    --panel: #1c1e23;
     --hover: #1d2026;
     --border: #262a31;
     --text: #e6e8eb;
@@ -38,8 +40,9 @@
 }
 /* …or when the user explicitly picks dark from the topbar toggle */
 :root[data-theme='dark'] {
-  --bg: #101216;
-  --panel: #16181d;
+  --bg: #0b0c0e;
+  --sheet: #151619;
+  --panel: #1c1e23;
   --hover: #1d2026;
   --border: #262a31;
   --text: #e6e8eb;
@@ -89,24 +92,17 @@ code,
   gap: 10px;
   padding: 0 20px;
   height: 52px;
-  background: color-mix(in srgb, var(--panel) 82%, transparent);
-  -webkit-backdrop-filter: saturate(1.5) blur(14px);
-  backdrop-filter: saturate(1.5) blur(14px);
-  border-bottom: 1px solid var(--border);
+  /* chrome material: the desk shows through, scrolled content blurs under it */
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  -webkit-backdrop-filter: saturate(1.4) blur(16px);
+  backdrop-filter: saturate(1.4) blur(16px);
   position: sticky;
   top: 0;
   z-index: 10;
 }
-/* the signature stitch under the header */
+/* the signature stitch, now the sheet's hem */
 .topbar::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 1px;
-  background: repeating-linear-gradient(90deg, var(--accent) 0 6px, transparent 6px 13px);
-  opacity: 0.3;
+  display: none;
 }
 .brand {
   display: flex;
@@ -165,18 +161,19 @@ code,
   width: 224px;
   flex-shrink: 0;
   padding: 18px 12px;
-  border-right: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  border-right: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  background: color-mix(in srgb, var(--panel) 45%, var(--bg));
-  -webkit-backdrop-filter: blur(20px);
-  backdrop-filter: blur(20px);
+  background: transparent;
 }
 .nav-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 9px;
   padding: 7px 11px;
   border-radius: 8px;
+  font-size: 13px;
   color: var(--dim);
   cursor: pointer;
   font-weight: 500;
@@ -214,10 +211,29 @@ code,
   font-size: 11px;
   color: var(--faint);
 }
+/* the content floats as a sheet over the chrome layer — the macOS two-layer
+   window: sidebar lives on the desk, the document sits on top of it */
 .main {
   flex: 1;
   min-width: 0;
   padding: 34px 44px 60px;
+  background: var(--sheet);
+  border-top-left-radius: 16px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  box-shadow: -1px -1px 0 rgba(255, 255, 255, 0.4) inset;
+  position: relative;
+}
+/* the stitch survives as the sheet's hem */
+.main::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 16px;
+  right: 0;
+  height: 1px;
+  background: repeating-linear-gradient(90deg, var(--accent) 0 6px, transparent 6px 13px);
+  opacity: 0.25;
 }
 /* serif display + mono detail: the same pairing as the wordmark */
 h1 {
@@ -1313,4 +1329,46 @@ input:focus {
   100% {
     box-shadow: 0 0 0 1px transparent;
   }
+}
+
+.nav-ic {
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+.nav-item.active .nav-ic {
+  opacity: 1;
+}
+
+/* unified toolbar: the large title and its controls share one line */
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+.page-head h1 {
+  margin-bottom: 0;
+}
+.page-head .filters {
+  margin-bottom: 0;
+}
+
+/* overlay scrollbars, the quiet kind */
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--dim) 35%, transparent);
+  border-radius: 99px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::selection {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
 }
