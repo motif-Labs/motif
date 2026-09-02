@@ -14,7 +14,15 @@ import {
   whenListening,
 } from '@motif/server';
 import { performWeaverJob } from '../weaver/perform.js';
-import { SESSIONS, insertSession, seedBackgroundMemory, seedConflict, seedMembers } from '../demo/seed.js';
+import {
+  SESSIONS,
+  insertSession,
+  seedBackgroundMemory,
+  seedConflict,
+  seedHandoffs,
+  seedMembers,
+  seedSecondConflict,
+} from '../demo/seed.js';
 
 /**
  * Not a museum, a show. A team's week replays in front of you in five acts:
@@ -133,6 +141,8 @@ export function registerDemo(program: Command): void {
         await beat(900);
         console.log('\n  ▸ Act 2 · Memory distils, and catches two sessions disagreeing\n');
         seedBackgroundMemory(server.db, members);
+        seedHandoffs(server.db, members);
+        seedSecondConflict(server.db, members);
         const { standingId, challengerId } = seedConflict(server.db, members);
         server.bus.publish('memory-conflict', {
           entity: 'redis outage policy',
@@ -142,7 +152,8 @@ export function registerDemo(program: Command): void {
         console.log('    ⚖️  CONFLICT, “redis outage policy”');
         console.log('        ada, in the rate-limiting session:  the limiter fails OPEN  (cites ADR-014)');
         console.log('        iris, writing the runbook:          ADR-014 as WRITTEN says fail CLOSED');
-        console.log('        until someone rules, agents are shown BOTH sides with a warning.\n');
+        console.log('        until someone rules, agents are shown BOTH sides with a warning.');
+        console.log('        (a second one, on billing retry strategy, is still open in Review.)\n');
 
         // ── Act 3 · you rule ─────────────────────────────────────────────
         console.log('  ▸ Act 3 · A human rules, that human is you\n');

@@ -422,7 +422,227 @@ export function seedBackgroundMemory(db: Db, members: DemoMembers): void {
       body: 'One Redis client per request keeps the bucket simple; connection churn is negligible.',
     },
   ]);
-  void iris;
+
+  const cleo = members.byName.get('cleo')!.memberId;
+  const omar = members.byName.get('omar')!.memberId;
+  const nora = members.byName.get('nora')!.memberId;
+
+  // Every real session left a mark. Each of these ties a decision or file to a
+  // topic that spans projects, so the Weave fills with co-occurrence edges the
+  // way a real fortnight of work would.
+  put('pay-ratelimit', ada, PAY, [
+    {
+      kind: 'decision',
+      name: 'rate limiting',
+      aspect: 'design',
+      body: 'Redis token bucket keyed by API key, not IP: several customers share one NAT. 100 req/min, burst 20, state in Redis so a deploy keeps quotas.',
+    },
+    {
+      kind: 'topic',
+      name: 'redis dependency',
+      aspect: 'risk',
+      body: 'The limiter sits on every public route, so anything Redis-shaped there is a whole-API risk.',
+    },
+  ]);
+  put('pay-poolleak', cleo, PAY, [
+    {
+      kind: 'file',
+      name: 'src/limiter/bucket.ts',
+      aspect: 'incident',
+      body: 'A client-per-request leak exhausted the pool in staging; moved to a shared pool at boot.',
+    },
+    {
+      kind: 'topic',
+      name: 'redis dependency',
+      aspect: 'risk',
+      body: 'Connection lifecycle on the limiter path is load-bearing; a leak here takes the API down first.',
+    },
+  ]);
+  put('pay-retryafter', iris, PAY, [
+    {
+      kind: 'file',
+      name: 'src/limiter/respond.ts',
+      aspect: 'design',
+      body: 'Retry-After is computed from the bucket refill rate; X-RateLimit-Remaining on every response.',
+    },
+    {
+      kind: 'decision',
+      name: 'rate limiting',
+      aspect: 'client contract',
+      body: 'Clients get a real Retry-After, not a guess, so a rate-limited client backs off correctly.',
+    },
+  ]);
+  put('pay-scoping', nora, PAY, [
+    {
+      kind: 'decision',
+      name: 'rate limiting',
+      aspect: 'per-plan',
+      body: 'Enterprise plans read a 1000/min, burst-100 override; keyed by API key so the NAT case still holds.',
+    },
+  ]);
+  put('pay-webhookflaky', ada, PAY, [
+    {
+      kind: 'file',
+      name: 'src/webhooks/deliver.ts',
+      aspect: 'test',
+      body: 'The flaky CI test asserted before the retry queue drained; now waits on queue depth.',
+    },
+    {
+      kind: 'topic',
+      name: 'idempotency pattern',
+      aspect: 'delivery',
+      body: 'Webhook retries must be idempotent, same lesson as payments.',
+    },
+  ]);
+  put('pay-webhookretry', omar, PAY, [
+    {
+      kind: 'file',
+      name: 'src/webhooks/deliver.ts',
+      aspect: 'design',
+      body: 'Backoff 1s to 32s over six attempts, then a dead-letter row; the Idempotency-Key travels with each retry.',
+    },
+    {
+      kind: 'decision',
+      name: 'idempotency keys',
+      aspect: 'delivery',
+      body: 'A slow endpoint that finally accepts a retried webhook must not process it twice.',
+    },
+  ]);
+  put('pay-doublecharge', omar, PAY, [
+    {
+      kind: 'topic',
+      name: 'idempotency pattern',
+      aspect: 'incident',
+      body: 'The double-charge came from checking the key AFTER the charge; the pattern is check-before-act.',
+    },
+  ]);
+  put('bill-cron', ada, '/workspace/billing-worker', [
+    {
+      kind: 'decision',
+      name: 'billing queue',
+      aspect: 'design',
+      body: 'Nightly billing enqueues per-account, not one sweep, so one failing account no longer blocks the batch.',
+    },
+  ]);
+  put('bill-partial', iris, '/workspace/billing-worker', [
+    {
+      kind: 'topic',
+      name: 'idempotency pattern',
+      aspect: 'billing',
+      body: 'A partial billing run double-charged on retry; each account is now its own idempotent unit, keyed like payments.',
+    },
+    {
+      kind: 'decision',
+      name: 'billing queue',
+      aspect: 'retry',
+      body: 'A retry touches only the accounts that actually failed, never the whole batch.',
+    },
+  ]);
+  put('bill-timezone', ben, '/workspace/billing-worker', [
+    {
+      kind: 'topic',
+      name: 'timezone bugs',
+      aspect: 'billing',
+      body: 'A DST off-by-one billed accounts a day early; compute in the account zone, store UTC.',
+    },
+    {
+      kind: 'file',
+      name: 'src/jobs/schedule.ts',
+      aspect: 'design',
+      body: 'Next-run computed in the account’s zone; UTC is stored, display is never the source of truth.',
+    },
+  ]);
+  put('ops-tokenservice', cleo, '/workspace/ops-runbooks', [
+    {
+      kind: 'decision',
+      name: 'auth failure policy',
+      aspect: 'on-call',
+      body: 'Token-service outage yields 401s, not a traffic spike; if you see a spike, it is Redis, not the token service.',
+    },
+    {
+      kind: 'topic',
+      name: 'redis dependency',
+      aspect: 'on-call',
+      body: 'The two outages present differently: Redis is a 429 spike, token service is 401s.',
+    },
+  ]);
+  put('web-auth', nora, '/workspace/web-dashboard', [
+    {
+      kind: 'decision',
+      name: 'session expiry',
+      aspect: 'behaviour',
+      body: 'Sliding expiry refreshes the cookie on each request, capped at an 8h absolute lifetime.',
+    },
+    {
+      kind: 'file',
+      name: 'src/auth/session.ts',
+      aspect: 'design',
+      body: 'Cookie max-age slides forward per request; absolute cap prevents an eternal session.',
+    },
+  ]);
+  put('web-charts', omar, '/workspace/web-dashboard', [
+    {
+      kind: 'file',
+      name: 'src/charts/usage.ts',
+      aspect: 'design',
+      body: 'Server aggregates usage by day and plan; the client only draws, so millions of calls still load instantly.',
+    },
+  ]);
+}
+
+/** Handoff lineage: work that moved from one tool to another, drawing the
+ * 'continues' edges that make the graph a real timeline, not just a snapshot. */
+export function seedHandoffs(db: Db, members: DemoMembers): void {
+  const link = (fromSession: string, toSession: string, member: number, target: string) => {
+    const fromPk = sessionPk(db, fromSession);
+    const to = db
+      .prepare('SELECT source_session_id FROM sessions WHERE source_session_id = ?')
+      .get(toSession) as { source_session_id: string } | undefined;
+    if (!to) return;
+    db.prepare(
+      `INSERT INTO handoffs (session_pk, member_id, target, target_session_id, created_at)
+       VALUES (?, ?, ?, ?, ?)`,
+    ).run(fromPk, member, target, toSession, new Date().toISOString());
+  };
+  const ben = members.byName.get('ben')!.memberId;
+  const iris = members.byName.get('iris')!.memberId;
+  const omar = members.byName.get('omar')!.memberId;
+  // the auth work moved Claude Code -> Codex to add the breaker
+  link('pay-authclose', 'pay-breaker', ben, 'codex');
+  // the rate-limit runbook picked up where the fix left off
+  link('pay-ratelimit', 'ops-redis', iris, 'codex');
+  // the double-charge fix continued into the webhook retry hardening
+  link('pay-doublecharge', 'pay-webhookretry', omar, 'codex');
+}
+
+/** A second live disagreement, so the Review queue and the graph both show that
+ * a real team holds more than one open question at a time. */
+export function seedSecondConflict(db: Db, members: DemoMembers): void {
+  const iris = members.byName.get('iris')!.memberId;
+  const omar = members.byName.get('omar')!.memberId;
+  applyNotes(
+    db,
+    [
+      {
+        entity: { kind: 'decision', name: 'billing retry strategy' },
+        aspect: 'behaviour',
+        body: 'On a partial failure, re-run the whole nightly batch; simpler to reason about.',
+      },
+    ],
+    { projectPath: '/workspace/billing-worker', sessionPk: sessionPk(db, 'bill-cron'), memberId: iris },
+  );
+  applyNotes(
+    db,
+    [
+      {
+        entity: { kind: 'decision', name: 'billing retry strategy' },
+        aspect: 'behaviour',
+        body: 'Never re-run the whole batch, that is what double-charged three accounts. Retry only the failed, idempotent units.',
+        contradictsCurrent: true,
+      },
+    ],
+    { projectPath: '/workspace/billing-worker', sessionPk: sessionPk(db, 'bill-partial'), memberId: omar },
+  );
 }
 
 /** The star of the show: two sessions remember ADR-014 in opposite directions. */
@@ -474,6 +694,8 @@ export function seedDemo(db: Db): DemoSeedResult {
   const members = seedMembers(db);
   for (const sd of SESSIONS) insertSession(db, members, sd);
   seedBackgroundMemory(db, members);
+  seedHandoffs(db, members);
+  seedSecondConflict(db, members);
   seedConflict(db, members);
 
   const reviewItems = db
