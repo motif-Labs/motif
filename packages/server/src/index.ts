@@ -875,6 +875,54 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   // a note that supersedes or contradicts another, a handoff lineage. This is
   // the same knowledge recall walks, drawn instead of searched; visibility is
   // enforced the same way, so nobody sees a node their evidence would hide.
+  // The pulse of the record in one payload — counts, the open review load,
+  // the most-touched projects, the freshest decisions. Cheap aggregates so the
+  // overview loads instantly; visibility is respected on every count.
+  app.get('/api/overview', (c) => {
+    const viewer = memberId(c) ?? -1;
+    const one = (sql: string, ...args: unknown[]) => (db.prepare(sql).get(...args) as { n: number }).n;
+
+    const sessions = one(
+      "SELECT COUNT(*) AS n FROM sessions WHERE visibility = 'team' OR member_id = ?",
+      viewer,
+    );
+    const members = one('SELECT COUNT(*) AS n FROM members');
+    const projects = one(
+      "SELECT COUNT(DISTINCT project_path) AS n FROM sessions WHERE (visibility='team' OR member_id=?) AND project_path != ''",
+      viewer,
+    );
+    const decisions = one("SELECT COUNT(*) AS n FROM memory_entities WHERE kind='decision'");
+    const conflicts = one(
+      "SELECT COUNT(*) AS n FROM memory_notes WHERE status='conflicted' AND verification!='retired'",
+    );
+
+    const activeProjects = db
+      .prepare(
+        `SELECT project_path AS project, COUNT(*) AS sessions,
+                MAX(updated_at) AS last
+         FROM sessions WHERE (visibility='team' OR member_id=?) AND project_path != ''
+         GROUP BY project_path ORDER BY last DESC LIMIT 6`,
+      )
+      .all(viewer);
+
+    const recentDecisions = db
+      .prepare(
+        `SELECT e.name, n.body, n.created_at, n.verification, n.status
+         FROM memory_notes n JOIN memory_entities e ON e.id = n.entity_id
+         LEFT JOIN sessions s ON s.pk = n.source_session_pk
+         WHERE e.kind='decision' AND n.status='current' AND n.verification!='retired'
+           AND (COALESCE(s.visibility, n.orphan_visibility, 'team') != 'personal' OR COALESCE(s.member_id, n.member_id) = ?)
+         ORDER BY n.created_at DESC LIMIT 5`,
+      )
+      .all(viewer);
+
+    return c.json({
+      counts: { sessions, members, projects, decisions, conflicts },
+      activeProjects,
+      recentDecisions,
+    });
+  });
+
   app.get('/api/graph', (c) => {
     const viewer = memberId(c) ?? -1;
     const project = c.req.query('project');

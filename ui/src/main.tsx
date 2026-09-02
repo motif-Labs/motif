@@ -45,6 +45,14 @@ const ic = (d: ComponentChildren) => (
 const NAV_ICONS: Record<string, JSX.Element> = {
   '#/': ic(
     <>
+      <rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1" />
+      <rect x="9" y="2.5" width="4.5" height="4.5" rx="1" />
+      <rect x="2.5" y="9" width="4.5" height="4.5" rx="1" />
+      <rect x="9" y="9" width="4.5" height="4.5" rx="1" />
+    </>,
+  ),
+  '#/sessions': ic(
+    <>
       <path d="M3 4.5h10M3 8h10M3 11.5h6" />
       <circle cx="12.5" cy="11.5" r="1.6" fill="currentColor" stroke="none" />
     </>,
@@ -1264,6 +1272,100 @@ interface GEdge {
  * hand-rolled force layout on a canvas — no dependency, fine to a few hundred
  * nodes. Hover lights a node's neighbourhood; click an entity opens it.
  */
+interface Overview {
+  counts: { sessions: number; members: number; projects: number; decisions: number; conflicts: number };
+  activeProjects: { project: string; sessions: number; last: string }[];
+  recentDecisions: { name: string; body: string; created_at: string; verification: string; status: string }[];
+}
+
+function Stat({ n, label, tone }: { n: number; label: string; tone?: 'alert' }) {
+  return (
+    <div class={`stat ${tone === 'alert' && n > 0 ? 'stat-alert' : ''}`}>
+      <div class="stat-n">{n}</div>
+      <div class="stat-l">{label}</div>
+    </div>
+  );
+}
+
+function OverviewPage({ me }: { me: Me }) {
+  const [d, setD] = useState<Overview | null>(null);
+  useEffect(() => {
+    const load = () =>
+      api<Overview>('/api/overview')
+        .then(setD)
+        .catch(() => setD(null));
+    load();
+    return openEvents((name) => {
+      if (name === 'session-upserted' || name === 'memory-updated' || name === 'memory-reviewed') load();
+    });
+  }, []);
+  if (!d) return <Skeleton rows={4} />;
+  const who = me.kind === 'member' && me.member?.name ? me.member.name : 'there';
+  return (
+    <div>
+      <div class="page-head">
+        <h1>Overview</h1>
+      </div>
+      <p class="lede">
+        {d.counts.sessions === 0
+          ? `Nothing yet, ${who} — run motif up, or motif demo to see it full.`
+          : `${d.counts.sessions} sessions across ${d.counts.projects} project${d.counts.projects === 1 ? '' : 's'}, distilled into ${d.counts.decisions} decision${d.counts.decisions === 1 ? '' : 's'} your agents can recall.`}
+      </p>
+
+      <div class="stat-row">
+        <Stat n={d.counts.sessions} label="sessions" />
+        <Stat n={d.counts.members} label="people" />
+        <Stat n={d.counts.projects} label="projects" />
+        <Stat n={d.counts.decisions} label="decisions" />
+        <a href="#/review" style="text-decoration:none">
+          <Stat n={d.counts.conflicts} label="to review" tone="alert" />
+        </a>
+      </div>
+
+      <div class="ov-grid">
+        <div class="ov-card">
+          <h2>Active projects</h2>
+          {d.activeProjects.length === 0 ? (
+            <div class="ov-muted">No projects yet.</div>
+          ) : (
+            d.activeProjects.map((p) => (
+              <a
+                key={p.project}
+                class="ov-proj"
+                href={`#/?project=${encodeURIComponent(projName(p.project))}`}
+              >
+                <span class="ov-proj-name">{projName(p.project)}</span>
+                <span class="ov-proj-meta">
+                  {p.sessions} session{p.sessions === 1 ? '' : 's'} · {ago(p.last)}
+                </span>
+              </a>
+            ))
+          )}
+        </div>
+        <div class="ov-card">
+          <h2>Latest decisions</h2>
+          {d.recentDecisions.length === 0 ? (
+            <div class="ov-muted">
+              Decisions appear as sessions are distilled. Enable it with <code>MOTIF_LLM_PROVIDER</code>.
+            </div>
+          ) : (
+            d.recentDecisions.map((r, i) => (
+              <div key={i} class="ov-dec">
+                <div class="ov-dec-head">
+                  {r.name}
+                  {r.verification === 'verified' && <span class="chip live">verified</span>}
+                  {r.status === 'conflicted' && <span class="chip conflict">conflict</span>}
+                </div>
+                <div class="ov-dec-body">{r.body}</div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function WeavePage() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [data, setData] = useState<{ nodes: GNode[]; edges: GEdge[] } | null>(null);
@@ -1365,33 +1467,67 @@ function WeavePage() {
 
     const draw = () => {
       ctx.clearRect(0, 0, W(), H());
+      // a faint dotted ground gives the canvas depth instead of a blank void
+      ctx.fillStyle = faint;
+      ctx.globalAlpha = 0.05;
+      for (let gx = 24; gx < W(); gx += 26) {
+        for (let gy = 24; gy < H(); gy += 26) {
+          ctx.beginPath();
+          ctx.arc(gx, gy, 0.8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.globalAlpha = 1;
       const hov = hoverRef.current;
       const near = hov ? (adj.get(hov) ?? new Set()) : null;
-      // edges
+      // edges — gentle curves, lit ones glow like a synapse firing
       for (const e of data.edges) {
         const a = byId.get(e.a);
         const b = byId.get(e.b);
         if (!a || !b) continue;
         const lit = hov && (e.a === hov || e.b === hov);
         ctx.strokeStyle = e.kind === 'contests' ? red : e.kind === 'relates' ? accent : lit ? accent : border;
-        ctx.globalAlpha = hov ? (lit ? 0.95 : 0.12) : e.kind === 'relates' ? 0.5 : 0.4;
-        ctx.lineWidth = lit ? 1.5 : e.kind === 'relates' ? 1.2 : 1;
-        if (e.kind === 'contests') ctx.setLineDash([3, 3]);
+        ctx.globalAlpha = hov ? (lit ? 1 : 0.08) : e.kind === 'relates' ? 0.45 : 0.32;
+        ctx.lineWidth = lit ? 1.8 : e.kind === 'relates' ? 1.2 : 0.9;
+        ctx.shadowBlur = lit ? 8 : 0;
+        ctx.shadowColor = e.kind === 'contests' ? red : accent;
+        if (e.kind === 'contests') ctx.setLineDash([3, 4]);
+        // curve the edge slightly toward the midpoint's perpendicular
+        const mx = (a.x! + b.x!) / 2;
+        const my = (a.y! + b.y!) / 2;
+        const dx = b.x! - a.x!;
+        const dy = b.y! - a.y!;
+        const len = Math.hypot(dx, dy) || 1;
+        const bow = Math.min(18, len * 0.12);
         ctx.beginPath();
         ctx.moveTo(a.x!, a.y!);
-        ctx.lineTo(b.x!, b.y!);
+        ctx.quadraticCurveTo(mx + (-dy / len) * bow, my + (dx / len) * bow, b.x!, b.y!);
         ctx.stroke();
         ctx.setLineDash([]);
+        ctx.shadowBlur = 0;
       }
       ctx.globalAlpha = 1;
       // nodes
       for (const n of nodes) {
         const dim = hov && n.id !== hov && !near?.has(n.id);
         ctx.globalAlpha = dim ? 0.25 : 1;
+        const active = n.id === hov || near?.has(n.id);
         if (n.type === 'entity') {
-          // confidence sizes the diamond — a trusted decision reads larger
-          const r = 4 + (n.confidence ?? 0.5) * 5;
-          ctx.fillStyle = n.kind === 'decision' ? accent : ink;
+          // confidence sizes the diamond — a trusted decision reads larger and glows
+          const r = 4 + (n.confidence ?? 0.5) * 5.5;
+          const col = n.kind === 'decision' ? accent : ink;
+          // soft halo, brighter for confident nodes and on hover
+          const glow = ctx.createRadialGradient(n.x!, n.y!, 0, n.x!, n.y!, r * (active ? 4 : 2.6));
+          glow.addColorStop(0, col);
+          glow.addColorStop(1, 'transparent');
+          ctx.globalAlpha = (dim ? 0.06 : 0.14 + (n.confidence ?? 0.5) * 0.12) * (active ? 1.8 : 1);
+          ctx.fillStyle = glow;
+          ctx.beginPath();
+          ctx.arc(n.x!, n.y!, r * (active ? 4 : 2.6), 0, Math.PI * 2);
+          ctx.fill();
+          // the diamond itself
+          ctx.globalAlpha = dim ? 0.3 : 1;
+          ctx.fillStyle = col;
           ctx.beginPath();
           ctx.moveTo(n.x!, n.y! - r);
           ctx.lineTo(n.x! + r, n.y!);
@@ -1399,16 +1535,11 @@ function WeavePage() {
           ctx.lineTo(n.x! - r, n.y!);
           ctx.closePath();
           ctx.fill();
-          if ((n.confidence ?? 1) < 0.5) {
-            ctx.strokeStyle = faint;
-            ctx.globalAlpha = dim ? 0.15 : 0.5;
-            ctx.lineWidth = 1;
-            ctx.stroke();
-          }
         } else {
+          ctx.globalAlpha = dim ? 0.2 : active ? 0.9 : 0.55;
           ctx.fillStyle = faint;
           ctx.beginPath();
-          ctx.arc(n.x!, n.y!, 3.2, 0, Math.PI * 2);
+          ctx.arc(n.x!, n.y!, active ? 3.6 : 2.8, 0, Math.PI * 2);
           ctx.fill();
         }
         if (n.id === hov || (!hov && n.type === 'entity')) {
@@ -1796,21 +1927,25 @@ function App() {
   if (!authed) return <TokenGate onDone={() => setAuthed(true)} />;
 
   const nav = [
-    ['#/', 'Sessions', /^\/(sessions.*)?$/],
-    ['#/people', 'People', /^\/people/],
-    ['#/memory', 'Memory', /^\/memory/],
+    ['#/', 'Overview', /^\/$/],
+    ['#/sessions', 'Sessions', /^\/sessions/],
     ['#/weave', 'Weave', /^\/weave/],
+    ['#/memory', 'Memory', /^\/memory/],
     ['#/review', 'Review', /^\/review/],
+    ['#/people', 'People', /^\/people/],
     ['#/search', 'Search', /^\/search/],
     ['#/setup', 'Setup', /^\/setup/],
   ] as const;
 
-  let view = <SessionsPage me={me} />;
-  let crumb = 'Sessions';
+  let view = <OverviewPage me={me} />;
+  let crumb = 'Overview';
   const sessionMatch = hash.match(/^\/sessions\/(.+)$/);
   const memoryMatch = hash.match(/^\/memory\/(\d+)$/);
   if (sessionMatch) {
     view = <SessionView id={decodeURIComponent(sessionMatch[1])} me={me} />;
+    crumb = 'Sessions';
+  } else if (hash.startsWith('/sessions')) {
+    view = <SessionsPage me={me} />;
     crumb = 'Sessions';
   } else if (memoryMatch) {
     view = <MemoryEntityView id={memoryMatch[1]} />;
