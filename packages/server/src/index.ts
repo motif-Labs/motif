@@ -739,16 +739,26 @@ export function createServer(config: ServerConfig = {}): MotifServer {
          GROUP BY e.id ORDER BY e.kind, e.name`,
       )
       .all(viewer) as { id: number; current_notes: number; conflicts: number }[];
-    // attach the same confidence the graph and recall use
+    // one query for every entity's latest note, not one per entity (no N+1)
     const support = supportByEntity(db);
-    const latest = db.prepare(
-      `SELECT status, verification, stale, created_at FROM memory_notes
-       WHERE entity_id = ? AND status = 'current' AND verification != 'retired'
-       ORDER BY created_at DESC LIMIT 1`,
-    );
+    const latestRows = db
+      .prepare(
+        `SELECT entity_id, status, verification, stale, created_at FROM (
+           SELECT entity_id, status, verification, stale, created_at,
+                  ROW_NUMBER() OVER (PARTITION BY entity_id ORDER BY created_at DESC) AS rn
+           FROM memory_notes WHERE status = 'current' AND verification != 'retired'
+         ) WHERE rn = 1`,
+      )
+      .all() as {
+      entity_id: number;
+      status: string;
+      verification: string;
+      stale: number;
+      created_at: string;
+    }[];
+    const latestByEntity = new Map(latestRows.map((n) => [n.entity_id, n]));
     const out = rows.map((r) => {
-      const n = latest.get(r.id) as
-        { status: string; verification: string; stale: number; created_at: string } | undefined;
+      const n = latestByEntity.get(r.id);
       return {
         ...r,
         confidence: n
