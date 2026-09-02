@@ -238,14 +238,15 @@ const kb = (b?: number) =>
   b === undefined ? '—' : b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${(b / 1024).toFixed(1)} KB`;
 
 const AVATAR_COLORS = [
-  '#6366f1',
-  '#0ea5e9',
-  '#10b981',
-  '#f59e0b',
-  '#ef4444',
-  '#8b5cf6',
-  '#ec4899',
-  '#14b8a6',
+  // muted ink family — identity through hue, never through candy
+  '#5b647a',
+  '#6b5e73',
+  '#566a66',
+  '#6e6355',
+  '#4f6076',
+  '#715860',
+  '#5d6a58',
+  '#725d5d',
 ];
 function Avatar({ name, size = 22 }: { name: string | null; size?: number }) {
   const n = name ?? '?';
@@ -880,7 +881,7 @@ function SessionView({ id, me }: { id: string; me: Me }) {
   return (
     <div class="detail">
       <div class="transcript chat">
-        <h1>{session.title ?? '(untitled)'}</h1>
+        <h1 class="session-title">{session.title ?? '(untitled)'}</h1>
         {session.messages.map((m) => (
           <ChatTurn
             key={m.id}

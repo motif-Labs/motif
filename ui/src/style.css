@@ -7,7 +7,9 @@
   --text: #1a1d23;
   --dim: #7a8089;
   --faint: #a7adb5;
-  --accent: #3355f0;
+  --ink: #1b1d22;
+  --ink-text: #ffffff;
+  --accent: #5b6ee2;
   --green: #1d9d55;
   --red: #d93a35;
   --amber: #cf7500;
@@ -32,7 +34,9 @@
     --dim: #8b919a;
     --faint: #5c626b;
     --chip-bg: #1a1d22;
-    --accent: #6c85ff;
+    --ink: #f4f5f7;
+    --ink-text: #101216;
+    --accent: #8a9bf0;
     --fill: rgba(235, 240, 255, 0.06);
     --fill-2: rgba(235, 240, 255, 0.1);
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 10px 30px rgba(0, 0, 0, 0.35);
@@ -49,7 +53,9 @@
   --dim: #8b919a;
   --faint: #5c626b;
   --chip-bg: #1a1d22;
-  --accent: #6c85ff;
+  --ink: #f4f5f7;
+  --ink-text: #101216;
+  --accent: #8a9bf0;
   --fill: rgba(235, 240, 255, 0.06);
   --fill-2: rgba(235, 240, 255, 0.1);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 10px 30px rgba(0, 0, 0, 0.35);
@@ -186,8 +192,8 @@ code,
   color: var(--text);
 }
 .nav-item.active {
-  background: color-mix(in srgb, var(--accent) 13%, transparent);
-  color: var(--accent);
+  background: var(--fill-2);
+  color: var(--text);
   font-weight: 600;
 }
 .side-heading {
@@ -224,20 +230,10 @@ code,
   box-shadow: -1px -1px 0 rgba(255, 255, 255, 0.4) inset;
   position: relative;
 }
-/* the stitch survives as the sheet's hem */
-.main::before {
-  content: '';
-  position: absolute;
-  top: -1px;
-  left: 16px;
-  right: 0;
-  height: 1px;
-  background: repeating-linear-gradient(90deg, var(--accent) 0 6px, transparent 6px 13px);
-  opacity: 0.25;
-}
+/* premium is quiet: the sheet's edge is a hairline, not a dashed hem */
 /* serif display + mono detail: the same pairing as the wordmark */
 h1 {
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 700;
   letter-spacing: -0.022em;
   line-height: 1.15;
@@ -643,11 +639,16 @@ a:focus-visible {
   outline-offset: 2px;
 }
 button.primary {
-  background: var(--accent);
-  color: #fff;
+  background: var(--ink);
+  color: var(--ink-text);
 }
 button.primary:hover {
-  opacity: 0.88;
+  opacity: 0.85;
+}
+button.primary:disabled {
+  background: var(--fill-2);
+  color: var(--faint);
+  opacity: 1;
 }
 button:disabled {
   opacity: 0.5;
@@ -706,8 +707,8 @@ button:disabled {
 /* inputs */
 input[type='text'],
 input[type='password'] {
-  background: var(--fill);
-  border: 1px solid transparent;
+  background: var(--panel);
+  border: 1px solid var(--border);
   border-radius: 10px;
   color: var(--text);
   padding: 9px 13px;
@@ -829,8 +830,8 @@ input:focus {
   font-size: 14px;
 }
 .turn.user .bubble {
-  background: var(--accent);
-  color: #fff;
+  background: var(--ink);
+  color: var(--ink-text);
   border-bottom-right-radius: 6px;
 }
 .turn.agent .bubble {
@@ -901,32 +902,32 @@ input:focus {
 .spec-stitch {
   height: 1px;
   margin: 0 16px;
-  background: repeating-linear-gradient(90deg, var(--border) 0 6px, transparent 6px 12px);
+  background: color-mix(in srgb, var(--border) 70%, transparent);
 }
+/* Apple Settings dialect: quiet key–value rows, no boxes */
 .spec-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1px;
-  background: var(--border);
-  margin: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
+  margin: 10px 16px 12px;
 }
 .spec-cell {
-  background: var(--panel);
-  padding: 8px 10px;
+  padding: 7px 2px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+}
+.spec-cell:nth-last-child(-n + 2) {
+  border-bottom: 0;
 }
 .spec-cell .k {
-  font-family: ui-monospace, Menlo, monospace;
-  font-size: 9.5px;
-  letter-spacing: 0.8px;
+  font-size: 10px;
+  letter-spacing: 0.7px;
   text-transform: uppercase;
   color: var(--faint);
+  font-weight: 600;
 }
 .spec-cell .v {
-  font-size: 12.5px;
+  font-size: 13px;
   margin-top: 2px;
+  font-variant-numeric: tabular-nums;
 }
 .spec-row {
   display: flex;
@@ -1371,4 +1372,13 @@ input:focus {
 }
 ::selection {
   background: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+/* a session's title is content, not chrome — a sentence never shouts */
+h1.session-title {
+  font-size: 20px;
+  font-weight: 620;
+  letter-spacing: -0.012em;
+  line-height: 1.35;
+  max-width: 680px;
 }
