@@ -4,6 +4,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
+  openDb as openDb2,
+  registerMember as registerMember2,
+  fullReplaceSession as fullReplaceSession2,
   applyNotes,
   claimWeaverJob,
   completeWeaverJob,
@@ -268,5 +271,60 @@ describe('performWeaverJob — the rails, against a real git repository', () => 
     expect(
       execFileSync('git', ['-C', repo, 'worktree', 'list'], { encoding: 'utf8' }).trim().split('\n'),
     ).toHaveLength(1);
+  });
+});
+
+import { findRegressionGaps } from '@motif/server';
+import { buildPrompt } from '../packages/cli/src/weaver/perform.js';
+
+describe('regression gaps — the record sees an untested fix', () => {
+  let tmp2: string;
+  let db2: import('@motif/server').Db;
+  beforeEach(() => {
+    tmp2 = fs.mkdtempSync(path.join(os.tmpdir(), 'motif-gap-'));
+    db2 = openDb2(path.join(tmp2, 'db.sqlite'));
+  });
+  afterEach(() => {
+    db2.close();
+    fs.rmSync(tmp2, { recursive: true, force: true });
+  });
+
+  const sess = (id: string, title: string, files: string[]) => ({
+    id: `claude-code:${id}`,
+    source: 'claude-code' as const,
+    sourceSessionId: id,
+    sourcePath: `/f/${id}.jsonl`,
+    projectPath: '/workspace/app',
+    gitBranch: 'main',
+    title,
+    createdAt: '2026-08-01T10:00:00.000Z',
+    updatedAt: '2026-08-01T10:05:00.000Z',
+    messages: [{ id: `${id}-1`, role: 'user' as const, timestamp: '2026-08-01T10:00:00.000Z', text: 'x' }],
+    filesTouched: files,
+    meta: { subagentCount: 0, branchCount: 0, parseErrors: 0 },
+  });
+
+  it('finds a fix that touched code and left no test, and skips the ones with tests', () => {
+    const m = registerMember2(db2, { name: 'ada' }).memberId;
+    fullReplaceSession2(db2, m, sess('a', 'Fix the double-charge on retry', ['src/pay.ts']));
+    fullReplaceSession2(db2, m, sess('b', 'Fix the flaky webhook', ['src/hook.ts', 'src/hook.test.ts']));
+    fullReplaceSession2(db2, m, sess('c', 'Add a new dashboard page', ['src/page.ts']));
+
+    const gaps = findRegressionGaps(db2);
+    expect(gaps.map((g) => g.file)).toEqual(['src/pay.ts']);
+    expect(gaps[0]!.sessionId).toBe('claude-code:a');
+
+    // the prompt carries the receipt, so the agent does not have to search
+    const prompt = buildPrompt({
+      kind: 'missing-regression',
+      file: gaps[0]!.file,
+      sessionId: gaps[0]!.sessionId,
+      sessionTitle: gaps[0]!.sessionTitle,
+      memberName: 'ada',
+      context: gaps[0]!.context,
+    });
+    expect(prompt).toContain('src/pay.ts');
+    expect(prompt).toContain('ONE focused regression test');
+    expect(prompt).toContain('double-charge');
   });
 });

@@ -29,6 +29,17 @@ export interface WeaverRulingPayload {
   loserSessionId: string | null;
 }
 
+export interface WeaverGapPayload {
+  kind: 'missing-regression';
+  file: string;
+  sessionId: string;
+  sessionTitle: string;
+  memberName: string | null;
+  context: string;
+}
+
+export type AnyWeaverPayload = WeaverRulingPayload | WeaverGapPayload;
+
 export interface WeaverJob {
   id: number;
   project_path: string;
@@ -60,7 +71,21 @@ const git = (cwd: string, ...args: string[]): string =>
   // and that narration does not belong in the daemon's (or the demo's) output
   execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 
-export function buildPrompt(p: WeaverRulingPayload): string {
+export function buildPrompt(p: AnyWeaverPayload): string {
+  if (p.kind === 'missing-regression') {
+    return [
+      'A change was made to this repository with no test to hold it. The context',
+      'from the team record is below — use it so you do not have to search:',
+      '',
+      p.context,
+      '',
+      `Task: add ONE focused regression test for ${p.file} that would fail if the`,
+      'fix were reverted, and nothing else. Do not refactor, do not touch',
+      'unrelated files, do not add tests for behaviour the change did not affect.',
+      'Match the repository’s existing test style and framework. If a suitable',
+      'test already exists, change nothing at all.',
+    ].join('\n');
+  }
   return [
     'A human ruling has resolved a contradiction in this team’s memory.',
     '',
@@ -80,7 +105,7 @@ export function buildPrompt(p: WeaverRulingPayload): string {
 
 export async function performWeaverJob(job: WeaverJob, deps: WeaverDeps): Promise<WeaverOutcome> {
   const log = deps.log ?? (() => {});
-  const payload = JSON.parse(job.payload) as WeaverRulingPayload;
+  const payload = JSON.parse(job.payload) as AnyWeaverPayload;
   const repo = job.project_path;
 
   if (!fs.existsSync(path.join(repo, '.git'))) {
@@ -129,7 +154,7 @@ export async function performWeaverJob(job: WeaverJob, deps: WeaverDeps): Promis
   }
 
   try {
-    log(`🧵 weaving ruling #${job.id} for ${payload.entity} · ${payload.aspect}…`);
+    log(`🧵 weaving #${job.id} (${payload.kind})…`);
     await deps.runAgent(buildPrompt(payload), worktree);
 
     git(worktree, 'add', '-A');
@@ -139,41 +164,50 @@ export async function performWeaverJob(job: WeaverJob, deps: WeaverDeps): Promis
       return { status: 'done', result: 'the repository already agrees with the ruling' };
     }
 
-    const receipts = [
-      payload.winnerSessionId && `ruled correct: session ${payload.winnerSessionId}`,
-      payload.loserSessionId && `ruled wrong: session ${payload.loserSessionId}`,
-      payload.reason && `reviewer: ${payload.reason}`,
-    ]
-      .filter(Boolean)
-      .join('\n');
-    git(
-      worktree,
-      'commit',
-      '-m',
-      `Align with the team ruling on ${payload.entity}\n\n${payload.winnerBody}\n\n${receipts}`,
-    );
+    const title =
+      payload.kind === 'missing-regression'
+        ? `Add a regression test for ${payload.file}`
+        : `Align with the team ruling on ${payload.entity} · ${payload.aspect}`;
+    const receipts =
+      payload.kind === 'missing-regression'
+        ? `from: session ${payload.sessionId}${payload.memberName ? ` (@${payload.memberName})` : ''}`
+        : [
+            payload.winnerSessionId && `ruled correct: session ${payload.winnerSessionId}`,
+            payload.loserSessionId && `ruled wrong: session ${payload.loserSessionId}`,
+            payload.reason && `reviewer: ${payload.reason}`,
+          ]
+            .filter(Boolean)
+            .join('\n');
+    git(worktree, 'commit', '-m', `${title}\n\n${receipts}`);
 
-    const prUrl = await deps.publishBranch({
-      repo,
-      worktree,
-      branch,
-      title: `Align with the team ruling on ${payload.entity} · ${payload.aspect}`,
-      body: [
-        `A human ruling resolved a contradiction in team memory, and these files still said what the losing claim said.`,
-        '',
-        `**Ruled correct:** ${payload.winnerBody}`,
-        `**Ruled wrong:** ${payload.loserBody}`,
-        payload.reason ? `**Why:** ${payload.reason}` : '',
-        '',
-        payload.winnerSessionId
-          ? `Evidence: \`${payload.winnerSessionId}\` vs \`${payload.loserSessionId ?? '?'}\``
-          : '',
-        '',
-        `Drafted by the Motif Weaver from job #${job.id}. Files changed: ${staged.split('\n').join(', ')}`,
-      ]
-        .filter(Boolean)
-        .join('\n'),
-    });
+    const body =
+      payload.kind === 'missing-regression'
+        ? [
+            `A change to \`${payload.file}\` shipped without a test. This adds one, aimed at exactly that change.`,
+            '',
+            `**From:** session \`${payload.sessionId}\`${payload.memberName ? ` — @${payload.memberName}` : ''}`,
+            `> ${payload.sessionTitle}`,
+            '',
+            `Drafted by the Motif Weaver from job #${job.id}. Files changed: ${staged.split('\n').join(', ')}`,
+          ]
+            .filter(Boolean)
+            .join('\n')
+        : [
+            `A human ruling resolved a contradiction in team memory, and these files still said what the losing claim said.`,
+            '',
+            `**Ruled correct:** ${payload.winnerBody}`,
+            `**Ruled wrong:** ${payload.loserBody}`,
+            payload.reason ? `**Why:** ${payload.reason}` : '',
+            '',
+            payload.winnerSessionId
+              ? `Evidence: \`${payload.winnerSessionId}\` vs \`${payload.loserSessionId ?? '?'}\``
+              : '',
+            '',
+            `Drafted by the Motif Weaver from job #${job.id}. Files changed: ${staged.split('\n').join(', ')}`,
+          ]
+            .filter(Boolean)
+            .join('\n');
+    const prUrl = await deps.publishBranch({ repo, worktree, branch, title, body });
 
     cleanup(false); // the branch carries the work; only the worktree goes
     log(`   draft PR ready: ${prUrl}`);

@@ -15,6 +15,7 @@ import {
   claimWeaverJob,
   completeWeaverJob,
   createWeaverJob,
+  findRegressionGaps,
   listWeaverJobs,
   type WeaverPayload,
 } from './weaver.js';
@@ -754,6 +755,32 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     return c.json({ entity, notes });
   });
 
+  // The record can see gaps the repo hasn't closed — an untested fix. Scanning
+  // lists them; queueing one is a deliberate act, never automatic, so the agent
+  // only ever works on gaps a person chose. This is the answer to "autonomous
+  // agents wander": ours is pointed at a receipt a human picked.
+  app.get('/api/weaver/gaps', (c) => {
+    const project = c.req.query('project');
+    return c.json({ gaps: findRegressionGaps(db, project) });
+  });
+
+  app.post('/api/weaver/gaps/queue', async (c) => {
+    if (memberId(c) === undefined) return c.json({ error: 'a member token is required' }, 403);
+    const body = (await c.req.json().catch(() => ({}))) as { file?: string; project?: string };
+    const gap = findRegressionGaps(db, body.project).find((g) => g.file === body.file);
+    if (!gap) return c.json({ error: 'no such gap (it may have been closed since the scan)' }, 404);
+    const job = createWeaverJob(db, gap.project, {
+      kind: 'missing-regression',
+      file: gap.file,
+      sessionId: gap.sessionId,
+      sessionTitle: gap.sessionTitle,
+      memberName: gap.memberName,
+      context: gap.context,
+    });
+    bus.publish('weaver-job', { jobId: job.id, projectPath: job.project_path });
+    return c.json({ job });
+  });
+
   app.get('/api/weaver/jobs', (c) => {
     const status = c.req.query('status') as 'pending' | 'running' | 'done' | 'error' | undefined;
     return c.json({ jobs: listWeaverJobs(db, status) });
@@ -1153,8 +1180,10 @@ export {
   claimWeaverJob,
   completeWeaverJob,
   createWeaverJob,
+  findRegressionGaps,
   listWeaverJobs,
-  type WeaverJobRow,
   requeueStaleClaims,
+  type RegressionGap,
+  type WeaverJobRow,
   type WeaverPayload,
 } from './weaver.js';

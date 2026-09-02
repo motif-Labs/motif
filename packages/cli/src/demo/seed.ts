@@ -140,6 +140,20 @@ const SESSIONS: SeedSession[] = [
     ],
   },
   {
+    id: 'demo-doublecharge',
+    source: 'claude-code',
+    member: 'ben',
+    project: '/workspace/payments-api',
+    files: ['src/routes/payments.ts'],
+    day: 4,
+    turns: [
+      [
+        'Fix the double-charge: a retried request with the same idempotency key still charged twice.',
+        'The key was checked after the charge call, not before. Moved the lookup ahead of the charge, so a replay short-circuits to the stored response. Verified by hand against the reproduction.',
+      ],
+    ],
+  },
+  {
     id: 'demo-billing',
     source: 'codex',
     member: 'ada',

@@ -19,7 +19,7 @@ afterEach(() => {
 describe('the built-in demo seed', () => {
   it('stages the whole story: sessions, a conflict to rule on, a stale note, a verified one', () => {
     const result = seedDemo(db);
-    expect(result.sessions).toBe(9);
+    expect(result.sessions).toBe(10);
     expect(result.members.map((m) => m.name).sort()).toEqual(['ada', 'ben', 'cleo', 'iris', 'you']);
 
     const queue = listReviewQueue(db, undefined);

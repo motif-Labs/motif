@@ -89,6 +89,14 @@ export class MotifClient {
     return this.request('GET', `/api/recall?${q}`);
   }
 
+  async listWeaverGaps(project?: string): Promise<{ gaps: RegressionGapDto[] }> {
+    return this.request('GET', `/api/weaver/gaps${project ? `?project=${encodeURIComponent(project)}` : ''}`);
+  }
+
+  async queueWeaverGap(file: string, project?: string): Promise<{ job: WeaverJobDto }> {
+    return this.request('POST', '/api/weaver/gaps/queue', { file, project });
+  }
+
   async listWeaverJobs(status?: string): Promise<{ jobs: WeaverJobDto[] }> {
     return this.request('GET', `/api/weaver/jobs${status ? `?status=${status}` : ''}`);
   }
@@ -327,4 +335,13 @@ export interface WeaverJobDto {
   pr_url: string | null;
   result: string | null;
   created_at: string;
+}
+
+export interface RegressionGapDto {
+  file: string;
+  sessionId: string;
+  sessionTitle: string;
+  memberName: string | null;
+  project: string;
+  context: string;
 }

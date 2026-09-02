@@ -39,6 +39,46 @@ export function registerWeaver(program: Command): void {
     });
 
   weaver
+    .command('scan')
+    .description('Find gaps the record can see but the repo has not closed — untested fixes')
+    .option('--project <path>', 'limit to one project')
+    .option('--json', 'machine-readable output')
+    .action(async (opts: { project?: string; json?: boolean }) => {
+      const cfg = loadConfig();
+      requireConnection(cfg);
+      const client = new MotifClient({ serverUrl: cfg.serverUrl, token: cfg.memberToken });
+      const { gaps } = await client.listWeaverGaps(opts.project);
+      if (opts.json) {
+        console.log(JSON.stringify(gaps, null, 2));
+        return;
+      }
+      if (gaps.length === 0) {
+        console.log('No open gaps — every recorded fix has a test.');
+        return;
+      }
+      console.log(`${gaps.length} untested fix(es) the Weaver could close:\n`);
+      for (const g of gaps) {
+        console.log(`  ${g.file}`);
+        console.log(`    ${g.sessionTitle}${g.memberName ? ` — @${g.memberName}` : ''}`);
+        console.log(`    close it:  motif weaver run ${g.file}\n`);
+      }
+    });
+
+  weaver
+    .command('run <file>')
+    .description('Queue the Weaver to write the missing test for a file (draft PR)')
+    .option('--project <path>', 'the project the file belongs to')
+    .action(async (file: string, opts: { project?: string }) => {
+      const cfg = loadConfig();
+      requireConnection(cfg);
+      const client = new MotifClient({ serverUrl: cfg.serverUrl, token: cfg.memberToken });
+      const { job } = await client.queueWeaverGap(file, opts.project);
+      console.log(`Queued #${job.id} for ${file}.`);
+      console.log('An opted-in machine holding this project will write the test and open a draft PR.');
+      console.log('Watch it with:  motif weaver status');
+    });
+
+  weaver
     .command('status')
     .description('What the Weaver has woven, and what still waits')
     .option('--json', 'machine-readable output')

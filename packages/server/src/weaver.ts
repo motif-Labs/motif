@@ -12,7 +12,7 @@
  */
 import type { Db } from './db/database.js';
 
-export interface WeaverPayload {
+export interface RulingPayload {
   kind: 'ruling';
   entity: string;
   aspect: string;
@@ -24,6 +24,23 @@ export interface WeaverPayload {
   loserSessionId: string | null;
 }
 
+/** A gap the record can see but the repo hasn't closed: a change made in a
+ * session with no test to hold it. The context travels WITH the job — the
+ * session's own summary and the files it touched — so the agent writes the
+ * test instead of spelunking the whole tree for it. That is the point: the
+ * work is aimed, not exploratory, and cheap because of it. */
+export interface GapPayload {
+  kind: 'missing-regression';
+  file: string;
+  sessionId: string;
+  sessionTitle: string;
+  memberName: string | null;
+  /** The distilled note(s) about this file — what the change was and why. */
+  context: string;
+}
+
+export type WeaverPayload = RulingPayload | GapPayload;
+
 export interface WeaverJobRow {
   id: number;
   project_path: string;
@@ -34,6 +51,77 @@ export interface WeaverJobRow {
   result: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface RegressionGap {
+  file: string;
+  sessionId: string;
+  sessionTitle: string;
+  memberName: string | null;
+  project: string;
+  context: string;
+}
+
+const TEST_RE = /(^|\/)(tests?|__tests__|spec)\/|\.(test|spec)\.[jt]sx?$/i;
+const CODE_RE = /\.[jt]sx?$|\.(py|go|rb|rs|java|kt|swift)$/i;
+const FIX_RE = /\b(fix|bug|broke|broken|regression|crash|failing|flaky|incorrect|wrong)\b/i;
+
+/** Sessions that changed code, left no test, and whose work the memory thought
+ * worth recording — the shape of an untested fix. Deterministic: it reads only
+ * what sync already stored, and each gap carries the receipt that justifies it. */
+export function findRegressionGaps(db: Db, project?: string): RegressionGap[] {
+  const rows = db
+    .prepare(
+      `SELECT s.id, s.title, s.files_touched, s.project_path, m.name AS member_name
+       FROM sessions s LEFT JOIN members m ON m.id = s.member_id
+       WHERE s.visibility = 'team'
+       ${project ? 'AND s.project_path = ?' : ''}
+       ORDER BY s.updated_at DESC LIMIT 400`,
+    )
+    .all(...(project ? [project] : [])) as {
+    id: string;
+    title: string | null;
+    files_touched: string;
+    project_path: string;
+    member_name: string | null;
+  }[];
+
+  const gaps: RegressionGap[] = [];
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const files = JSON.parse(r.files_touched || '[]') as string[];
+    const looksLikeFix = FIX_RE.test(r.title ?? '');
+    const touchedCode = files.some((f) => CODE_RE.test(f) && !TEST_RE.test(f));
+    const touchedTest = files.some((f) => TEST_RE.test(f));
+    if (!looksLikeFix || !touchedCode || touchedTest) continue;
+
+    const codeFile = files.find((f) => CODE_RE.test(f) && !TEST_RE.test(f))!;
+    const key = `${r.project_path}::${codeFile}`;
+    if (seen.has(key)) continue; // one gap per file, freshest wins
+    seen.add(key);
+
+    // the receipt: what the record already knows about this file
+    const notes = db
+      .prepare(
+        `SELECT n.body FROM memory_notes n JOIN memory_entities e ON e.id = n.entity_id
+         WHERE e.name = ? AND e.project_path = ? AND n.status = 'current' AND n.verification != 'retired' LIMIT 3`,
+      )
+      .all(codeFile.replace(/^.*?([^/]+\/[^/]+)$/, '$1'), r.project_path) as { body: string }[];
+    const context = [
+      `Session "${r.title}" changed ${codeFile} and added no test.`,
+      ...notes.map((n) => `Record: ${n.body}`),
+    ].join('\n');
+
+    gaps.push({
+      file: codeFile,
+      sessionId: r.id,
+      sessionTitle: r.title ?? '(untitled)',
+      memberName: r.member_name,
+      project: r.project_path,
+      context,
+    });
+  }
+  return gaps;
 }
 
 export function createWeaverJob(db: Db, projectPath: string, payload: WeaverPayload): WeaverJobRow {
