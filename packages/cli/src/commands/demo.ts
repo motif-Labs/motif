@@ -182,8 +182,8 @@ export function registerDemo(program: Command): void {
         await beat(700);
         console.log('  ▸ Act 4 · The Weaver — your ruling grows hands\n');
         const repo = makeDemoRepo(dir);
-        console.log(`    a real git repository lives at ${repo}`);
-        console.log(`    its ADR still says: "${LOSING_LINE.slice(0, 58)}…"\n`);
+        console.log('    a real git repository (a scratch dir) still says:');
+        console.log(`      "${LOSING_LINE.slice(0, 60)}…"\n`);
         await beat(900);
         const job = createWeaverJob(server.db, repo, {
           kind: 'ruling',
