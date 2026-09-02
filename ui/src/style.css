@@ -1465,6 +1465,262 @@ h1.session-title {
   background: var(--amber);
 }
 
+/* ── Overview: the record's pulse — activity first, not stat cards ─────
+   Premium is showing the work, not a wall of numbers. The pulse is one thin
+   typographic line; the space belongs to a live thread of what happened and a
+   short list of what needs a person. */
+.pulse-line {
+  font-size: 13px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+.pulse-line b {
+  color: var(--text);
+  font-weight: 600;
+}
+.ov2 {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 28px;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .ov2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* the activity thread — knots on a stitched line, the product's own metaphor */
+.act-thread {
+  position: relative;
+  padding-left: 26px;
+}
+.act-thread::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: repeating-linear-gradient(180deg, var(--border) 0 6px, transparent 6px 12px);
+}
+.act {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  padding: 9px 8px 9px 0;
+  border-radius: 8px;
+  transition: background var(--t-fast) var(--ease);
+}
+a.act:hover {
+  background: var(--fill);
+}
+.act-node {
+  position: absolute;
+  left: -26px;
+  top: 11px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 2px solid var(--faint);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  color: var(--dim);
+}
+.act-node[data-kind='ruling'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.act-node[data-kind='weaver'] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+  font-size: 9px;
+}
+.act-node[data-kind='handoff'] {
+  border-color: var(--green);
+  color: var(--green);
+}
+.act-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.act-line {
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+.act-line b {
+  font-weight: 600;
+}
+.act-subj {
+  color: var(--dim);
+}
+.act-when {
+  font-size: 11.5px;
+  color: var(--faint);
+}
+
+/* needs you — actionable, not decorative */
+.needs,
+.latest {
+  background: var(--panel);
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  border-radius: 14px;
+  padding: 6px 8px 10px;
+  margin-bottom: 16px;
+}
+.needs h2,
+.latest h2 {
+  margin: 12px 12px 8px;
+}
+.needs-clear {
+  padding: 6px 12px 12px;
+  font-size: 13px;
+  color: var(--dim);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.needs-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  font-size: 13px;
+  transition: background var(--t-fast) var(--ease);
+}
+.needs-row:hover {
+  background: var(--fill);
+}
+.needs-n {
+  font-size: 18px;
+  font-weight: 680;
+  font-variant-numeric: tabular-nums;
+  min-width: 22px;
+}
+.needs-n.conflict {
+  color: var(--red);
+}
+.latest-row {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 9px;
+  transition: background var(--t-fast) var(--ease);
+}
+.latest-row:hover {
+  background: var(--fill);
+}
+.latest-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 580;
+  font-size: 13px;
+  margin-bottom: 3px;
+}
+.latest-body {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--dim);
+}
+.ov-muted {
+  color: var(--faint);
+  padding: 6px 12px 14px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+/* ── Weave: the record, drawn ────────────────────────── */
+.weave-wrap {
+  height: calc(100vh - 170px);
+  min-height: 480px;
+  /* the dotted ground and the soft centre glow are static CSS, not redrawn
+     every frame — the canvas only draws the graph itself */
+  background:
+    radial-gradient(circle, color-mix(in srgb, var(--faint) 40%, transparent) 0.8px, transparent 0.8px) 0 0 /
+      26px 26px,
+    radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--accent) 6%, var(--panel)), var(--panel) 70%);
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.weave-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.weave-legend {
+  display: flex;
+  gap: 18px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--dim);
+}
+.weave-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.wl-diamond {
+  width: 9px;
+  height: 9px;
+  background: var(--accent);
+  transform: rotate(45deg);
+}
+.wl-diamond.ink {
+  background: var(--text);
+}
+.wl-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+.wl-line {
+  width: 16px;
+  height: 0;
+}
+.wl-line.relate {
+  border-top: 1.5px solid var(--accent);
+}
+.wl-line.contest {
+  border-top: 1.5px dashed var(--red);
+}
+
+/* confidence: uncertainty made visible, quietly */
+.conf {
+  display: inline-block;
+  width: 46px;
+  height: 5px;
+  border-radius: 99px;
+  background: var(--fill);
+  overflow: hidden;
+  vertical-align: middle;
+}
+.conf-fill {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+}
+.conf-high .conf-fill {
+  background: var(--green);
+}
+.conf-medium .conf-fill {
+  background: var(--dim);
+}
+.conf-low .conf-fill {
+  background: var(--amber);
+}
+
 /* ── Overview: the record's pulse, dense but breathing ─── */
 .lede {
   font-size: 15.5px;

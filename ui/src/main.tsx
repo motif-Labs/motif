@@ -1282,22 +1282,68 @@ interface GEdge {
  * hand-rolled force layout on a canvas — no dependency, fine to a few hundred
  * nodes. Hover lights a node's neighbourhood; click an entity opens it.
  */
+interface ActivityItem {
+  type: string;
+  actor: string | null;
+  subject: string;
+  at: string;
+  href?: string;
+}
 interface Overview {
-  counts: { sessions: number; members: number; projects: number; decisions: number; conflicts: number };
+  counts: {
+    sessions: number;
+    members: number;
+    projects: number;
+    decisions: number;
+    conflicts: number;
+    gaps: number;
+  };
   activeProjects: { project: string; sessions: number; last: string }[];
   recentDecisions: { name: string; body: string; created_at: string; verification: string; status: string }[];
+  activity: ActivityItem[];
 }
 
-function Stat({ n, label, tone }: { n: number; label: string; tone?: 'alert' }) {
-  return (
-    <div class={`stat ${tone === 'alert' && n > 0 ? 'stat-alert' : ''}`}>
-      <div class="stat-n">{n}</div>
-      <div class="stat-l">{label}</div>
-    </div>
+const ACTIVITY_GLYPH: Record<string, string> = {
+  session: '',
+  'ruling:prefer': '⚖',
+  'ruling:confirm': '✓',
+  'ruling:retire': '·',
+  'ruling:dispute': '?',
+  handoff: '⇢',
+  weaver: '🧵',
+};
+
+function ActivityLine({ a }: { a: ActivityItem }) {
+  const verb = a.type.startsWith('ruling')
+    ? 'ruled on'
+    : a.type === 'handoff'
+      ? 'handed off'
+      : a.type === 'weaver'
+        ? ''
+        : 'worked on';
+  const inner = (
+    <>
+      <span class="act-node" data-kind={a.type.split(':')[0]}>
+        {ACTIVITY_GLYPH[a.type] ?? ''}
+      </span>
+      <span class="act-body">
+        <span class="act-line">
+          {a.actor && <b>{a.actor}</b>} {verb} <span class="act-subj">{a.subject}</span>
+        </span>
+        <span class="act-when">{ago(a.at)}</span>
+      </span>
+    </>
+  );
+  return a.href ? (
+    <a class="act" href={a.href}>
+      {inner}
+    </a>
+  ) : (
+    <div class="act">{inner}</div>
   );
 }
 
-function OverviewPage({ me }: { me: Me }) {
+function OverviewPage({ me: _me }: { me: Me }) {
   const [d, setD] = useState<Overview | null>(null);
   useEffect(() => {
     const load = () =>
@@ -1307,72 +1353,94 @@ function OverviewPage({ me }: { me: Me }) {
     load();
     const reloadOv = debounce(load);
     return openEvents((name) => {
-      if (name === 'session-upserted' || name === 'memory-updated' || name === 'memory-reviewed') reloadOv();
+      if (
+        name === 'session-upserted' ||
+        name === 'memory-updated' ||
+        name === 'memory-reviewed' ||
+        name === 'memory-conflict' ||
+        name === 'weaver-completed' ||
+        name === 'handoff-created'
+      )
+        reloadOv();
     });
   }, []);
-  if (!d) return <Skeleton rows={4} />;
-  const who = me.kind === 'member' && me.member?.name ? me.member.name : 'there';
+  if (!d) return <Skeleton rows={5} />;
+  const c = d.counts;
+  const empty = c.sessions === 0;
+
   return (
     <div>
       <div class="page-head">
         <h1>Overview</h1>
-      </div>
-      <p class="lede">
-        {d.counts.sessions === 0
-          ? `Nothing yet, ${who} — run motif up, or motif demo to see it full.`
-          : `${d.counts.sessions} sessions across ${d.counts.projects} project${d.counts.projects === 1 ? '' : 's'}, distilled into ${d.counts.decisions} decision${d.counts.decisions === 1 ? '' : 's'} your agents can recall.`}
-      </p>
-
-      <div class="stat-row">
-        <Stat n={d.counts.sessions} label="sessions" />
-        <Stat n={d.counts.members} label="people" />
-        <Stat n={d.counts.projects} label="projects" />
-        <Stat n={d.counts.decisions} label="decisions" />
-        <a href="#/review" style="text-decoration:none">
-          <Stat n={d.counts.conflicts} label="to review" tone="alert" />
-        </a>
+        <span class="pulse-line">
+          <b>{c.sessions}</b> sessions · <b>{c.members}</b> people · <b>{c.projects}</b> projects ·{' '}
+          <b>{c.decisions}</b> decisions
+        </span>
       </div>
 
-      <div class="ov-grid">
-        <div class="ov-card">
-          <h2>Active projects</h2>
-          {d.activeProjects.length === 0 ? (
-            <div class="ov-muted">No projects yet.</div>
-          ) : (
-            d.activeProjects.map((p) => (
-              <a
-                key={p.project}
-                class="ov-proj"
-                href={`#/?project=${encodeURIComponent(projName(p.project))}`}
-              >
-                <span class="ov-proj-name">{projName(p.project)}</span>
-                <span class="ov-proj-meta">
-                  {p.sessions} session{p.sessions === 1 ? '' : 's'} · {ago(p.last)}
-                </span>
-              </a>
-            ))
-          )}
+      {empty ? (
+        <div class="empty">
+          Nothing yet. Run <code>motif up</code> to point it at your own history, or <code>motif demo</code>{' '}
+          to see it full.
         </div>
-        <div class="ov-card">
-          <h2>Latest decisions</h2>
-          {d.recentDecisions.length === 0 ? (
-            <div class="ov-muted">
-              Decisions appear as sessions are distilled. Enable it with <code>MOTIF_LLM_PROVIDER</code>.
+      ) : (
+        <div class="ov2">
+          <div class="ov2-main">
+            <h2>Activity</h2>
+            <div class="act-thread">
+              {d.activity.map((a, i) => (
+                <ActivityLine key={i} a={a} />
+              ))}
             </div>
-          ) : (
-            d.recentDecisions.map((r, i) => (
-              <div key={i} class="ov-dec">
-                <div class="ov-dec-head">
-                  {r.name}
-                  {r.verification === 'verified' && <span class="chip live">verified</span>}
-                  {r.status === 'conflicted' && <span class="chip conflict">conflict</span>}
+          </div>
+
+          <div class="ov2-side">
+            <div class="needs">
+              <h2>Needs you</h2>
+              {c.conflicts === 0 && c.gaps === 0 ? (
+                <div class="needs-clear">
+                  <span class="chip live">clear</span> the memory is at peace
                 </div>
-                <div class="ov-dec-body">{r.body}</div>
-              </div>
-            ))
-          )}
+              ) : (
+                <>
+                  {c.conflicts > 0 && (
+                    <a class="needs-row" href="#/review">
+                      <span class="needs-n conflict">{c.conflicts}</span>
+                      <span>unresolved conflict{c.conflicts === 1 ? '' : 's'} to rule on</span>
+                    </a>
+                  )}
+                  {c.gaps > 0 && (
+                    <a class="needs-row" href="#/sessions">
+                      <span class="needs-n">{c.gaps}</span>
+                      <span>untested change{c.gaps === 1 ? '' : 's'} the Weaver can close</span>
+                    </a>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div class="latest">
+              <h2>Latest decisions</h2>
+              {d.recentDecisions.length === 0 ? (
+                <div class="ov-muted">
+                  Decisions appear as sessions are distilled — enable it with <code>MOTIF_LLM_PROVIDER</code>.
+                </div>
+              ) : (
+                d.recentDecisions.map((r, i) => (
+                  <a key={i} class="latest-row" href="#/memory">
+                    <span class="latest-name">
+                      {r.name}
+                      {r.verification === 'verified' && <span class="chip live">verified</span>}
+                      {r.status === 'conflicted' && <span class="chip conflict">conflict</span>}
+                    </span>
+                    <span class="latest-body">{r.body}</span>
+                  </a>
+                ))
+              )}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

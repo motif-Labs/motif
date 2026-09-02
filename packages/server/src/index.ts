@@ -895,6 +895,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     const conflicts = one(
       "SELECT COUNT(*) AS n FROM memory_notes WHERE status='conflicted' AND verification!='retired'",
     );
+    const gaps = findRegressionGaps(db).length;
 
     const activeProjects = db
       .prepare(
@@ -916,10 +917,101 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       )
       .all(viewer);
 
+    // one timeline of what actually happened — sessions, rulings, handoffs,
+    // the Weaver's PRs — merged and sorted, so the overview shows work, not
+    // just numbers. Visibility is respected per source.
+    const activity: {
+      type: string;
+      actor: string | null;
+      subject: string;
+      at: string;
+      href?: string;
+    }[] = [];
+
+    for (const r of db
+      .prepare(
+        `SELECT s.id, s.title, s.source, s.updated_at, m.name AS actor
+         FROM sessions s LEFT JOIN members m ON m.id = s.member_id
+         WHERE s.visibility = 'team' OR s.member_id = ?
+         ORDER BY s.updated_at DESC LIMIT 12`,
+      )
+      .all(viewer) as {
+      id: string;
+      title: string | null;
+      source: string;
+      updated_at: string;
+      actor: string | null;
+    }[]) {
+      activity.push({
+        type: 'session',
+        actor: r.actor,
+        subject: r.title ?? '(untitled)',
+        at: r.updated_at,
+        href: `#/sessions/${encodeURIComponent(r.id)}`,
+      });
+    }
+    for (const r of db
+      .prepare(
+        `SELECT rv.verdict, rv.created_at, m.name AS actor, e.name AS subject
+         FROM memory_reviews rv
+         JOIN memory_notes n ON n.id = rv.note_id JOIN memory_entities e ON e.id = n.entity_id
+         LEFT JOIN members m ON m.id = rv.reviewer_id
+         ORDER BY rv.created_at DESC LIMIT 6`,
+      )
+      .all() as { verdict: string; created_at: string; actor: string | null; subject: string }[]) {
+      activity.push({
+        type: `ruling:${r.verdict}`,
+        actor: r.actor,
+        subject: r.subject,
+        at: r.created_at,
+        href: '#/review',
+      });
+    }
+    for (const r of db
+      .prepare(
+        `SELECT h.created_at, h.target, m.name AS actor, s.id AS sid, s.title
+         FROM handoffs h LEFT JOIN members m ON m.id = h.member_id
+         LEFT JOIN sessions s ON s.pk = h.session_pk
+         WHERE h.session_pk IS NOT NULL ORDER BY h.created_at DESC LIMIT 6`,
+      )
+      .all() as {
+      created_at: string;
+      target: string;
+      actor: string | null;
+      sid: string | null;
+      title: string | null;
+    }[]) {
+      activity.push({
+        type: 'handoff',
+        actor: r.actor,
+        subject: `${r.title ?? 'a session'} → ${r.target === 'claude-code' ? 'Claude Code' : 'Codex'}`,
+        at: r.created_at,
+        href: r.sid ? `#/sessions/${encodeURIComponent(r.sid)}` : undefined,
+      });
+    }
+    for (const r of db
+      .prepare(
+        `SELECT created_at, pr_url, result, payload FROM weaver_jobs
+         WHERE status = 'done' ORDER BY updated_at DESC LIMIT 6`,
+      )
+      .all() as { created_at: string; pr_url: string | null; result: string; payload: string }[]) {
+      let subject = 'aligned the repo with a ruling';
+      try {
+        const pl = JSON.parse(r.payload) as { file?: string; kind?: string };
+        if (pl.file) subject = `wrote the missing test for ${pl.file}`;
+      } catch {
+        /* keep default */
+      }
+      activity.push({ type: 'weaver', actor: 'the Weaver', subject, at: r.created_at });
+    }
+
+    activity.sort((a, b) => b.at.localeCompare(a.at));
+
     return c.json({
-      counts: { sessions, members, projects, decisions, conflicts },
+      counts: { sessions, members, projects, decisions, conflicts, gaps },
       activeProjects,
       recentDecisions,
+      activity: activity.slice(0, 16),
     });
   });
 
