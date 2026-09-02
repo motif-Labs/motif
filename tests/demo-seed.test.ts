@@ -38,9 +38,7 @@ describe('the built-in demo seed', () => {
     expect(types).toContain('stale');
 
     // the ADR conflict (the one the demo rules on) shows both sides, each cited
-    const conflict = queue.find(
-      (i) => i.type === 'conflict' && i.note.entity === 'redis outage policy',
-    )!;
+    const conflict = queue.find((i) => i.type === 'conflict' && i.note.entity === 'redis outage policy')!;
     expect(conflict.against!.session_id).toContain('pay-ratelimit');
     expect(conflict.note.session_id).toContain('ops-redis');
 
