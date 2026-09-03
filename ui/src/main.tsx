@@ -1452,11 +1452,31 @@ function WeavePage() {
   const [data, setData] = useState<{ nodes: GNode[]; edges: GEdge[] } | null>(null);
   const hoverRef = useRef<string | null>(null);
   const [preview, setPreview] = useState<{ node: GNode; ties: number; x: number; y: number } | null>(null);
+  // positions survive a live re-fetch: existing knots keep their place while new
+  // sessions and decisions grow in, so the weave builds itself instead of jumping
+  const posRef = useRef(new Map<string, { x: number; y: number; vx: number; vy: number }>());
+  // when each node was first seen, so a fresh arrival pulses in on camera
+  const spawnRef = useRef(new Map<string, number>());
 
   useEffect(() => {
-    api<{ nodes: GNode[]; edges: GEdge[] }>('/api/graph')
-      .then(setData)
-      .catch(() => setData({ nodes: [], edges: [] }));
+    const load = () =>
+      api<{ nodes: GNode[]; edges: GEdge[] }>('/api/graph')
+        .then(setData)
+        .catch(() => setData({ nodes: [], edges: [] }));
+    load();
+    // the weave grows live: a new session, a fresh decision or a conflict re-draws it
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const nudge = () => {
+      clearTimeout(t);
+      t = setTimeout(load, 400); // coalesce bursts during a swarm
+    };
+    const stop = openEvents((name) => {
+      if (name === 'session-upserted' || name === 'memory-updated' || name === 'memory-conflict') nudge();
+    });
+    return () => {
+      clearTimeout(t);
+      stop();
+    };
   }, []);
 
   useEffect(() => {
@@ -1495,14 +1515,30 @@ function WeavePage() {
       adj.get(e.a)?.add(e.b);
       adj.get(e.b)?.add(e.a);
     }
-    // seed positions on a loose circle
+    // keep a knot where it already was across a live re-fetch; a genuinely new
+    // node grows in from the centre, so the weave extends rather than resets
+    const pos = posRef.current;
+    const spawn = spawnRef.current;
+    let fresh = false;
     nodes.forEach((n, i) => {
-      const a = (i / nodes.length) * Math.PI * 2;
-      n.x = W() / 2 + Math.cos(a) * 120 + (Math.random() - 0.5) * 40;
-      n.y = H() / 2 + Math.sin(a) * 120 + (Math.random() - 0.5) * 40;
-      n.vx = 0;
-      n.vy = 0;
+      const saved = pos.get(n.id);
+      if (!spawn.has(n.id)) spawn.set(n.id, performance.now());
+      if (saved) {
+        n.x = saved.x;
+        n.y = saved.y;
+        n.vx = saved.vx;
+        n.vy = saved.vy;
+      } else {
+        fresh = true;
+        const a = (i / nodes.length) * Math.PI * 2;
+        n.x = W() / 2 + Math.cos(a) * 60 + (Math.random() - 0.5) * 30;
+        n.y = H() / 2 + Math.sin(a) * 60 + (Math.random() - 0.5) * 30;
+        n.vx = 0;
+        n.vy = 0;
+      }
     });
+    // a fresh node just arrived: re-energise the layout so it settles in
+    if (fresh) alpha = Math.max(alpha, 0.6);
 
     const cssVar = (name: string) => getComputedStyle(document.body).getPropertyValue(name).trim();
     const ink = cssVar('--text');
@@ -1561,6 +1597,7 @@ function WeavePage() {
         n.vy! *= 0.86;
         n.x! += n.vx! * alpha;
         n.y! += n.vy! * alpha;
+        pos.set(n.id, { x: n.x!, y: n.y!, vx: n.vx!, vy: n.vy! });
       }
       alpha *= 0.985;
     };
@@ -1575,9 +1612,11 @@ function WeavePage() {
         const b = byId.get(e.b);
         if (!a || !b) continue;
         const lit = hov && (e.a === hov || e.b === hov);
-        ctx.strokeStyle = e.kind === 'contests' ? red : e.kind === 'relates' ? accent : lit ? accent : border;
-        ctx.globalAlpha = hov ? (lit ? 1 : 0.08) : e.kind === 'relates' ? 0.45 : 0.32;
-        ctx.lineWidth = lit ? 1.8 : e.kind === 'relates' ? 1.2 : 0.9;
+        // informs (a session that used a decision) reads in a faint accent, not
+        // the near-invisible border, so "this agent pulled on that memory" shows
+        ctx.strokeStyle = e.kind === 'contests' ? red : e.kind === 'relates' ? accent : lit ? accent : faint;
+        ctx.globalAlpha = hov ? (lit ? 1 : 0.08) : e.kind === 'relates' ? 0.45 : 0.4;
+        ctx.lineWidth = lit ? 1.8 : e.kind === 'relates' ? 1.2 : 1.0;
         ctx.shadowBlur = lit ? 8 : 0;
         ctx.shadowColor = e.kind === 'contests' ? red : accent;
         if (e.kind === 'contests') ctx.setLineDash([3, 4]);
@@ -1601,12 +1640,26 @@ function WeavePage() {
         const dim = hov && n.id !== hov && !near?.has(n.id);
         ctx.globalAlpha = dim ? 0.25 : 1;
         const active = n.id === hov || near?.has(n.id);
+        // a fresh node pulses in: it grows to size and throws one fading ring,
+        // so a swarm arriving in the weave reads as arriving, not just appearing
+        const born = spawn.get(n.id) ?? 0;
+        const age = performance.now() - born;
+        const grow = age < 550 ? 0.35 + 0.65 * (age / 550) : 1;
         if (n.type === 'entity') {
-          const r = 4 + (n.confidence ?? 0.5) * 5.5;
+          const r = (4 + (n.confidence ?? 0.5) * 5.5) * grow;
           const col = n.kind === 'decision' ? accent : ink;
+          if (age < 900 && !dim) {
+            const k = age / 900;
+            ctx.globalAlpha = (1 - k) * 0.55;
+            ctx.strokeStyle = col;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(n.x!, n.y!, r + 4 + k * 22, 0, Math.PI * 2);
+            ctx.stroke();
+          }
           // the diamond, with a cheap shadow glow only when it matters
           ctx.globalAlpha = dim ? 0.3 : 1;
-          ctx.shadowBlur = active ? 14 : (n.confidence ?? 0.5) > 0.7 ? 6 : 0;
+          ctx.shadowBlur = active ? 14 : age < 900 ? 12 : (n.confidence ?? 0.5) > 0.7 ? 6 : 0;
           ctx.shadowColor = col;
           ctx.fillStyle = col;
           ctx.beginPath();
@@ -1618,11 +1671,24 @@ function WeavePage() {
           ctx.fill();
           ctx.shadowBlur = 0;
         } else {
-          ctx.globalAlpha = dim ? 0.2 : active ? 0.9 : 0.55;
-          ctx.fillStyle = faint;
+          const sr = (active ? 4 : 3.4) * grow;
+          if (age < 900 && !dim) {
+            const k = age / 900;
+            ctx.globalAlpha = (1 - k) * 0.5;
+            ctx.strokeStyle = accent;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(n.x!, n.y!, sr + 3 + k * 18, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+          ctx.globalAlpha = dim ? 0.2 : active ? 0.95 : 0.7;
+          ctx.shadowBlur = age < 900 ? 8 : 0;
+          ctx.shadowColor = accent;
+          ctx.fillStyle = active ? accent : faint;
           ctx.beginPath();
-          ctx.arc(n.x!, n.y!, active ? 3.6 : 2.8, 0, Math.PI * 2);
+          ctx.arc(n.x!, n.y!, sr, 0, Math.PI * 2);
           ctx.fill();
+          ctx.shadowBlur = 0;
         }
         // Labels earn their space: decisions (the load-bearing knots) carry one
         // at rest; files, topics and sessions reveal theirs on hover or when
