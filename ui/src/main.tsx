@@ -1515,6 +1515,20 @@ function WeavePage() {
       adj.get(e.a)?.add(e.b);
       adj.get(e.b)?.add(e.a);
     }
+    // a denser weave needs more room and fewer standing labels, or it collapses
+    // into an unreadable ball. Spread scales with size; only the biggest hubs
+    // carry a label at rest (the rest reveal on hover).
+    const spread = Math.min(2.4, Math.max(1, nodes.length / 45));
+    const dense = nodes.length > 60;
+    const labeled = new Set(
+      (dense
+        ? nodes
+            .filter((n) => n.type === 'entity')
+            .sort((a, b) => (adj.get(b.id)?.size ?? 0) - (adj.get(a.id)?.size ?? 0))
+            .slice(0, 9)
+        : nodes.filter((n) => n.type === 'entity' && n.kind === 'decision')
+      ).map((n) => n.id),
+    );
     // keep a knot where it already was across a live re-fetch; a genuinely new
     // node grows in from the centre, so the weave extends rather than resets
     const pos = posRef.current;
@@ -1558,7 +1572,7 @@ function WeavePage() {
           let dx = a.x! - b.x!;
           let dy = a.y! - b.y!;
           let d2 = dx * dx + dy * dy || 0.01;
-          const f = 900 / d2;
+          const f = (900 * spread) / d2;
           const d = Math.sqrt(d2);
           dx /= d;
           dy /= d;
@@ -1591,8 +1605,8 @@ function WeavePage() {
           n.vy = 0;
           continue;
         }
-        n.vx! += (W() / 2 - n.x!) * 0.002;
-        n.vy! += (H() / 2 - n.y!) * 0.002;
+        n.vx! += ((W() / 2 - n.x!) * 0.002) / spread;
+        n.vy! += ((H() / 2 - n.y!) * 0.002) / spread;
         n.vx! *= 0.86;
         n.vy! *= 0.86;
         n.x! += n.vx! * alpha;
@@ -1694,7 +1708,7 @@ function WeavePage() {
         // at rest; files, topics and sessions reveal theirs on hover or when
         // they neighbour the hovered node. A soft pill keeps each one legible
         // where the weave is dense. Full detail lives in the hover card.
-        const showLabel = active || (!hov && n.type === 'entity' && n.kind === 'decision');
+        const showLabel = active || (!hov && labeled.has(n.id));
         if (showLabel) {
           const t = n.label.length > 30 ? n.label.slice(0, 30) + '…' : n.label;
           const isDecision = n.type === 'entity' && n.kind === 'decision';
