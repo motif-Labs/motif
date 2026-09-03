@@ -264,7 +264,7 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_weaver_status ON weaver_jobs(status, created_at);
   `,
-  // v12, close the loop. A Weaver PR has a fate (merged or closed), and that
+  // v11, close the loop. A Weaver PR has a fate (merged or closed), and that
   // fate is a signal: a ruling's fix that gets rejected means the ruling may be
   // wrong. The job remembers which note it came from, so resolving it can feed
   // the outcome back into memory.
@@ -273,13 +273,13 @@ const MIGRATIONS: string[] = [
     CHECK (resolution IN ('merged','closed') OR resolution IS NULL);
   ALTER TABLE weaver_jobs ADD COLUMN source_note_id INTEGER REFERENCES memory_notes(id);
   `,
-  // v11, a note must not become MORE visible because its evidence was
+  // v12, a note must not become MORE visible because its evidence was
   // deleted. Deleting or purging a session used to null the note's session
   // link, and every visibility predicate treated "no session" as team-visible:
   // deleting personal evidence PUBLISHED the claim. The orphaned note now
   // keeps a snapshot of the visibility it died with.
   `ALTER TABLE memory_notes ADD COLUMN orphan_visibility TEXT;`,
-  // v12, indexes for the joins that grow with the corpus. Recall, the Weave
+  // v13, indexes for the joins that grow with the corpus. Recall, the Weave
   // graph and the overview all reach a note by its source session, and every
   // session-scoped route looks a session up by its id / source id; the handoff
   // lineage walk joins on both handoff keys. None of these had a covering index,

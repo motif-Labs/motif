@@ -329,18 +329,26 @@ export function listSessions(
 
 /**
  * Accepts a full motif id, a source uuid, or a unique uuid prefix (like the
- * CLI's local resolution). Most recently updated row wins on ties.
+ * CLI's local resolution). A motif id is `source:source_session_id` and does NOT
+ * include the member, so two members can hold rows with the same id. Resolution
+ * prefers a TEAM row over a personal one, then the most recently updated, so a
+ * teammate's newer personal shadow can never hide a session that others (and the
+ * caller) are allowed to see. The caller still applies canView to the result.
  */
 export function getSessionRow(db: Db, id: string): SessionRow | undefined {
   const exact = db
-    .prepare('SELECT * FROM sessions WHERE id = ? OR source_session_id = ? ORDER BY updated_at DESC LIMIT 1')
+    .prepare(
+      `SELECT * FROM sessions WHERE id = ? OR source_session_id = ?
+       ORDER BY (visibility = 'team') DESC, updated_at DESC LIMIT 1`,
+    )
     .get(id, id) as SessionRow | undefined;
   if (exact) return exact;
   const prefix = id.includes(':') ? id.split(':')[1]! : id;
   if (prefix.length < 4) return undefined; // too short to be a meaningful prefix
   return db
     .prepare(
-      "SELECT * FROM sessions WHERE source_session_id LIKE ? || '%' ESCAPE '\\' ORDER BY updated_at DESC LIMIT 1",
+      `SELECT * FROM sessions WHERE source_session_id LIKE ? || '%' ESCAPE '\\'
+       ORDER BY (visibility = 'team') DESC, updated_at DESC LIMIT 1`,
     )
     .get(prefix.replace(/[%_\\]/g, '\\$&')) as SessionRow | undefined;
 }

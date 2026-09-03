@@ -171,13 +171,13 @@ export function readClaudeSession(filePath: string): MotifSession {
     if (typeof line.gitBranch === 'string' && line.gitBranch) gitBranch = line.gitBranch;
     if (typeof line.version === 'string') toolVersion = line.version;
     if (line.type === 'assistant' && typeof line.message?.model === 'string') model = line.message.model;
-    if (
-      firstPrompt === undefined &&
-      line.type === 'user' &&
-      typeof line.message?.content === 'string' &&
-      !line.isMeta
-    ) {
-      firstPrompt = line.message.content;
+    if (firstPrompt === undefined && line.type === 'user' && !line.isMeta) {
+      // the first user prompt comes in two shapes: a plain string, or an array
+      // of content blocks (common when it carries an attachment). Flatten the
+      // block shape too, otherwise such a session gets no derived title.
+      const content = line.message?.content;
+      const text = typeof content === 'string' ? content : flattenBlockContent(content);
+      if (text.trim()) firstPrompt = text;
     }
 
     nodes.set(line.uuid, line);

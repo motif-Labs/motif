@@ -20,7 +20,9 @@ const DAY = 86_400_000;
 
 /** 1.0 fresh, decaying to ~0.4 over ~120 days, old knowledge is not wrong, just less certain. */
 export function freshness(createdAt: string, now = Date.now()): number {
-  const age = Math.max(0, now - Date.parse(createdAt)) / DAY;
+  const t = Date.parse(createdAt);
+  if (!Number.isFinite(t)) return 0.4; // an unparseable date must not poison the score with NaN
+  const age = Math.max(0, now - t) / DAY;
   return 0.4 + 0.6 * Math.exp(-age / 120);
 }
 

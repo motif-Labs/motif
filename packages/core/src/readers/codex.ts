@@ -126,7 +126,10 @@ export function readCodexSession(filePath: string): MotifSession {
       updatedAt = ts;
     }
     const p = line.payload ?? {};
-    const id = `o${line.ordinal ?? ordinalFallback++}`;
+    // ordinal-derived ids live in the `o<n>` namespace; a fallback for an
+    // ordinal-less line must use a DIFFERENT namespace, or it can collide with a
+    // real `o<n>` and the server's INSERT OR IGNORE would silently drop a message
+    const id = line.ordinal !== undefined ? `o${line.ordinal}` : `f${ordinalFallback++}`;
 
     switch (line.type) {
       case 'session_meta': {

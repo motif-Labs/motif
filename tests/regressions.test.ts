@@ -271,6 +271,47 @@ describe('http api', () => {
     expect(rows.find((r) => r.name === 'ada')?.email).toBe(null);
   });
 
+  it('a newer personal session cannot shadow a viewable team session with the same id', async () => {
+    const mk = (
+      member: number,
+      vis: 'team' | 'personal',
+      updatedAt: string,
+      title: string,
+    ): MotifSession => ({
+      id: 'claude-code:shared-uuid',
+      source: 'claude-code',
+      sourceSessionId: 'shared-uuid',
+      sourcePath: '/fake/shared.jsonl',
+      projectPath: '/w/api',
+      title,
+      createdAt: '2026-08-01T10:00:00.000Z',
+      updatedAt,
+      visibility: vis,
+      messages: [{ id: 'm1', role: 'user', timestamp: updatedAt, text: title }],
+    });
+    // ada (from beforeEach) owns a TEAM session; bob later syncs a PERSONAL one
+    // with the same motif id and a newer timestamp
+    fullReplaceSession(
+      server.db,
+      registerMember(server.db, { name: 'ada2' }).memberId,
+      mk(0, 'team', '2026-08-01T10:00:00.000Z', 'the team session'),
+    );
+    const bob = registerMember(server.db, { name: 'bob2', email: 'bob2@x.example' });
+    fullReplaceSession(
+      server.db,
+      bob.memberId,
+      mk(bob.memberId, 'personal', '2026-08-09T10:00:00.000Z', 'bob private'),
+    );
+
+    // cleo, a third member, must still resolve to the team session, not a 404
+    const cleo = registerMember(server.db, { name: 'cleo2' });
+    const res = await call('/api/sessions/claude-code:shared-uuid', {}, cleo.memberToken);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { title?: string; session?: { title?: string } };
+    expect(JSON.stringify(body)).toContain('the team session');
+    expect(JSON.stringify(body)).not.toContain('bob private');
+  });
+
   it('answers an unknown /api path with JSON 404, not the dashboard HTML', async () => {
     // the SPA catch-all used to serve index.html here, so clients JSON.parse'd
     // '<!doctype html>' and reported a syntax error instead of a 404
