@@ -437,6 +437,17 @@ export function seedBackgroundMemory(db: Db, members: DemoMembers): void {
       body: 'One Redis client per request keeps the bucket simple; connection churn is negligible.',
     },
   ]);
+  // Mark it stale deterministically. markStaleNotes' heuristic compares the
+  // wall-clock created_at of notes made in the same run, and a coarse-resolution
+  // clock (Windows is ~15ms) ties them, so the demo's stale note appeared only on
+  // some platforms. The demo just needs to SHOW one, so set it directly.
+  db.prepare(
+    `UPDATE memory_notes SET stale = 1,
+            stale_reason = 'later sessions reworked its source file and produced no newer note'
+     WHERE body LIKE 'One Redis client per request%'
+       AND entity_id = (SELECT id FROM memory_entities
+                        WHERE kind = 'file' AND name = 'src/limiter/bucket.ts' AND project_path = ?)`,
+  ).run(PAY);
 
   const cleo = members.byName.get('cleo')!.memberId;
   const omar = members.byName.get('omar')!.memberId;
