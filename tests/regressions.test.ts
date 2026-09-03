@@ -247,6 +247,30 @@ describe('http api', () => {
     await expect(client.exportSession('claude-code:zzzzzzzz')).rejects.toThrow(/matches "zzzzzzzz"/);
   });
 
+  it('hides teammate email and machine from non-owners and the team token', async () => {
+    // ada (owner) exists from beforeEach; register two more whose PII must not leak
+    registerMember(server.db, { name: 'ben', email: 'ben@secret.example', machine: 'ben-laptop' });
+    const cleo = registerMember(server.db, { name: 'cleo', email: 'cleo@secret.example' });
+
+    // the shared team token (handed out just to join) sees names/roles, no PII
+    const teamRows = (await (await call('/api/members', {}, 'test-token')).json()) as {
+      name: string;
+      email: string | null;
+      machine: string | null;
+    }[];
+    expect(teamRows.some((r) => r.name === 'ben')).toBe(true);
+    expect(teamRows.every((r) => r.email === null && r.machine === null)).toBe(true);
+
+    // cleo (a plain member, not owner) sees her own contact details but not others'
+    const rows = (await (await call('/api/members', {}, cleo.memberToken)).json()) as {
+      name: string;
+      email: string | null;
+    }[];
+    expect(rows.find((r) => r.name === 'cleo')?.email).toBe('cleo@secret.example');
+    expect(rows.find((r) => r.name === 'ben')?.email).toBe(null);
+    expect(rows.find((r) => r.name === 'ada')?.email).toBe(null);
+  });
+
   it('answers an unknown /api path with JSON 404, not the dashboard HTML', async () => {
     // the SPA catch-all used to serve index.html here, so clients JSON.parse'd
     // '<!doctype html>' and reported a syntax error instead of a 404

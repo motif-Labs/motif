@@ -157,6 +157,9 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       c.set('memberId' as never, member as never);
       touchMember(db, member);
     }
+    // a valid token clears the failure bucket, so a client that shares an IP with
+    // a burst of bad attempts is not locked out once it authenticates correctly
+    authFailures.delete(key);
     return next();
   });
 
@@ -265,10 +268,23 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   });
 
   app.get('/api/members', (c) => {
+    const viewer = memberId(c);
+    const owner = isOwner(viewer);
     const rows = db
       .prepare('SELECT id, name, email, machine, role, created_at, last_seen_at FROM members ORDER BY id')
-      .all();
-    return c.json(rows);
+      .all() as {
+      id: number;
+      name: string;
+      email: string | null;
+      machine: string | null;
+      role: string;
+      created_at: string;
+      last_seen_at: string | null;
+    }[];
+    // email and machine are PII the token model doesn't otherwise expose. A team
+    // token (handed out just to join) and other members see name/role only; you
+    // see your own contact details, an owner sees everyone's.
+    return c.json(rows.map((r) => (owner || r.id === viewer ? r : { ...r, email: null, machine: null })));
   });
 
   app.get('/api/projects', (c) => {
@@ -1306,8 +1322,16 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       // everyone's personal work, the one thing canView exists to withhold.
       const viewer = memberId(c);
       const unsubscribe = bus.subscribe((e) => {
-        const d = e.data as { memberId?: number; visibility?: string } | undefined;
+        const d = e.data as { memberId?: number; visibility?: string; sessionId?: string } | undefined;
+        // session-upserted carries the owner + visibility inline
         if (d && d.visibility === 'personal' && d.memberId !== viewer) return;
+        // every other session-scoped event (comment, ask, handoff) carries only a
+        // sessionId. Resolve it with the same gate every read route uses, so a
+        // personal session's activity metadata is not leaked to non-owners.
+        if (d && d.visibility === undefined && d.sessionId) {
+          const s = getSessionRow(db, d.sessionId);
+          if (s && !canView(s, viewer)) return;
+        }
         void stream.writeSSE({ event: e.event, data: JSON.stringify(e.data) });
       });
       stream.onAbort(unsubscribe);
