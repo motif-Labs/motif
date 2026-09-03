@@ -181,6 +181,48 @@ describe('recall', () => {
     expect(r.tokensApprox).toBeLessThan(900);
   });
 
+  it('surfaces an unresolved conflict as a warning, not a settled decision', () => {
+    const row = fullReplaceSession(
+      db,
+      alice,
+      session('rlc', '/w/api', [
+        msg('u1', 'user', 'redis outage'),
+        msg('a1', 'assistant', 'limiter behaviour when redis is unreachable'),
+      ]),
+    );
+    const ctx = { projectPath: '/w/api', sessionPk: row.pk, memberId: alice };
+    applyNotes(
+      db,
+      [
+        {
+          entity: { kind: 'decision', name: 'redis outage policy' },
+          aspect: 'limiter',
+          body: 'Fail open when redis is down.',
+        },
+      ],
+      ctx,
+    );
+    applyNotes(
+      db,
+      [
+        {
+          entity: { kind: 'decision', name: 'redis outage policy' },
+          aspect: 'limiter',
+          body: 'Fail closed when redis is down.',
+          contradictsCurrent: true,
+        },
+      ],
+      ctx,
+    );
+    const md = renderRecall(
+      recall(db, { query: 'what happens to the limiter on a redis outage', viewerId: alice }),
+    );
+    expect(md).toContain('Unresolved, the team disagrees');
+    const warnIdx = md.indexOf('Unresolved');
+    const decidedIdx = md.indexOf('What the team already decided');
+    if (decidedIdx !== -1) expect(warnIdx).toBeLessThan(decidedIdx);
+  });
+
   it('never leaks a personal session, and respects the token budget', () => {
     fullReplaceSession(
       db,

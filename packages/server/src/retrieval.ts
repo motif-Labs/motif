@@ -584,10 +584,19 @@ export function renderRecall(result: RecallResult): string {
     return `No prior team context found for "${result.query}".`;
   }
   const lines: string[] = [`# Team context for "${result.query}"`];
-  const notes = result.items.filter((i) => i.kind === 'note');
+  const allNotes = result.items.filter((i) => i.kind === 'note');
   const pins = result.items.filter((i) => i.kind === 'pin');
   const excerpts = result.items.filter((i) => i.kind === 'excerpt');
+  // an unresolved conflict is not a decision: surface it first and as a warning,
+  // so an agent (and a swarm of them) does not quietly pick one side of a
+  // question the team is still arguing about.
+  const conflicted = allNotes.filter((n) => n.why.includes('conflict'));
+  const notes = allNotes.filter((n) => !n.why.includes('conflict'));
 
+  if (conflicted.length > 0) {
+    lines.push('\n## ⚠ Unresolved, the team disagrees (do not pick a side)');
+    for (const n of conflicted) lines.push(`- ${n.text.replace(/\n/g, '\n  ')}`);
+  }
   if (notes.length > 0) {
     lines.push('\n## What the team already decided');
     for (const n of notes) lines.push(`- ${n.text.replace(/\n/g, '\n  ')}`);
