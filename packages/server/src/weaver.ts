@@ -99,37 +99,58 @@ export function findRegressionGaps(db: Db, project?: string): RegressionGap[] {
     member_name: string | null;
   }[];
 
-  const gaps: RegressionGap[] = [];
-  const seen = new Set<string>();
+  // first pass: keep only sessions that changed code without touching a test
+  interface Cand {
+    r: (typeof rows)[number];
+    codeFile: string;
+    isFix: boolean;
+    isFeature: boolean;
+  }
+  const cands: Cand[] = [];
   for (const r of rows) {
     const files = JSON.parse(r.files_touched || '[]') as string[];
     const codeFile = files.find((f) => CODE_RE.test(f) && !TEST_RE.test(f));
     const touchedTest = files.some((f) => TEST_RE.test(f));
     if (!codeFile || touchedTest) continue;
-
     const title = r.title ?? '';
-    const isFix = FIX_RE.test(title);
-    const isFeature = FEATURE_RE.test(title);
+    cands.push({ r, codeFile, isFix: FIX_RE.test(title), isFeature: FEATURE_RE.test(title) });
+  }
 
-    // the receipt: what the record already knows about this change
-    const notes = db
+  // the receipts, in ONE query for every candidate instead of one query per
+  // session. /api/overview calls this on every load, so the old per-session
+  // lookup was up to 400 queries against memory_notes each time.
+  const notesByPk = new Map<number, string[]>();
+  if (cands.length > 0) {
+    const pks = cands.map((c) => c.r.pk);
+    const ph = pks.map(() => '?').join(',');
+    for (const row of db
       .prepare(
-        `SELECT n.body FROM memory_notes n
-         WHERE n.source_session_pk = ? AND n.status = 'current' AND n.verification != 'retired' LIMIT 3`,
+        `SELECT source_session_pk AS pk, body FROM memory_notes
+         WHERE source_session_pk IN (${ph}) AND status = 'current' AND verification != 'retired'`,
       )
-      .all(r.pk) as { body: string }[];
+      .all(...pks) as { pk: number; body: string }[]) {
+      const list = notesByPk.get(row.pk) ?? [];
+      if (list.length < 3) list.push(row.body); // the old query's LIMIT 3
+      notesByPk.set(row.pk, list);
+    }
+  }
 
+  const gaps: RegressionGap[] = [];
+  const seen = new Set<string>();
+  for (const { r, codeFile, isFix, isFeature } of cands) {
+    const notes = notesByPk.get(r.pk) ?? [];
     // a change earns a gap if it looks like a fix/feature OR the memory kept it
     if (!isFix && !isFeature && notes.length === 0) continue;
 
     const key = `${r.project_path}::${codeFile}`;
-    if (seen.has(key)) continue; // one gap per file, freshest wins
+    if (seen.has(key)) continue; // one gap per file, freshest that qualifies wins
     seen.add(key);
 
+    const title = r.title ?? '';
     const changeKind: ChangeKind = isFix ? 'fix' : isFeature ? 'feature' : 'change';
     const context = [
       `Session "${title}" changed ${codeFile} and added no test.`,
-      ...notes.map((n) => `Record: ${n.body}`),
+      ...notes.map((n) => `Record: ${n}`),
     ].join('\n');
 
     gaps.push({

@@ -256,20 +256,6 @@ function visibleSessions(
   return map;
 }
 
-/** Jaccard overlap of two touched-file lists. */
-function fileOverlap(a: string, b: string): number {
-  try {
-    const A = new Set(JSON.parse(a) as string[]);
-    const B = new Set(JSON.parse(b) as string[]);
-    if (A.size === 0 || B.size === 0) return 0;
-    let inter = 0;
-    for (const f of A) if (B.has(f)) inter++;
-    return inter === 0 ? 0 : inter / (A.size + B.size - inter);
-  } catch {
-    return 0;
-  }
-}
-
 export function recall(db: Db, opts: RecallOptions): RecallResult {
   const budget = opts.budget ?? 1500;
   const excerptChars = opts.excerptChars ?? 700;
@@ -346,13 +332,26 @@ export function recall(db: Db, opts: RecallOptions): RecallResult {
       .all(...seeds) as { pk: number; entity: string }[]) {
       addEdge(row.pk, 0.6, `shares memory entity "${row.entity}"`);
     }
-    // overlapping files
+    // overlapping files: parse each session's touched-file list ONCE into a set
+    // and reuse it. This loop is seeds x sessions, and re-parsing both JSON
+    // lists on every pair was the cost (~8xN parses per recall).
+    const fileSets = new Map<number, Set<string>>();
+    for (const [pk, s] of sessions) {
+      try {
+        fileSets.set(pk, new Set(JSON.parse(s.files_touched) as string[]));
+      } catch {
+        fileSets.set(pk, new Set());
+      }
+    }
     for (const seed of seeds) {
-      const a = sessions.get(seed);
-      if (!a) continue;
-      for (const [pk, b] of sessions) {
-        if (pk === seed) continue;
-        const j = fileOverlap(a.files_touched, b.files_touched);
+      const A = fileSets.get(seed);
+      if (!A || A.size === 0) continue;
+      for (const [pk, B] of fileSets) {
+        if (pk === seed || B.size === 0) continue;
+        let inter = 0;
+        for (const f of A) if (B.has(f)) inter++;
+        if (inter === 0) continue;
+        const j = inter / (A.size + B.size - inter);
         if (j > 0.2) addEdge(pk, 0.3 + j * 0.3, 'touched the same files');
       }
     }
@@ -424,12 +423,24 @@ export function recall(db: Db, opts: RecallOptions): RecallResult {
   }
 
   // ── 4. curated knowledge: human pins ────────────────────────────────────
+  // only pins on sessions this viewer can see (and, when scoped, this project).
+  // The visibility predicate lives in SQL so recall does not read the whole
+  // comments table on every call; the sessions.has() guard below still holds.
   const pinRows = db
     .prepare(
       `SELECT c.body, c.created_at, c.session_pk, m.name AS author
-       FROM session_comments c LEFT JOIN members m ON m.id = c.author_id`,
+       FROM session_comments c
+       JOIN sessions s ON s.pk = c.session_pk
+       LEFT JOIN members m ON m.id = c.author_id
+       WHERE (s.visibility = 'team' OR s.member_id = ?)
+       ${opts.project ? 'AND s.project_path = ?' : ''}`,
     )
-    .all() as { body: string; created_at: string; session_pk: number; author: string | null }[];
+    .all(...[opts.viewerId ?? -1, ...(opts.project ? [opts.project] : [])]) as {
+    body: string;
+    created_at: string;
+    session_pk: number;
+    author: string | null;
+  }[];
   let contextOnlyPins = 0;
   for (const p of pinRows) {
     const s = sessions.get(p.session_pk);

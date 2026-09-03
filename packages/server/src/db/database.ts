@@ -279,6 +279,18 @@ const MIGRATIONS: string[] = [
   // deleting personal evidence PUBLISHED the claim. The orphaned note now
   // keeps a snapshot of the visibility it died with.
   `ALTER TABLE memory_notes ADD COLUMN orphan_visibility TEXT;`,
+  // v12, indexes for the joins that grow with the corpus. Recall, the Weave
+  // graph and the overview all reach a note by its source session, and every
+  // session-scoped route looks a session up by its id / source id; the handoff
+  // lineage walk joins on both handoff keys. None of these had a covering index,
+  // so they degraded superlinearly as sessions and notes accumulated.
+  `
+  CREATE INDEX IF NOT EXISTS idx_notes_source ON memory_notes(source_session_pk);
+  CREATE INDEX IF NOT EXISTS idx_sessions_id ON sessions(id);
+  CREATE INDEX IF NOT EXISTS idx_sessions_ssid ON sessions(source_session_id);
+  CREATE INDEX IF NOT EXISTS idx_handoffs_session ON handoffs(session_pk);
+  CREATE INDEX IF NOT EXISTS idx_handoffs_target ON handoffs(target_session_id);
+  `,
 ];
 
 export function openDb(dbPath: string): Db {
