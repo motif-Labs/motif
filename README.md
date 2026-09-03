@@ -163,7 +163,8 @@ the tool, the session, and `motif show` opens the conversation.
 **Measured, not asserted.** Against **1.77M tokens** of real session history,
 `recall` answers **8 of 9** questions inside a 1,500-token budget, a median
 bundle of 1,496 tokens, **1,186× smaller** than the history it searched.
-Reproduce it on your own corpus with `npm run bench`.
+Reproduce it on your own corpus with `npm run bench`, or on the built-in demo
+corpus (same numbers on any machine) with `npm run bench:demo`.
 
 Every claim carries one **confidence** number, corroboration and a human's vouch
 raise it; conflict, staleness and age lower it, and recall ranks and labels by

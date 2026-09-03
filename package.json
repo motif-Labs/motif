@@ -12,6 +12,7 @@
     "test": "vitest run",
     "typecheck": "tsc -b packages/core packages/cli packages/server",
     "bench": "tsx bench/run.ts",
+    "bench:demo": "tsx bench/demo.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
