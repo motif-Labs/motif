@@ -1490,6 +1490,12 @@ function WeavePage() {
     let dragging: GNode | null = null;
     let dragMoved = false;
     let alpha = 1;
+    // viewport: scroll to zoom toward the cursor, drag empty space to pan, so a
+    // dense weave is explorable instead of a fixed ball. Screen = graph*scale+pan.
+    let scale = 1;
+    let panX = 0;
+    let panY = 0;
+    let panning: { sx: number; sy: number; px: number; py: number } | null = null;
 
     const resize = () => {
       const r = canvas.getBoundingClientRect();
@@ -1518,8 +1524,12 @@ function WeavePage() {
     // a denser weave needs more room and fewer standing labels, or it collapses
     // into an unreadable ball. Spread scales with size; only the biggest hubs
     // carry a label at rest (the rest reveal on hover).
-    const spread = Math.min(2.4, Math.max(1, nodes.length / 45));
+    const spread = Math.min(3.4, Math.max(1, nodes.length / 38));
     const dense = nodes.length > 60;
+    // a big weave starts zoomed out to fit, centred; the user scrolls in to read
+    scale = dense ? 0.62 : 1;
+    panX = (W() / 2) * (1 - scale);
+    panY = (H() / 2) * (1 - scale);
     const labeled = new Set(
       (dense
         ? nodes
@@ -1617,7 +1627,9 @@ function WeavePage() {
     };
 
     const draw = () => {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, W(), H());
+      ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * panX, dpr * panY);
       const hov = hoverRef.current;
       const near = hov ? (adj.get(hov) ?? new Set()) : null;
       // edges, gentle curves, lit ones glow like a synapse firing
@@ -1629,8 +1641,9 @@ function WeavePage() {
         // informs (a session that used a decision) reads in a faint accent, not
         // the near-invisible border, so "this agent pulled on that memory" shows
         ctx.strokeStyle = e.kind === 'contests' ? red : e.kind === 'relates' ? accent : lit ? accent : faint;
-        ctx.globalAlpha = hov ? (lit ? 1 : 0.08) : e.kind === 'relates' ? 0.45 : 0.4;
-        ctx.lineWidth = lit ? 1.8 : e.kind === 'relates' ? 1.2 : 1.0;
+        // a dense weave needs airier ties or it reads as a hairball
+        ctx.globalAlpha = hov ? (lit ? 1 : 0.05) : (e.kind === 'relates' ? 0.42 : 0.36) / (dense ? 2.6 : 1);
+        ctx.lineWidth = (lit ? 1.8 : e.kind === 'relates' ? 1.1 : 0.9) / (dense ? 1.5 : 1);
         ctx.shadowBlur = lit ? 8 : 0;
         ctx.shadowColor = e.kind === 'contests' ? red : accent;
         if (e.kind === 'contests') ctx.setLineDash([3, 4]);
@@ -1766,11 +1779,11 @@ function WeavePage() {
     };
     wake();
 
-    const pick = (mx: number, my: number): GNode | null => {
+    const pick = (gx: number, gy: number): GNode | null => {
       let best: GNode | null = null;
-      let bd = 14;
+      let bd = 14 / scale; // ~14 screen px regardless of zoom
       for (const n of nodes) {
-        const d = Math.hypot(n.x! - mx, n.y! - my);
+        const d = Math.hypot(n.x! - gx, n.y! - gy);
         if (d < bd) {
           bd = d;
           best = n;
@@ -1782,50 +1795,73 @@ function WeavePage() {
       const r = canvas.getBoundingClientRect();
       return [ev.clientX - r.left, ev.clientY - r.top];
     };
+    const toGraph = (sx: number, sy: number): [number, number] => [(sx - panX) / scale, (sy - panY) / scale];
     const onDown = (ev: MouseEvent) => {
-      const [mx, my] = at(ev);
-      const hit = pick(mx, my);
-      if (!hit) return;
-      dragging = hit;
-      dragMoved = false;
-      hoverRef.current = hit.id;
-      canvas.style.cursor = 'grabbing';
+      const [sx, sy] = at(ev);
+      const hit = pick(...toGraph(sx, sy));
+      if (hit) {
+        dragging = hit;
+        dragMoved = false;
+        hoverRef.current = hit.id;
+        canvas.style.cursor = 'grabbing';
+      } else {
+        panning = { sx, sy, px: panX, py: panY }; // empty space: pan the view
+        canvas.style.cursor = 'grabbing';
+      }
       ev.preventDefault(); // do not start a text selection on the page
     };
     const onMove = (ev: MouseEvent) => {
-      const [mx, my] = at(ev);
+      const [sx, sy] = at(ev);
       if (dragging) {
-        // pin the node to the cursor and keep the weave lively so its ties follow
-        dragging.x = mx;
-        dragging.y = my;
+        const [gx, gy] = toGraph(sx, sy);
+        dragging.x = gx;
+        dragging.y = gy;
         dragging.vx = 0;
         dragging.vy = 0;
         dragMoved = true;
         alpha = Math.max(alpha, 0.3);
-        setPreview({ node: dragging, ties: adj.get(dragging.id)?.size ?? 0, x: mx, y: my });
+        setPreview({ node: dragging, ties: adj.get(dragging.id)?.size ?? 0, x: sx, y: sy });
         wake();
         return;
       }
-      const hit = pick(mx, my);
+      if (panning) {
+        panX = panning.px + (sx - panning.sx);
+        panY = panning.py + (sy - panning.sy);
+        wake();
+        return;
+      }
+      const hit = pick(...toGraph(sx, sy));
       const changed = (hit?.id ?? null) !== hoverRef.current;
       hoverRef.current = hit?.id ?? null;
       canvas.style.cursor = hit ? 'grab' : 'default';
       if (changed) {
-        setPreview(hit ? { node: hit, ties: adj.get(hit.id)?.size ?? 0, x: hit.x!, y: hit.y! } : null);
+        setPreview(hit ? { node: hit, ties: adj.get(hit.id)?.size ?? 0, x: sx, y: sy } : null);
         wake();
       }
     };
     const onUp = () => {
-      if (!dragging) return;
-      canvas.style.cursor = 'grab';
-      dragging = null;
-      alpha = Math.max(alpha, 0.15); // let the neighbours resettle
+      if (dragging) {
+        dragging = null;
+        alpha = Math.max(alpha, 0.15); // let the neighbours resettle
+      }
+      panning = null;
+      canvas.style.cursor = 'default';
       wake();
     };
     const onLeave = () => {
-      if (dragging) return; // keep dragging even if the cursor grazes the edge
+      if (dragging || panning) return; // keep the gesture even if the cursor grazes the edge
       hoverRef.current = null;
       setPreview(null);
+      wake();
+    };
+    const onWheel = (ev: WheelEvent) => {
+      ev.preventDefault();
+      const [sx, sy] = at(ev);
+      const next = Math.min(4, Math.max(0.25, scale * Math.exp(-ev.deltaY * 0.0012)));
+      // keep the graph point under the cursor fixed while zooming
+      panX = sx - ((sx - panX) * next) / scale;
+      panY = sy - ((sy - panY) * next) / scale;
+      scale = next;
       wake();
     };
     const onClick = (ev: MouseEvent) => {
@@ -1833,8 +1869,7 @@ function WeavePage() {
         dragMoved = false;
         return; // a drag is not a navigation
       }
-      const [mx, my] = at(ev);
-      const hit = pick(mx, my);
+      const hit = pick(...toGraph(...at(ev)));
       if (hit?.type === 'entity') location.hash = `#/memory/${hit.id.slice(1)}`;
       if (hit?.type === 'session' && hit.sessionId)
         location.hash = `#/sessions/${encodeURIComponent(hit.sessionId)}`;
@@ -1844,6 +1879,7 @@ function WeavePage() {
     window.addEventListener('mouseup', onUp);
     canvas.addEventListener('mouseleave', onLeave);
     canvas.addEventListener('click', onClick);
+    canvas.addEventListener('wheel', onWheel, { passive: false });
 
     return () => {
       cancelAnimationFrame(raf);
@@ -1853,6 +1889,7 @@ function WeavePage() {
       window.removeEventListener('mouseup', onUp);
       canvas.removeEventListener('mouseleave', onLeave);
       canvas.removeEventListener('click', onClick);
+      canvas.removeEventListener('wheel', onWheel);
     };
   }, [data]);
 
