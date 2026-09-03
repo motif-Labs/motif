@@ -139,6 +139,48 @@ describe('recall', () => {
     expect(r.items.map((i) => i.text).join()).toContain('httpOnly');
   });
 
+  it('keeps the bundle tight: a distilled note answers, excerpts do not pad to the budget', () => {
+    const row = fullReplaceSession(
+      db,
+      alice,
+      session('rl', '/w/api', [
+        msg('u1', 'user', 'rate limiting'),
+        msg('a1', 'assistant', 'We rate limit by API key.'),
+      ]),
+    );
+    applyNotes(
+      db,
+      [
+        {
+          entity: { kind: 'decision', name: 'rate limiting' },
+          aspect: 'design',
+          body: 'Redis token bucket keyed by API key, 100 req/min, burst 20.',
+        },
+      ],
+      { projectPath: '/w/api', sessionPk: row.pk, memberId: alice },
+    );
+    // fifteen sessions that redundantly repeat the same terms: pure padding
+    for (let i = 0; i < 15; i++) {
+      fullReplaceSession(
+        db,
+        alice,
+        session(`pad${i}`, '/w/api', [
+          msg('u1', 'user', 'rate limiting api key bucket'),
+          msg('a1', 'assistant', 'The rate limit uses the api key for the bucket, 100 req/min.'),
+        ]),
+      );
+    }
+    const r = recall(db, {
+      query: 'how is the rate limiter keyed and what is the request limit',
+      viewerId: alice,
+      budget: 1500,
+    });
+    // the answer is present (the note), the bundle is tight, not budget-padded
+    expect(r.items.some((i) => i.kind === 'note')).toBe(true);
+    expect(r.items.filter((i) => i.kind === 'excerpt').length).toBeLessThanOrEqual(6);
+    expect(r.tokensApprox).toBeLessThan(900);
+  });
+
   it('never leaks a personal session, and respects the token budget', () => {
     fullReplaceSession(
       db,

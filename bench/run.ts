@@ -30,7 +30,6 @@ const dbPath = arg('db') ?? process.env.MOTIF_DB_PATH ?? path.join(os.homedir(),
 const questionsPath =
   arg('questions') ?? path.join(path.dirname(new URL(import.meta.url).pathname), 'questions.json');
 const budget = Number(arg('budget', '1500'));
-const anyMember = (db.prepare('SELECT id FROM members LIMIT 1').get() as { id: number } | undefined)?.id;
 
 if (!fs.existsSync(dbPath)) {
   console.error(`No database at ${dbPath}. Run \`motif up\` once, then retry.`);
@@ -38,6 +37,7 @@ if (!fs.existsSync(dbPath)) {
 }
 
 const db: Db = openDb(dbPath);
+const anyMember = (db.prepare('SELECT id FROM members LIMIT 1').get() as { id: number } | undefined)?.id;
 const questions = JSON.parse(fs.readFileSync(questionsPath, 'utf8')) as Question[];
 
 /** Everything an agent would have to read to rediscover this by itself. */

@@ -497,12 +497,41 @@ export function recall(db: Db, opts: RecallOptions): RecallResult {
     items.push(c);
   }
 
-  // ── 6. pack to budget: curated first, then excerpts by score ────────────
+  // ── 6. pack to budget: curated first, then excerpts that ADD information ──
+  // The budget is a ceiling, not a target. Distilled notes usually already hold
+  // the answer, so an excerpt only earns its tokens if it clears a relevance
+  // floor AND covers a query term the bundle does not yet cover. This keeps the
+  // bundle tight (the whole point is a small, high-signal handoff) instead of
+  // padding to the budget with near-duplicate paragraphs.
+  const EXCERPT_FLOOR = 0.34; // below this an excerpt is noise, not an answer
+  const EXCERPT_CAP = 6; // enough to corroborate; more is padding
   items.sort((a, b) => a.priority - b.priority || b.score - a.score);
   const packed: RecallItem[] = [];
   let used = 0;
+  let excerptsPacked = 0;
+  const coveredTerms = new Set<string>();
+  const noteText = items
+    .filter((i) => i.priority === 0)
+    .map((i) => i.text.toLowerCase())
+    .join(' ');
+  for (const t of terms) if (termHitIndex(noteText, t) !== -1) coveredTerms.add(t);
   for (const item of items) {
     if (used + item.tokens > budget && packed.length > 0) continue;
+    if (item.kind === 'excerpt') {
+      if (excerptsPacked >= EXCERPT_CAP) continue;
+      const lower = item.text.toLowerCase();
+      // the two strongest excerpts always stand: they cite a source for what the
+      // notes assert, and when there are no notes they ARE the answer. Past the
+      // first two, an excerpt must clear the relevance floor AND add a query term
+      // the bundle does not yet cover, or it is just padding.
+      if (excerptsPacked >= 2) {
+        if (item.score < EXCERPT_FLOOR) continue;
+        const adds = terms.some((t) => !coveredTerms.has(t) && termHitIndex(lower, t) !== -1);
+        if (!adds) continue;
+      }
+      excerptsPacked++;
+      for (const t of terms) if (termHitIndex(lower, t) !== -1) coveredTerms.add(t);
+    }
     packed.push(item);
     used += item.tokens;
   }

@@ -1,0 +1,16 @@
+[
+  { "q": "how is the rate limiter keyed", "expect": ["api key"] },
+  { "q": "how long are idempotency keys retained", "expect": ["24h"] },
+  { "q": "what rate limit do enterprise plans get", "expect": ["1000"] },
+  { "q": "what status does a reused idempotency key with a different body return", "expect": ["422"] },
+  { "q": "how does auth behave when the token service times out", "expect": ["closed"] },
+  { "q": "why is the limiter keyed by api key instead of ip address", "expect": ["nat"] },
+  { "q": "how does the nightly billing job run", "expect": ["per-account"] },
+  { "q": "what is the session expiry policy", "expect": ["8h"] },
+  { "q": "when does the circuit breaker open", "expect": ["five"] },
+  { "q": "what does a token service outage produce", "expect": ["401"] },
+  { "q": "what is the default requests per minute rate limit", "expect": ["100"] },
+  { "q": "what burst allowance does the rate limiter give", "expect": ["burst"] },
+  { "q": "does the limiter fail open or closed when redis is unreachable", "expect": ["open"] },
+  { "q": "what retry-after do rate limited clients receive", "expect": ["retry-after"] }
+]
