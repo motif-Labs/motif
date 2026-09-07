@@ -169,6 +169,44 @@ describe('a ruling queues work, unless its evidence is personal', () => {
     const jobs = await stageConflictAndRule(true);
     expect(jobs).toBe(0);
   });
+
+  it("'prefer' over ORPHANED personal evidence still queues nothing, the source session is gone but it stays private", async () => {
+    const ada = registerMember(server.db, { name: 'ada', email: `a${Math.random()}@example.com` });
+    const src = fullReplaceSession(server.db, ada.memberId, session('orphaned'));
+    server.db.prepare('UPDATE sessions SET visibility = ? WHERE pk = ?').run('personal', src.pk);
+    const mk = (body: string, extra = {}) =>
+      applyNotes(
+        server.db,
+        [{ entity: { kind: 'decision', name: 'policy-orphan' }, aspect: 'a', body, ...extra }],
+        {
+          projectPath: '/workspace/app',
+          sessionPk: src.pk,
+          memberId: ada.memberId,
+        },
+      );
+    mk('loser claim');
+    mk('winner claim', { contradictsCurrent: true });
+    // delete the evidence session: notes orphan, but orphan_visibility preserves
+    // that they were personal (mirrors the DELETE /api/sessions/:id path).
+    server.db
+      .prepare(
+        "UPDATE memory_notes SET source_session_pk = NULL, orphan_visibility = 'personal' WHERE source_session_pk = ?",
+      )
+      .run(src.pk);
+    server.db.prepare('DELETE FROM messages_fts WHERE session_pk = ?').run(src.pk);
+    server.db.prepare('DELETE FROM sessions WHERE pk = ?').run(src.pk);
+
+    const challenger = server.db
+      .prepare("SELECT id FROM memory_notes WHERE body = 'winner claim' AND status = 'conflicted'")
+      .get() as { id: number };
+    const res = await fetch(`${base}/api/memory/notes/${challenger.id}/verdict`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${ada.memberToken}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ verdict: 'prefer' }),
+    });
+    expect(res.status).toBe(200);
+    expect((server.db.prepare('SELECT COUNT(*) AS n FROM weaver_jobs').get() as { n: number }).n).toBe(0);
+  });
 });
 
 describe('performWeaverJob, the rails, against a real git repository', () => {

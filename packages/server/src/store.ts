@@ -518,6 +518,10 @@ export function searchSessions(
   viewerId?: number,
   project?: string,
 ): (SessionListItem & { snippet: string })[] {
+  // an empty or whitespace query yields no FTS terms, and MATCH '' throws in
+  // FTS5, so return nothing rather than a raw error, the MCP search tool does
+  // not pre-trim the query the way the HTTP route does.
+  if (!ftsQuery(q)) return [];
   const rows = db
     .prepare(
       `WITH f AS MATERIALIZED (
@@ -583,9 +587,19 @@ export function parseMentions(db: Db, body: string): number[] {
   if (!body.includes('@')) return [];
   const members = db.prepare('SELECT id, name FROM members').all() as { id: number; name: string }[];
   const lower = body.toLowerCase();
+  // `@name` matches only when the next character is a word boundary, so `@benjamin`
+  // never spuriously mentions a member named `ben`.
+  const mentioned = (name: string): boolean => {
+    const needle = `@${name.toLowerCase()}`;
+    for (let i = lower.indexOf(needle); i !== -1; i = lower.indexOf(needle, i + 1)) {
+      const after = lower[i + needle.length];
+      if (after === undefined || !/[a-z0-9_]/.test(after)) return true;
+    }
+    return false;
+  };
   return members
     .sort((a, b) => b.name.length - a.name.length)
-    .filter((m) => lower.includes(`@${m.name.toLowerCase()}`))
+    .filter((m) => mentioned(m.name))
     .map((m) => m.id);
 }
 

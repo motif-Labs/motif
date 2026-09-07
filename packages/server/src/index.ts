@@ -842,8 +842,14 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     const out = resolveWeaverJob(db, Number(c.req.param('id')), body.resolution);
     if (!out) return c.json({ error: 'no such job' }, 404);
     if (out.reopenedNoteId) {
-      // a ruling's fix was rejected, the ruling is back in doubt
-      bus.publish('memory-reviewed', { noteId: out.reopenedNoteId, verdict: 'disputed', reviewerId: -1 });
+      // a ruling's fix was rejected, the ruling is back in doubt. A Weaver job
+      // only ever exists for a team-visible ruling, so the reopened note is team.
+      bus.publish('memory-reviewed', {
+        noteId: out.reopenedNoteId,
+        verdict: 'disputed',
+        reviewerId: -1,
+        visibility: 'team',
+      });
     }
     return c.json({ job: out.job, reopenedNote: out.reopenedNoteId ?? null });
   });
@@ -907,9 +913,23 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       "SELECT COUNT(DISTINCT project_path) AS n FROM sessions WHERE (visibility='team' OR member_id=?) AND project_path != ''",
       viewer,
     );
-    const decisions = one("SELECT COUNT(*) AS n FROM memory_entities WHERE kind='decision'");
+    // both counts are gated by the same visibility predicate as every sibling
+    // count here, so the overview never reveals the volume of memory distilled
+    // from another member's personal sessions.
+    const decisions = one(
+      `SELECT COUNT(DISTINCT e.id) AS n FROM memory_entities e
+       JOIN memory_notes n ON n.entity_id = e.id
+       LEFT JOIN sessions s ON s.pk = n.source_session_pk
+       WHERE e.kind='decision' AND n.verification!='retired'
+         AND (COALESCE(s.visibility, n.orphan_visibility, 'team') != 'personal' OR COALESCE(s.member_id, n.member_id) = ?)`,
+      viewer,
+    );
     const conflicts = one(
-      "SELECT COUNT(*) AS n FROM memory_notes WHERE status='conflicted' AND verification!='retired'",
+      `SELECT COUNT(*) AS n FROM memory_notes n
+       LEFT JOIN sessions s ON s.pk = n.source_session_pk
+       WHERE n.status='conflicted' AND n.verification!='retired'
+         AND (COALESCE(s.visibility, n.orphan_visibility, 'team') != 'personal' OR COALESCE(s.member_id, n.member_id) = ?)`,
+      viewer,
     );
     const gaps = findRegressionGaps(db).length;
 
@@ -1278,7 +1298,17 @@ export function createServer(config: ServerConfig = {}): MotifServer {
         overNoteId: body.overNoteId,
         reason: body.reason,
       });
-      bus.publish('memory-reviewed', { noteId: note.id, verdict: body.verdict!, reviewerId: reviewer });
+      // carry the ruled note's effective visibility + owner so the SSE gate
+      // withholds a personal-note ruling (even its metadata) from non-owners.
+      const ruledVisibility =
+        (note.session_visibility ?? note.orphan_visibility ?? 'team') === 'personal' ? 'personal' : 'team';
+      bus.publish('memory-reviewed', {
+        noteId: note.id,
+        verdict: body.verdict!,
+        reviewerId: reviewer,
+        visibility: ruledVisibility,
+        memberId: note.session_member_id ?? note.note_member_id ?? undefined,
+      });
 
       // A ruling can imply work in the repo: docs and code may still say what
       // the losing claim said. Queue it for the Weaver, unless either side's
@@ -1287,12 +1317,18 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       if (body.verdict === 'prefer' && loserId !== null) {
         const loser = db
           .prepare(
-            `SELECT n.body, s.id AS session_id, s.visibility
+            `SELECT n.body, s.id AS session_id,
+                    COALESCE(s.visibility, n.orphan_visibility, 'team') AS visibility
              FROM memory_notes n LEFT JOIN sessions s ON s.pk = n.source_session_pk
              WHERE n.id = ?`,
           )
           .get(loserId) as { body: string; session_id: string | null; visibility: string | null } | undefined;
-        const bothTeamVisible = note.session_visibility !== 'personal' && loser?.visibility !== 'personal';
+        // Effective visibility must fall back to orphan_visibility: a personal note
+        // whose source session was later deleted still must not reach a daemon a
+        // stranger cannot read. Without the coalesce, s.visibility is NULL and the
+        // orphaned personal claim leaks into a broadcast Weaver job.
+        const winnerVisible = (note.session_visibility ?? note.orphan_visibility ?? 'team') !== 'personal';
+        const bothTeamVisible = winnerVisible && loser?.visibility !== 'personal';
         if (loser && bothTeamVisible && note.project_path) {
           const payload: WeaverPayload = {
             kind: 'ruling',

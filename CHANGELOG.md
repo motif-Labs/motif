@@ -15,6 +15,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   confidence. A personal session can only ever flag a conflict for its owner,
   never silently supersede a shared team decision.
 
+### Security
+
+- Close the privacy seams that distilling personal sessions could open. An
+  orphaned personal note (whose source session was deleted) can no longer leak
+  into a broadcast Weaver job; the overview's decision and conflict counts are
+  gated by the same visibility rule as every other count; and the live memory
+  events (updated, conflict, reviewed) now carry their owner, so the event
+  stream withholds a personal session's distilled activity from non-owners.
+
+### Fixed
+
+- A corrupt Cursor timestamp no longer throws out of the reader and drops the
+  whole session; an unparseable time is treated as unknown.
+- `@mention` matching respects word boundaries, so `@benjamin` no longer
+  notifies a member named `ben`.
+- An empty search query returns no results instead of a raw FTS error on the
+  MCP `search_sessions` tool.
+
 ## [1.3.3] - 2026-09-02
 
 ### Added

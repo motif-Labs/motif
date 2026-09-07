@@ -151,7 +151,13 @@ export function discoverCursorConversations(dbPath = defaultCursorDb()): CursorC
   }
 }
 
-const iso = (ms: number | undefined) => (ms ? new Date(ms).toISOString() : '');
+const iso = (ms: number | undefined) => {
+  // A corrupt or out-of-range timestamp must not throw out of the whole read,
+  // the reader's contract is that unknown shapes are skipped, never fatal.
+  if (!ms || !Number.isFinite(ms)) return '';
+  const d = new Date(ms);
+  return Number.isNaN(d.getTime()) ? '' : d.toISOString();
+};
 
 function bubbleText(b: Record<string, unknown>): string {
   if (typeof b.text === 'string' && b.text.trim()) return b.text;

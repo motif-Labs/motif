@@ -307,7 +307,12 @@ export async function runMemoryTick(
       sessionPk: s.pk,
       memberId: s.member_id,
     });
-    for (const conflict of conflicts) bus.publish('memory-conflict', conflict);
+    // A personal session's entity names are private, so its live events carry
+    // the owner + visibility and the SSE gate withholds them from non-owners,
+    // exactly as it does for a personal session's other activity.
+    const evtVisibility = scope.visibility === 'personal' ? 'personal' : 'team';
+    for (const conflict of conflicts)
+      bus.publish('memory-conflict', { ...conflict, visibility: evtVisibility, memberId: s.member_id });
     db.prepare('UPDATE sessions SET last_extracted_seq = ? WHERE pk = ?').run(s.max_seq + 1, s.pk);
     processed++;
     opts.log?.(`memory: ${notes.length} note(s) from ${s.id}`);
@@ -317,7 +322,13 @@ export async function runMemoryTick(
         kind: string;
         name: string;
       };
-      bus.publish('memory-updated', { entityId: e.id, kind: e.kind, name: e.name });
+      bus.publish('memory-updated', {
+        entityId: e.id,
+        kind: e.kind,
+        name: e.name,
+        visibility: evtVisibility,
+        memberId: s.member_id,
+      });
     }
   }
   return processed;

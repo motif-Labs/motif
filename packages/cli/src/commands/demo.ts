@@ -149,6 +149,7 @@ export function registerDemo(program: Command): void {
         server.bus.publish('memory-conflict', {
           entity: 'redis outage policy',
           aspect: 'limiter behaviour',
+          visibility: 'team',
         });
         await beat(600);
         console.log('    ⚖️  CONFLICT, “redis outage policy”');
@@ -190,6 +191,7 @@ export function registerDemo(program: Command): void {
           noteId: winnerId,
           verdict: 'prefer',
           reviewerId: you.memberId,
+          visibility: 'team',
         });
         console.log(
           `    ruled: fail ${pick === '2' ? 'CLOSED' : 'OPEN'} · recorded with who, over what, and why · recall obeys instantly\n`,

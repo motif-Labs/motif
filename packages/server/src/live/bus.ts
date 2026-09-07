@@ -11,9 +11,27 @@ export interface LiveEvents {
     updatedAt?: string;
     messageCount: number;
   };
-  'memory-updated': { entityId: number; kind: string; name: string };
-  'memory-reviewed': { noteId: number; verdict: string; reviewerId: number };
-  'memory-conflict': { entity: string; aspect: string };
+  // These three carry the source note's visibility + owner so the SSE gate
+  // withholds a personal session's distilled activity from non-owners, exactly
+  // as it does for session-scoped events.
+  // `memberId` is required whenever `visibility` is 'personal' (the gate drops
+  // the event for anyone but that owner); it is unused, and may be omitted, for
+  // 'team' events, which reach everyone.
+  'memory-updated': {
+    entityId: number;
+    kind: string;
+    name: string;
+    visibility: 'team' | 'personal';
+    memberId?: number;
+  };
+  'memory-reviewed': {
+    noteId: number;
+    verdict: string;
+    reviewerId: number;
+    visibility: 'team' | 'personal';
+    memberId?: number;
+  };
+  'memory-conflict': { entity: string; aspect: string; visibility: 'team' | 'personal'; memberId?: number };
   'weaver-job': { jobId: number; projectPath: string };
   'weaver-completed': { jobId: number; status: string; prUrl?: string };
   'member-joined': { memberId: number; name: string };
