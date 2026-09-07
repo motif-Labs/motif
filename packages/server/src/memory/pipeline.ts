@@ -51,17 +51,86 @@ function parseNotes(raw: unknown): ExtractedNote[] {
   );
 }
 
-function currentNotesForProject(db: Db, projectPath: string): string {
+/**
+ * The lane a note belongs to. Team notes are shared; a personal note belongs to
+ * one member and never crosses to another. A distillation run works in exactly
+ * one lane: a team session produces team notes, a personal session produces
+ * notes only its owner can ever read, contest, or supersede.
+ */
+export interface NoteScope {
+  visibility: 'team' | 'personal';
+  memberId: number | null;
+}
+
+const TEAM_SCOPE: NoteScope = { visibility: 'team', memberId: null };
+
+/**
+ * The notes shown to the model as "what we already know". A team run sees team
+ * notes only, so a member's private memory never bleeds into a shared note. A
+ * personal run sees team notes plus that member's own personal notes. This is
+ * the same visibility predicate recall uses, kept identical on purpose.
+ */
+function currentNotesForProject(db: Db, projectPath: string, scope: NoteScope): string {
+  const ownerId = scope.visibility === 'personal' ? (scope.memberId ?? -1) : -1;
   const rows = db
     .prepare(
       `SELECT e.kind, e.name, n.aspect, n.body FROM memory_notes n
        JOIN memory_entities e ON e.id = n.entity_id
+       LEFT JOIN sessions s ON s.pk = n.source_session_pk
        WHERE n.status = 'current' AND e.project_path = ?
+         AND (COALESCE(s.visibility, n.orphan_visibility, 'team') != 'personal'
+              OR COALESCE(s.member_id, n.member_id) = ?)
        ORDER BY e.kind, e.name LIMIT 200`,
     )
-    .all(projectPath) as { kind: string; name: string; aspect: string; body: string }[];
+    .all(projectPath, ownerId) as { kind: string; name: string; aspect: string; body: string }[];
   if (rows.length === 0) return '(no notes yet)';
   return rows.map((r) => `- [${r.kind}] ${r.name} / ${r.aspect}: ${r.body}`).join('\n');
+}
+
+/**
+ * The current note this run may supersede or contradict, restricted to its own
+ * lane. A personal run never touches a team note (or another member's), and a
+ * team run never touches anyone's personal note, so the two lanes evolve
+ * independently even on the same entity and aspect.
+ */
+function currentNoteInScope(
+  db: Db,
+  entityId: number,
+  aspect: string,
+  scope: NoteScope,
+): { id: number } | undefined {
+  if (scope.visibility === 'personal') {
+    return db
+      .prepare(
+        `SELECT n.id FROM memory_notes n LEFT JOIN sessions s ON s.pk = n.source_session_pk
+         WHERE n.entity_id = ? AND n.aspect = ? AND n.status = 'current'
+           AND COALESCE(s.visibility, n.orphan_visibility, 'team') = 'personal'
+           AND COALESCE(s.member_id, n.member_id) = ?`,
+      )
+      .get(entityId, aspect, scope.memberId ?? -1) as { id: number } | undefined;
+  }
+  return db
+    .prepare(
+      `SELECT n.id FROM memory_notes n LEFT JOIN sessions s ON s.pk = n.source_session_pk
+       WHERE n.entity_id = ? AND n.aspect = ? AND n.status = 'current'
+         AND COALESCE(s.visibility, n.orphan_visibility, 'team') != 'personal'`,
+    )
+    .get(entityId, aspect) as { id: number } | undefined;
+}
+
+/** The current note on this entity+aspect in any lane, for conflict detection. */
+function currentNoteAnyLane(db: Db, entityId: number, aspect: string): { id: number } | undefined {
+  return db
+    .prepare("SELECT id FROM memory_notes WHERE entity_id = ? AND aspect = ? AND status = 'current'")
+    .get(entityId, aspect) as { id: number } | undefined;
+}
+
+/** The lane a note belongs to, read from its source session. */
+function laneOfSession(db: Db, sessionPk: number | null): NoteScope {
+  if (sessionPk == null) return TEAM_SCOPE;
+  const row = db.prepare('SELECT visibility, member_id FROM sessions WHERE pk = ?').get(sessionPk) as
+    { visibility: string; member_id: number } | undefined;
+  return row?.visibility === 'personal' ? { visibility: 'personal', memberId: row.member_id } : TEAM_SCOPE;
 }
 
 export function applyNotes(
@@ -70,6 +139,10 @@ export function applyNotes(
   ctx: { projectPath: string; sessionPk: number | null; memberId: number | null },
 ): { entityIds: number[]; conflicts: { entity: string; aspect: string }[] } {
   const now = new Date().toISOString();
+  // A note's lane is intrinsic to its source: a note distilled from a personal
+  // session belongs to that member's private lane, everything else is team.
+  // Derived here (not passed in) so a note's lane always matches what recall reads.
+  const lane = laneOfSession(db, ctx.sessionPk);
   const entityIds: number[] = [];
   // the model may claim contradictsCurrent with nothing to contradict; only a
   // conflict that actually LANDED is worth telling anyone about
@@ -84,16 +157,20 @@ export function applyNotes(
         .get(note.entity.kind, note.entity.name, ctx.projectPath) as { id: number };
       entityIds.push(entity.id);
 
-      const current = db
-        .prepare("SELECT id FROM memory_notes WHERE entity_id = ? AND aspect = ? AND status = 'current'")
-        .get(entity.id, note.aspect) as { id: number } | undefined;
+      // Conflict is cross-lane: a personal session may FLAG that it disagrees
+      // with a team note. The current note stays current, so the team never
+      // loses it; the challenger is filtered to its owner by recall.
+      const contested = currentNoteAnyLane(db, entity.id, note.aspect);
+      // Supersession is lane-scoped: a run only retires a current note in its
+      // OWN lane, so a personal session can never silently replace a team note.
+      const superseded = currentNoteInScope(db, entity.id, note.aspect, lane);
 
-      if (current && note.contradictsCurrent) {
+      if (contested && note.contradictsCurrent) {
         // conflict: old stays current, new is flagged for a human to resolve
         db.prepare(
           `INSERT INTO memory_notes (entity_id, aspect, body, status, conflict_with, source_session_pk, member_id, created_at)
            VALUES (?, ?, ?, 'conflicted', ?, ?, ?, ?)`,
-        ).run(entity.id, note.aspect, note.body, current.id, ctx.sessionPk, ctx.memberId, now);
+        ).run(entity.id, note.aspect, note.body, contested.id, ctx.sessionPk, ctx.memberId, now);
         conflicts.push({ entity: note.entity.name, aspect: note.aspect });
         continue;
       }
@@ -104,11 +181,11 @@ export function applyNotes(
            VALUES (?, ?, ?, 'current', ?, ?, ?)`,
         )
         .run(entity.id, note.aspect, note.body, ctx.sessionPk, ctx.memberId, now);
-      if (current) {
+      if (superseded) {
         db.prepare('UPDATE memory_notes SET status = ?, superseded_by = ? WHERE id = ?').run(
           'superseded',
           Number(inserted.lastInsertRowid),
-          current.id,
+          superseded.id,
         );
       }
     }
@@ -160,10 +237,13 @@ export async function runMemoryTick(
   const cutoff = new Date(Date.now() - idleMs).toISOString();
   const candidates = db
     .prepare(
-      `SELECT s.pk, s.id, s.project_path, s.member_id, s.last_extracted_seq,
+      // Personal sessions are distilled too, into their owner's private lane,
+      // so memory works for a solo user with no team at all. The lane is set
+      // from the session's visibility below; recall keeps a personal note owner-only.
+      `SELECT s.pk, s.id, s.project_path, s.member_id, s.visibility, s.last_extracted_seq,
               (SELECT MAX(seq) FROM messages WHERE session_pk = s.pk) AS max_seq
        FROM sessions s
-       WHERE s.visibility = 'team' AND s.updated_at < ?
+       WHERE s.updated_at < ?
          AND (SELECT MAX(seq) FROM messages WHERE session_pk = s.pk) > s.last_extracted_seq - 1
          AND EXISTS (SELECT 1 FROM messages WHERE session_pk = s.pk AND seq >= s.last_extracted_seq)
        ORDER BY s.updated_at ASC
@@ -174,6 +254,7 @@ export async function runMemoryTick(
     id: string;
     project_path: string;
     member_id: number;
+    visibility: string;
     last_extracted_seq: number;
     max_seq: number | null;
   }[];
@@ -188,8 +269,10 @@ export async function runMemoryTick(
     ).map((r) => JSON.parse(r.content_json) as MotifMessage);
     if (newMessages.length === 0) continue;
 
+    const scope: NoteScope =
+      s.visibility === 'personal' ? { visibility: 'personal', memberId: s.member_id } : TEAM_SCOPE;
     const digest = buildDigest(newMessages, { maxChars: opts.maxDigestChars });
-    const user = `Project: ${s.project_path}\n\nCurrent memory notes for this project:\n${currentNotesForProject(db, s.project_path)}\n\nNew session activity (digest):\n${digest}`;
+    const user = `Project: ${s.project_path}\n\nCurrent memory notes for this project:\n${currentNotesForProject(db, s.project_path, scope)}\n\nNew session activity (digest):\n${digest}`;
     addSpend(db, approxTokens(SYSTEM_PROMPT + user) + 2048); // count before calling; failures still cost
 
     let raw: unknown;

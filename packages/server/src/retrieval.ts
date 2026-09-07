@@ -358,10 +358,11 @@ export function recall(db: Db, opts: RecallOptions): RecallResult {
   }
 
   // ── 3. curated knowledge: memory notes ──────────────────────────────────
-  const supportMap = supportByEntity(db, opts.project);
+  const supportMap = supportByEntity(db, opts.project, opts.viewerId ?? -1);
   const noteRows = db
     .prepare(
-      `SELECT n.body, n.aspect, n.created_at, n.status, n.verification, n.stale, n.entity_id, e.name AS entity, e.kind, e.project_path
+      `SELECT n.body, n.aspect, n.created_at, n.status, n.verification, n.stale, n.entity_id, e.name AS entity, e.kind, e.project_path,
+              COALESCE(s.visibility, n.orphan_visibility, 'team') AS scope
        FROM memory_notes n JOIN memory_entities e ON e.id = n.entity_id
        LEFT JOIN sessions s ON s.pk = n.source_session_pk
        WHERE n.status IN ('current','conflicted') AND n.verification != 'retired'
@@ -379,6 +380,7 @@ export function recall(db: Db, opts: RecallOptions): RecallResult {
     entity: string;
     kind: string;
     project_path: string;
+    scope: string;
   }[];
 
   const items: RecallItem[] = [];
@@ -409,13 +411,14 @@ export function recall(db: Db, opts: RecallOptions): RecallResult {
       kind: 'note',
       text,
       why:
-        n.status === 'conflicted'
-          ? 'team memory, unresolved conflict'
+        (n.scope === 'personal' ? 'your memory' : 'team memory') +
+        (n.status === 'conflicted'
+          ? ', unresolved conflict'
           : n.verification === 'verified'
-            ? 'team memory (human-verified)'
+            ? ' (human-verified)'
             : n.stale
-              ? 'team memory, possibly stale, its files moved on'
-              : 'team memory (current)',
+              ? ', possibly stale, its files moved on'
+              : ' (current)'),
       score,
       tokens: approxTokens(text),
       priority: 0,

@@ -6,6 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Memory works solo.** Your own personal sessions are now distilled into a
+  private memory you can recall, so recall earns its keep with no team at all.
+  A personal note stays owner-only end to end: a teammate never sees it in
+  recall, the review queue, or the graph, and it never lifts another note's
+  confidence. A personal session can only ever flag a conflict for its owner,
+  never silently supersede a shared team decision.
+
 ## [1.3.3] - 2026-09-02
 
 ### Added

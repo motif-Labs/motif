@@ -38,17 +38,29 @@ export function confidence(s: NoteSignals, now = Date.now()): number {
   return Math.max(0.05, Math.min(1, c));
 }
 
-/** Support counts per entity in one query, so callers avoid an N+1. */
-export function supportByEntity(db: Db, project?: string): Map<number, number> {
+/**
+ * Support counts per entity in one query, so callers avoid an N+1. When a
+ * viewer is given, corroboration is counted only among notes that viewer can
+ * see, so one member's private session never silently lifts another's
+ * confidence in a note they will never be shown.
+ */
+export function supportByEntity(db: Db, project?: string, viewerId?: number): Map<number, number> {
+  const scoped = viewerId !== undefined;
   const rows = db
     .prepare(
       `SELECT n.entity_id AS id, COUNT(DISTINCT n.source_session_pk) AS support
-       FROM memory_notes n ${project ? 'JOIN memory_entities e ON e.id = n.entity_id' : ''}
+       FROM memory_notes n
+       ${project ? 'JOIN memory_entities e ON e.id = n.entity_id' : ''}
+       ${scoped ? 'LEFT JOIN sessions s ON s.pk = n.source_session_pk' : ''}
        WHERE n.status = 'current' AND n.verification != 'retired'
        ${project ? 'AND e.project_path = ?' : ''}
+       ${scoped ? "AND (COALESCE(s.visibility, n.orphan_visibility, 'team') != 'personal' OR COALESCE(s.member_id, n.member_id) = ?)" : ''}
        GROUP BY n.entity_id`,
     )
-    .all(...(project ? [project] : [])) as { id: number; support: number }[];
+    .all(...[...(project ? [project] : []), ...(scoped ? [viewerId] : [])]) as {
+    id: number;
+    support: number;
+  }[];
   return new Map(rows.map((r) => [r.id, r.support]));
 }
 

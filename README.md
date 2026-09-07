@@ -198,7 +198,9 @@ node for its kind, confidence and how many ties it holds.
 As sessions go idle the server distils them into entity notes: the decisions, the
 files they touched, the topics they belong to, each carrying the reasoning it came
 from. New knowledge **supersedes** old rather than overwriting it, and
-contradictions are **flagged** instead of quietly piling up.
+contradictions are **flagged** instead of quietly piling up. A team session
+becomes shared memory; a personal one becomes memory only its owner can recall,
+so distillation earns its keep whether you run a team or work alone.
 
 ```bash
 MOTIF_LLM_PROVIDER=claude-code motif server      # uses your local CLI, no key
@@ -285,11 +287,17 @@ sessions convert into either. The tool is a preference; the memory is shared.
 ## You do not need a team
 
 None of this needs one to be worth running. `motif up` on a single machine makes
-your own history queryable: the decision you made three weeks ago, in a tool you
-have since stopped using, answered from the session where you made it, and
-`handoff` moves that session into whichever agent you use now.
+your own history queryable **and distils your own sessions into memory you can
+recall**: the decision you made three weeks ago, in a tool you have since stopped
+using, answered from the session where you made it, with its reasoning and
+confidence attached, and `handoff` moves that session into whichever agent you
+use now.
 
-The benchmark above was measured on one developer's corpus.
+Your solo work stays yours. A personal session is distilled into a **private**
+memory only you can recall; if you later join a team it stays owner-only, never
+shown to anyone else, never counted toward another note's confidence, and never
+able to supersede a shared decision. The benchmark above was measured on one
+developer's corpus.
 
 ## Running it for a team
 

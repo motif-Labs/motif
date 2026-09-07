@@ -756,7 +756,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       )
       .all(viewer) as { id: number; current_notes: number; conflicts: number }[];
     // one query for every entity's latest note, not one per entity (no N+1)
-    const support = supportByEntity(db);
+    const support = supportByEntity(db, undefined, viewer);
     const latestRows = db
       .prepare(
         `SELECT entity_id, status, verification, stale, created_at FROM (
@@ -1068,7 +1068,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
     }[];
     const liveSessions = new Set(sessions.map((x) => x.pk));
 
-    const support = supportByEntity(db, project);
+    const support = supportByEntity(db, project, viewer);
     // one representative note per entity carries its confidence to the graph
     const noteByEntity = db
       .prepare(
