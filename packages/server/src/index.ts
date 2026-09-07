@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { filePathExact, filePathMatches, type MotifMessage, type MotifSession } from '@motif/core';
+import { type MotifMessage, type MotifSession } from '@motif/core';
 import { ensureTeamToken, openDb, type Db } from './db/database.js';
 import { LiveBus } from './live/bus.js';
 import { recall, renderRecall } from './retrieval.js';
@@ -49,6 +49,7 @@ import {
   registerMember,
   resolveMemberByToken,
   searchSessions,
+  sessionsTouchingFile,
   touchMember,
   type SessionMetaPayload,
 } from './store.js';
@@ -336,50 +337,11 @@ export function createServer(config: ServerConfig = {}): MotifServer {
   // most specific and freshest first. Attribution is inferred from what each
   // session recorded about itself, canView applies like everywhere else.
   app.get('/api/sessions/by-file', (c) => {
-    const viewer = memberId(c);
     const rel = c.req.query('path');
     if (!rel) return c.json({ error: 'path is required' }, 400);
-    const project = c.req.query('project');
-    const rows = db
-      .prepare(
-        `SELECT s.id, s.source, s.title, s.updated_at, s.files_touched, s.visibility, s.member_id,
-                m.name AS member_name
-         FROM sessions s LEFT JOIN members m ON m.id = s.member_id
-         ${project ? 'WHERE s.project_path = ?' : ''}
-         ORDER BY s.updated_at DESC LIMIT 5000`,
-      )
-      .all(...(project ? [project] : [])) as {
-      id: string;
-      source: string;
-      title: string | null;
-      updated_at: string | null;
-      files_touched: string;
-      visibility: string;
-      member_id: number;
-      member_name: string | null;
-    }[];
-    const matches = [];
-    for (const row of rows) {
-      if (!canView(row as never, viewer)) continue;
-      const files = JSON.parse(row.files_touched || '[]') as string[];
-      const hit = files.find((f) => filePathMatches(f, rel));
-      if (!hit) continue;
-      matches.push({
-        id: row.id,
-        source: row.source,
-        title: row.title,
-        member_name: row.member_name,
-        updated_at: row.updated_at,
-        matched: hit,
-        exact: filePathExact(hit, rel),
-      });
-    }
-    // sort BEFORE trimming, an early break would let twenty fresh loose
-    // matches evict an older exact one
-    matches.sort(
-      (a, b) => Number(b.exact) - Number(a.exact) || (b.updated_at ?? '').localeCompare(a.updated_at ?? ''),
-    );
-    return c.json({ sessions: matches.slice(0, 20) });
+    // one helper, shared with the MCP layer, gates visibility in SQL and ranks
+    // most-specific-and-freshest first.
+    return c.json({ sessions: sessionsTouchingFile(db, rel, memberId(c), c.req.query('project')) });
   });
 
   app.get('/api/sessions/:id', (c) => {

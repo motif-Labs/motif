@@ -23,6 +23,7 @@ import {
   recall,
   renderRecall,
   searchSessions,
+  sessionsTouchingFile,
   type Db,
 } from '@motif/server';
 import type { MotifSession } from '@motif/core';
@@ -38,7 +39,40 @@ export interface Backend {
   search(query: string, limit: number): Promise<string>;
   listSessions(project: string | undefined, limit: number): Promise<string>;
   getSession(id: string, tail: number): Promise<string>;
+  /** Which sessions produced or edited a file, from the code back to the conversation. */
+  sessionsForFile(path: string): Promise<string>;
   ask(sessionId: string, question: string, waitSeconds: number): Promise<string>;
+}
+
+/** One renderer for both backends, the local and remote rows share a shape. */
+function renderFileMatches(
+  rel: string,
+  rows: {
+    id: string;
+    source: string;
+    title: string | null;
+    member_name: string | null;
+    updated_at: string | null;
+    exact: boolean;
+  }[],
+): string {
+  if (rows.length === 0) {
+    return `No session on record touched \`${rel}\`. Sessions know the files their tools wrote; work done outside an agent leaves no trail here.`;
+  }
+  const lines = [
+    `# Sessions that produced \`${rel}\``,
+    '',
+    'Most specific and freshest first. Cite the id you use.',
+    '',
+  ];
+  for (const r of rows) {
+    const when = r.updated_at ? r.updated_at.slice(0, 10) : 'undated';
+    const who = r.member_name ? `@${r.member_name}` : 'unknown';
+    lines.push(
+      `- \`${r.id}\` · ${when} · ${who} · ${r.source} · ${r.title ?? '(untitled)'}${r.exact ? '' : ' · loose match'}`,
+    );
+  }
+  return lines.join('\n');
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -140,6 +174,10 @@ class LocalBackend implements Backend {
     return session ? renderTranscript(session, tail) : `No session \`${id}\`.`;
   }
 
+  async sessionsForFile(pathArg: string): Promise<string> {
+    return renderFileMatches(pathArg, sessionsTouchingFile(this.db, pathArg, this.viewer));
+  }
+
   async ask(sessionId: string, question: string, waitSeconds: number): Promise<string> {
     const row = getSessionRow(this.db, sessionId);
     if (!row || !canView(row, this.viewer)) return `No session \`${sessionId}\` is visible to you.`;
@@ -195,6 +233,10 @@ class RemoteBackend implements Backend {
   async getSession(id: string, tail: number): Promise<string> {
     const session = await this.client.exportSession(id);
     return renderTranscript(session, tail);
+  }
+
+  async sessionsForFile(pathArg: string): Promise<string> {
+    return renderFileMatches(pathArg, await this.client.sessionsByFile(pathArg));
   }
 
   async ask(sessionId: string, question: string, waitSeconds: number): Promise<string> {

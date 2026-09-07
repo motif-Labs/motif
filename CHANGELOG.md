@@ -14,6 +14,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   recall, the review queue, or the graph, and it never lifts another note's
   confidence. A personal session can only ever flag a conflict for its owner,
   never silently supersede a shared team decision.
+- **`sessions_for_file` over MCP.** An agent about to change a file can ask
+  which past sessions produced it, from the code back to the conversation, the
+  same blame the CLI offers, now native to any MCP agent. The lookup gates
+  visibility in SQL, so a large history is filtered by the database instead of
+  in memory.
 
 ### Security
 

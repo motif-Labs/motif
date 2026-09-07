@@ -21,6 +21,10 @@ const stub: Backend = {
     calls.push(`get:${id}:${tail}`);
     return '# transcript';
   },
+  async sessionsForFile(p) {
+    calls.push(`file:${p}`);
+    return '# files';
+  },
   async ask(id, question, wait) {
     calls.push(`ask:${id}:${question}:${wait}`);
     return '# answer';
@@ -42,7 +46,14 @@ describe('mcp protocol', () => {
 
     const list = (await handleRpc({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, get))!;
     const names = (list.result as { tools: { name: string }[] }).tools.map((t) => t.name);
-    expect(names).toEqual(['recall', 'search_sessions', 'list_sessions', 'get_session', 'ask_session']);
+    expect(names).toEqual([
+      'recall',
+      'search_sessions',
+      'list_sessions',
+      'get_session',
+      'sessions_for_file',
+      'ask_session',
+    ]);
     for (const tool of TOOLS) {
       expect(tool.description.length).toBeGreaterThan(40); // the model reads these
       expect(tool.inputSchema.type).toBe('object');
@@ -81,8 +92,18 @@ describe('mcp protocol', () => {
       },
       get,
     );
+    await handleRpc(
+      {
+        jsonrpc: '2.0',
+        id: 8,
+        method: 'tools/call',
+        params: { name: 'sessions_for_file', arguments: { path: 'src/limiter.ts' } },
+      },
+      get,
+    );
     expect(calls).toContain('get:x:40');
     expect(calls).toContain('ask:x:why?:90');
+    expect(calls).toContain('file:src/limiter.ts');
   });
 
   it('reports tool failures to the model instead of breaking the protocol', async () => {

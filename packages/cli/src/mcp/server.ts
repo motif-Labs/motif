@@ -72,6 +72,21 @@ export const TOOLS = [
     },
   },
   {
+    name: 'sessions_for_file',
+    description:
+      "Which past sessions produced or edited a file, most specific and freshest first. The 'why is this file like this' lookup, from the code back to the conversation: use it before you assume, when you are about to change a file, to find the session that shaped it, then get_session or ask_session it.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'A file path (absolute or repo-relative); matched by suffix.',
+        },
+      },
+      required: ['path'],
+    },
+  },
+  {
     name: 'ask_session',
     description:
       "Ask a past Claude Code or Codex session a question and get an answer from the agent that lived it, with its full context, not a summary. The session is resumed read-only on the machine that owns it, so this can take a minute; teammates' sessions are answered by their machine. Use when recall's excerpts are not enough and you need the reasoning behind a decision.",
@@ -107,6 +122,8 @@ async function callTool(backend: Backend, name: string, args: Record<string, unk
         String(args.sessionId ?? ''),
         args.tail === undefined ? 40 : Number(args.tail),
       );
+    case 'sessions_for_file':
+      return backend.sessionsForFile(String(args.path ?? ''));
     case 'ask_session':
       return backend.ask(
         String(args.sessionId ?? ''),

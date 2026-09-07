@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import type { MotifMessage, MotifSession } from '@motif/core';
+import { filePathExact, filePathMatches } from '@motif/core';
 import type { Db } from './db/database.js';
 
 export interface SessionMetaPayload extends Omit<MotifSession, 'messages'> {}
@@ -509,6 +510,66 @@ export function resolveMember(db: Db, ref: string): { id: number; name: string }
     .prepare('SELECT id, name FROM members WHERE LOWER(name) LIKE LOWER(?) ORDER BY id LIMIT 2')
     .all(`${clean}%`) as { id: number; name: string }[];
   return prefix.length === 1 ? prefix[0] : undefined;
+}
+
+export interface SessionFileMatch {
+  id: string;
+  source: string;
+  title: string | null;
+  member_name: string | null;
+  updated_at: string | null;
+  matched: string;
+  exact: boolean;
+}
+
+/**
+ * Which sessions touched a file, most specific and freshest first, from the code
+ * back to the conversation. The visibility predicate is in SQL, so a large
+ * history is filtered by the database rather than loaded to filter in memory,
+ * and canView's rule is honoured, a personal session reaches only its owner.
+ * Attribution is inferred from what each session recorded about itself.
+ */
+export function sessionsTouchingFile(
+  db: Db,
+  rel: string,
+  viewerId: number | undefined,
+  project?: string,
+): SessionFileMatch[] {
+  const rows = db
+    .prepare(
+      `SELECT s.id, s.source, s.title, s.updated_at, s.files_touched, m.name AS member_name
+       FROM sessions s LEFT JOIN members m ON m.id = s.member_id
+       WHERE (s.visibility = 'team' OR s.member_id = ?)
+       ${project ? 'AND s.project_path = ?' : ''}
+       ORDER BY s.updated_at DESC LIMIT 5000`,
+    )
+    .all(...[viewerId ?? -1, ...(project ? [project] : [])]) as {
+    id: string;
+    source: string;
+    title: string | null;
+    updated_at: string | null;
+    files_touched: string;
+    member_name: string | null;
+  }[];
+  const matches: SessionFileMatch[] = [];
+  for (const row of rows) {
+    const files = JSON.parse(row.files_touched || '[]') as string[];
+    const hit = files.find((f) => filePathMatches(f, rel));
+    if (!hit) continue;
+    matches.push({
+      id: row.id,
+      source: row.source,
+      title: row.title,
+      member_name: row.member_name,
+      updated_at: row.updated_at,
+      matched: hit,
+      exact: filePathExact(hit, rel),
+    });
+  }
+  matches.sort(
+    (a, b) => Number(b.exact) - Number(a.exact) || (b.updated_at ?? '').localeCompare(a.updated_at ?? ''),
+  );
+  return matches.slice(0, 20);
 }
 
 export function searchSessions(
