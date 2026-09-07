@@ -236,14 +236,15 @@ export async function performWeaverJob(job: WeaverJob, deps: WeaverDeps): Promis
 
 import { spawn, spawnSync } from 'node:child_process';
 
-export function defaultRunAgent(prompt: string, cwd: string): Promise<void> {
-  // Non-interactive Claude Code with an explicit tool allowlist: it may read
-  // and edit inside the worktree, and nothing else. No Bash, the Weaver
-  // aligns text with a ruling; it does not get a shell. Async on purpose: a
-  // ten-minute agent run must not freeze the daemon that also answers asks,
-  // delivers handoffs and syncs sessions.
+/**
+ * Run one coding-agent CLI to completion, prompt on stdin. Rejects with the
+ * raw spawn error (so the caller can see an ENOENT) or a described non-zero
+ * exit. Async on purpose: a ten-minute agent run must not freeze the daemon
+ * that also answers asks, delivers handoffs and syncs sessions.
+ */
+function runAgentCli(cmd: string, args: string[], prompt: string, cwd: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn('claude', ['-p', '--allowedTools', 'Read', 'Grep', 'Glob', 'Edit', 'Write'], {
+    const child = spawn(cmd, args, {
       cwd,
       // on Windows the agent CLIs are .cmd shims that need a shell to resolve
       shell: process.platform === 'win32',
@@ -257,15 +258,48 @@ export function defaultRunAgent(prompt: string, cwd: string): Promise<void> {
     child.stdout?.resume(); // drain, or a chatty agent blocks on a full pipe
     child.on('error', (err) => {
       clearTimeout(timer);
-      reject(new Error(`claude CLI unavailable: ${err.message}`));
+      reject(err); // raw, so ENOENT stays detectable
     });
     child.on('close', (code) => {
       clearTimeout(timer);
       if (code === 0) resolve();
-      else reject(new Error(`agent exited ${code}: ${stderr.slice(0, 200)}`));
+      else reject(new Error(`${cmd} exited ${code}: ${stderr.slice(0, 200)}`));
     });
     child.stdin?.end(prompt);
   });
+}
+
+export async function defaultRunAgent(prompt: string, cwd: string): Promise<void> {
+  // Whichever coding agent this machine has, so the Weaver honours the README's
+  // "your own Claude/Codex" and does not silently fail for a Codex-only setup.
+  // Claude Code first, an explicit read/edit allowlist and no shell; if it is
+  // not installed (ENOENT, not a run failure), Codex in a workspace-write
+  // sandbox, which it needs to edit files. Both read the prompt from stdin.
+  const isMissing = (err: unknown): boolean => (err as NodeJS.ErrnoException)?.code === 'ENOENT';
+  try {
+    await runAgentCli(
+      'claude',
+      ['-p', '--allowedTools', 'Read', 'Grep', 'Glob', 'Edit', 'Write'],
+      prompt,
+      cwd,
+    );
+    return;
+  } catch (err) {
+    if (!isMissing(err)) throw err instanceof Error ? err : new Error(String(err));
+  }
+  try {
+    await runAgentCli(
+      'codex',
+      ['exec', '--skip-git-repo-check', '-c', 'sandbox_mode="workspace-write"', '-'],
+      prompt,
+      cwd,
+    );
+  } catch (err) {
+    if (isMissing(err)) {
+      throw new Error('no coding agent found: install Claude Code or Codex for the Weaver to run');
+    }
+    throw err instanceof Error ? err : new Error(String(err));
+  }
 }
 
 export function defaultPublishBranch(opts: {

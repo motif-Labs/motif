@@ -32,6 +32,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   notifies a member named `ben`.
 - An empty search query returns no results instead of a raw FTS error on the
   MCP `search_sessions` tool.
+- The Weaver runs whichever coding agent the machine has: Claude Code, or Codex
+  when Claude Code is not installed. Its draft PRs now work on a Codex-only
+  setup instead of failing on every claim, honouring the "your own Claude/Codex"
+  promise.
 
 ## [1.3.3] - 2026-09-02
 
