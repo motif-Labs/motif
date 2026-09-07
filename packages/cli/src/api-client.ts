@@ -128,7 +128,7 @@ export class MotifClient {
 
   async listMemoryReview(): Promise<{
     items: {
-      type: 'conflict' | 'stale' | 'disputed';
+      type: 'conflict' | 'stale' | 'disputed' | 'proposed';
       note: MemoryReviewNote;
       against?: MemoryReviewNote;
     }[];

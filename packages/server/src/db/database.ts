@@ -291,6 +291,12 @@ const MIGRATIONS: string[] = [
   CREATE INDEX IF NOT EXISTS idx_handoffs_session ON handoffs(session_pk);
   CREATE INDEX IF NOT EXISTS idx_handoffs_target ON handoffs(target_session_id);
   `,
+  // v14, the admission gate. A distilled TEAM DECISION no longer enters recall
+  // on its own; it lands as a proposal (admitted = 0) and waits for a human to
+  // accept it, so one session's inference (or a whole fleet's) cannot become
+  // what the team "knows" unreviewed. Everything else, files, topics, personal
+  // notes, and conflicts, which are already adjudicated, stays admitted on sight.
+  `ALTER TABLE memory_notes ADD COLUMN admitted INTEGER NOT NULL DEFAULT 1;`,
 ];
 
 export function openDb(dbPath: string): Db {

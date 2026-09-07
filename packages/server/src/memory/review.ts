@@ -37,7 +37,7 @@ export interface ReviewNote {
 }
 
 export interface ReviewItem {
-  type: 'conflict' | 'stale' | 'disputed';
+  type: 'conflict' | 'stale' | 'disputed' | 'proposed';
   /** The note awaiting judgement (for conflicts: the challenger). */
   note: ReviewNote;
   /** For conflicts: the note it contradicts (the incumbent). */
@@ -108,6 +108,17 @@ export function listReviewQueue(db: Db, viewerId: number | undefined): ReviewIte
     if (against && !viewable(against, viewerId)) continue;
     items.push({ type: 'conflict', note, against });
   }
+
+  // proposals: a distilled team decision that has not entered recall yet, it
+  // waits here for a human to admit it, so no unreviewed claim becomes what the
+  // team "knows".
+  const proposed = db
+    .prepare(
+      `${NOTE_SELECT} WHERE n.admitted = 0 AND n.status = 'current' AND n.verification NOT IN ('retired')
+       ORDER BY n.created_at ASC`,
+    )
+    .all() as ReviewNote[];
+  for (const note of proposed) if (viewable(note, viewerId)) items.push({ type: 'proposed', note });
 
   const stale = db
     .prepare(
@@ -206,22 +217,49 @@ export interface VerdictInput {
 export function applyVerdict(db: Db, input: VerdictInput): ReviewNote {
   const now = new Date().toISOString();
   const note = db
-    .prepare('SELECT id, status, conflict_with, entity_id, aspect FROM memory_notes WHERE id = ?')
+    .prepare('SELECT id, status, conflict_with, entity_id, aspect, admitted FROM memory_notes WHERE id = ?')
     .get(input.noteId) as
-    | { id: number; status: string; conflict_with: number | null; entity_id: number; aspect: string }
+    | {
+        id: number;
+        status: string;
+        conflict_with: number | null;
+        entity_id: number;
+        aspect: string;
+        admitted: number;
+      }
     | undefined;
   if (!note) throw new Error(`no note #${input.noteId}`);
 
   db.transaction(() => {
     switch (input.verdict) {
       case 'confirm': {
-        // a person vouches for the claim as it stands
+        // a person vouches for the claim as it stands, and admits it if it was
+        // still a proposal (admitted = 0)
         db.prepare(
-          `UPDATE memory_notes SET verification = 'verified', verified_by = ?, verified_at = ?, stale = 0, stale_reason = NULL WHERE id = ?`,
+          `UPDATE memory_notes SET verification = 'verified', verified_by = ?, verified_at = ?, stale = 0, stale_reason = NULL, admitted = 1 WHERE id = ?`,
         ).run(input.reviewerId, now, input.noteId);
         // confirming a conflicted challenger without naming a loser is ambiguous
         if (note.status === 'conflicted') {
           throw new Error(`note #${input.noteId} is in conflict, use 'prefer' to pick the winner`);
+        }
+        // admitting a proposal is what its deferred supersession was waiting for:
+        // retire the team note it updates (the prior admitted current on this
+        // entity+aspect, never a personal note in another member's lane).
+        if (note.admitted === 0) {
+          const prior = db
+            .prepare(
+              `SELECT n.id FROM memory_notes n LEFT JOIN sessions s ON s.pk = n.source_session_pk
+               WHERE n.entity_id = ? AND n.aspect = ? AND n.status = 'current' AND n.admitted = 1 AND n.id != ?
+                 AND COALESCE(s.visibility, n.orphan_visibility, 'team') != 'personal'`,
+            )
+            .get(note.entity_id, note.aspect, note.id) as { id: number } | undefined;
+          if (prior) {
+            db.prepare('UPDATE memory_notes SET status = ?, superseded_by = ? WHERE id = ?').run(
+              'superseded',
+              note.id,
+              prior.id,
+            );
+          }
         }
         break;
       }

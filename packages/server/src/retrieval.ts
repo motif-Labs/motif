@@ -365,7 +365,7 @@ export function recall(db: Db, opts: RecallOptions): RecallResult {
               COALESCE(s.visibility, n.orphan_visibility, 'team') AS scope
        FROM memory_notes n JOIN memory_entities e ON e.id = n.entity_id
        LEFT JOIN sessions s ON s.pk = n.source_session_pk
-       WHERE n.status IN ('current','conflicted') AND n.verification != 'retired'
+       WHERE n.status IN ('current','conflicted') AND n.verification != 'retired' AND n.admitted = 1
          AND (COALESCE(s.visibility, n.orphan_visibility, 'team') != 'personal' OR COALESCE(s.member_id, n.member_id) = ?)
        ${opts.project ? 'AND e.project_path = ?' : ''}`,
     )

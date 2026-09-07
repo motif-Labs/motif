@@ -136,8 +136,20 @@ function laneOfSession(db: Db, sessionPk: number | null): NoteScope {
 export function applyNotes(
   db: Db,
   notes: ExtractedNote[],
-  ctx: { projectPath: string; sessionPk: number | null; memberId: number | null },
-): { entityIds: number[]; conflicts: { entity: string; aspect: string }[] } {
+  ctx: {
+    projectPath: string;
+    sessionPk: number | null;
+    memberId: number | null;
+    /** When true, a new team decision is held as a proposal (the admission
+     * gate). The live pipeline sets it; seeds and backfills leave it off, as
+     * they represent memory the team already accepted. */
+    gate?: boolean;
+  },
+): {
+  entityIds: number[];
+  conflicts: { entity: string; aspect: string }[];
+  proposals: { entity: string; aspect: string }[];
+} {
   const now = new Date().toISOString();
   // A note's lane is intrinsic to its source: a note distilled from a personal
   // session belongs to that member's private lane, everything else is team.
@@ -147,6 +159,8 @@ export function applyNotes(
   // the model may claim contradictsCurrent with nothing to contradict; only a
   // conflict that actually LANDED is worth telling anyone about
   const conflicts: { entity: string; aspect: string }[] = [];
+  // team decisions land as proposals, not live notes, until a human admits them
+  const proposals: { entity: string; aspect: string }[] = [];
   db.transaction(() => {
     for (const note of notes) {
       db.prepare(
@@ -155,8 +169,6 @@ export function applyNotes(
       const entity = db
         .prepare('SELECT id FROM memory_entities WHERE kind = ? AND name = ? AND project_path = ?')
         .get(note.entity.kind, note.entity.name, ctx.projectPath) as { id: number };
-      entityIds.push(entity.id);
-
       // Conflict is cross-lane: a personal session may FLAG that it disagrees
       // with a team note. The current note stays current, so the team never
       // loses it; the challenger is filtered to its owner by recall.
@@ -175,12 +187,22 @@ export function applyNotes(
         continue;
       }
 
+      // The admission gate: a new TEAM DECISION is a proposal, not live memory.
+      // It enters admitted = 0, invisible to recall, and defers superseding the
+      // current note until a human accepts it. Files, topics and personal notes
+      // are admitted on sight, as before.
+      const gated = ctx.gate === true && note.entity.kind === 'decision' && lane.visibility === 'team';
       const inserted = db
         .prepare(
-          `INSERT INTO memory_notes (entity_id, aspect, body, status, source_session_pk, member_id, created_at)
-           VALUES (?, ?, ?, 'current', ?, ?, ?)`,
+          `INSERT INTO memory_notes (entity_id, aspect, body, status, source_session_pk, member_id, admitted, created_at)
+           VALUES (?, ?, ?, 'current', ?, ?, ?, ?)`,
         )
-        .run(entity.id, note.aspect, note.body, ctx.sessionPk, ctx.memberId, now);
+        .run(entity.id, note.aspect, note.body, ctx.sessionPk, ctx.memberId, gated ? 0 : 1, now);
+      if (gated) {
+        proposals.push({ entity: note.entity.name, aspect: note.aspect });
+        continue; // the prior current stays live until this proposal is admitted
+      }
+      entityIds.push(entity.id);
       if (superseded) {
         db.prepare('UPDATE memory_notes SET status = ?, superseded_by = ? WHERE id = ?').run(
           'superseded',
@@ -191,7 +213,7 @@ export function applyNotes(
     }
   })();
   invalidateStaleSweep(db); // fresh notes may re-date staleness, next read sweeps
-  return { entityIds, conflicts };
+  return { entityIds, conflicts, proposals };
 }
 
 export interface MemoryPipelineOptions {
@@ -302,10 +324,11 @@ export async function runMemoryTick(
       continue;
     }
 
-    const { entityIds, conflicts } = applyNotes(db, notes, {
+    const { entityIds, conflicts, proposals } = applyNotes(db, notes, {
       projectPath: s.project_path,
       sessionPk: s.pk,
       memberId: s.member_id,
+      gate: true, // the live pipeline gates team decisions; seeds do not
     });
     // A personal session's entity names are private, so its live events carry
     // the owner + visibility and the SSE gate withholds them from non-owners,
@@ -315,7 +338,9 @@ export async function runMemoryTick(
       bus.publish('memory-conflict', { ...conflict, visibility: evtVisibility, memberId: s.member_id });
     db.prepare('UPDATE sessions SET last_extracted_seq = ? WHERE pk = ?').run(s.max_seq + 1, s.pk);
     processed++;
-    opts.log?.(`memory: ${notes.length} note(s) from ${s.id}`);
+    opts.log?.(
+      `memory: ${notes.length} note(s) from ${s.id}${proposals.length ? `, ${proposals.length} awaiting review` : ''}`,
+    );
     for (const entityId of entityIds) {
       const e = db.prepare('SELECT id, kind, name FROM memory_entities WHERE id = ?').get(entityId) as {
         id: number;

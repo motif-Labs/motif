@@ -882,7 +882,7 @@ export function createServer(config: ServerConfig = {}): MotifServer {
       `SELECT COUNT(DISTINCT e.id) AS n FROM memory_entities e
        JOIN memory_notes n ON n.entity_id = e.id
        LEFT JOIN sessions s ON s.pk = n.source_session_pk
-       WHERE e.kind='decision' AND n.verification!='retired'
+       WHERE e.kind='decision' AND n.verification!='retired' AND n.admitted = 1
          AND (COALESCE(s.visibility, n.orphan_visibility, 'team') != 'personal' OR COALESCE(s.member_id, n.member_id) = ?)`,
       viewer,
     );

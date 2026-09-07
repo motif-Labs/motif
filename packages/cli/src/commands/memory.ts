@@ -31,7 +31,7 @@ export function registerMemory(program: Command): void {
 
   memory
     .command('review')
-    .description('Everything waiting for a human: conflicts, stale notes, disputes')
+    .description('Everything waiting for a human: proposals, conflicts, stale notes, disputes')
     .option('--json', 'machine-readable output')
     .action(async (opts: { json?: boolean }) => {
       const { items } = await client().listMemoryReview();
@@ -52,6 +52,12 @@ export function registerMemory(program: Command): void {
           console.log(
             `     rule: motif memory prefer ${item.note.id} --over ${item.against.id}   (or swap the ids)\n`,
           );
+        } else if (item.type === 'proposed') {
+          console.log('PROPOSED, a new team decision, held out of recall until you admit it:');
+          console.log(renderNote(item.note));
+          console.log(
+            `     rule: motif memory confirm ${item.note.id}  (admit)   ·   motif memory retire ${item.note.id}  (reject)\n`,
+          );
         } else if (item.type === 'stale') {
           console.log('STALE, the files this note came from have moved on since:');
           console.log(renderNote(item.note));
@@ -70,11 +76,11 @@ export function registerMemory(program: Command): void {
 
   memory
     .command('confirm <noteId>')
-    .description('Vouch for a note, verified notes outrank machine-only ones in recall')
+    .description('Vouch for a note (and admit it if it is a proposal); verified beats machine-only in recall')
     .option('--reason <text>', 'why (recorded with the ruling)')
     .action(async (noteId: string, opts: { reason?: string }) => {
       await client().postMemoryVerdict(Number(noteId), 'confirm', { reason: opts.reason });
-      console.log(`Note #${noteId} is now human-verified.`);
+      console.log(`Note #${noteId} is now human-verified and in recall.`);
     });
 
   memory
@@ -106,5 +112,23 @@ export function registerMemory(program: Command): void {
     .action(async (noteId: string, opts: { reason?: string }) => {
       await client().postMemoryVerdict(Number(noteId), 'dispute', { reason: opts.reason });
       console.log(`Note #${noteId} marked disputed, it joins the review queue.`);
+    });
+
+  memory
+    .command('admit <noteId>')
+    .description('Admit a proposed team decision into recall (alias for confirm)')
+    .option('--reason <text>', 'why (recorded with the ruling)')
+    .action(async (noteId: string, opts: { reason?: string }) => {
+      await client().postMemoryVerdict(Number(noteId), 'confirm', { reason: opts.reason });
+      console.log(`Proposal #${noteId} admitted, it is now in recall.`);
+    });
+
+  memory
+    .command('reject <noteId>')
+    .description('Reject a proposed team decision, it never enters recall (alias for retire)')
+    .option('--reason <text>', 'why (recorded with the ruling)')
+    .action(async (noteId: string, opts: { reason?: string }) => {
+      await client().postMemoryVerdict(Number(noteId), 'retire', { reason: opts.reason });
+      console.log(`Proposal #${noteId} rejected, kept in the record, never served to an agent.`);
     });
 }

@@ -5,7 +5,9 @@ import path from 'node:path';
 import type { MotifMessage, MotifSession } from '@motif/core';
 import {
   applyNotes,
+  applyVerdict,
   fullReplaceSession,
+  listReviewQueue,
   LiveBus,
   openDb,
   recall,
@@ -22,13 +24,15 @@ afterEach(() => {
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
+// 'file' is not gated by the admission gate, so these exercise the raw
+// supersede/conflict mechanics; the gate itself is covered by its own tests.
 const note = (
   name: string,
   aspect: string,
   body: string,
   extra: Partial<{ supersedes: boolean; contradictsCurrent: boolean }> = {},
 ) => ({
-  entity: { kind: 'decision' as const, name },
+  entity: { kind: 'file' as const, name },
   aspect,
   body,
   ...extra,
@@ -230,6 +234,92 @@ describe('memory notes', () => {
     // the team run's prompt must not carry ada's private note into a shared note
     expect(calls[1]).toContain('we ship on node 22');
     expect(calls[1]).not.toContain('Bun, personal');
+    db.close();
+  });
+
+  const decision = (
+    name: string,
+    aspect: string,
+    body: string,
+    extra: Partial<{ contradictsCurrent: boolean }> = {},
+  ) => ({ entity: { kind: 'decision' as const, name }, aspect, body, ...extra });
+
+  it('gates a team decision as a proposal, held out of recall until admitted', () => {
+    const db = openDb(path.join(tmp, 'db.sqlite'));
+    const ada = registerMember(db, { name: 'ada' });
+    // a distilled TEAM decision (sessionPk null = team lane)
+    applyNotes(db, [decision('cache-keys', 'policy', 'shared cache keys include tenant_id')], {
+      projectPath: '/tmp/demo',
+      sessionPk: null,
+      memberId: ada.memberId,
+      gate: true,
+    });
+    const noteId = (
+      db.prepare("SELECT id FROM memory_notes WHERE body LIKE '%tenant_id%'").get() as { id: number }
+    ).id;
+    const q = { query: 'cache keys tenant', viewerId: ada.memberId };
+
+    // proposed: out of recall, but present in the review queue as a proposal
+    expect(JSON.stringify(recall(db, q))).not.toContain('tenant_id');
+    const queue = listReviewQueue(db, ada.memberId);
+    expect(queue.some((i) => i.type === 'proposed' && i.note.id === noteId)).toBe(true);
+
+    // a human admits it, and only then does recall serve it
+    applyVerdict(db, { noteId, reviewerId: ada.memberId, verdict: 'confirm' });
+    expect(JSON.stringify(recall(db, q))).toContain('tenant_id');
+    db.close();
+  });
+
+  it('a rejected proposal never reaches recall', () => {
+    const db = openDb(path.join(tmp, 'db.sqlite'));
+    const ada = registerMember(db, { name: 'ada' });
+    applyNotes(db, [decision('cache-keys', 'policy', 'query params alone are enough')], {
+      projectPath: '/tmp/demo',
+      sessionPk: null,
+      memberId: ada.memberId,
+      gate: true,
+    });
+    const noteId = (
+      db.prepare("SELECT id FROM memory_notes WHERE body LIKE '%query params%'").get() as { id: number }
+    ).id;
+    applyVerdict(db, { noteId, reviewerId: ada.memberId, verdict: 'retire' });
+    expect(
+      JSON.stringify(recall(db, { query: 'cache keys query params', viewerId: ada.memberId })),
+    ).not.toContain('query params alone');
+    db.close();
+  });
+
+  it('admitting a proposal supersedes the team decision it updates', () => {
+    const db = openDb(path.join(tmp, 'db.sqlite'));
+    const ada = registerMember(db, { name: 'ada' });
+    const admit = (body: string): number => {
+      applyNotes(db, [decision('rate-limit', 'policy', body)], {
+        projectPath: '/tmp/demo',
+        sessionPk: null,
+        memberId: ada.memberId,
+        gate: true,
+      });
+      const id = (
+        db.prepare('SELECT id FROM memory_notes WHERE body = ? AND admitted = 0').get(body) as {
+          id: number;
+        }
+      ).id;
+      applyVerdict(db, { noteId: id, reviewerId: ada.memberId, verdict: 'confirm' });
+      return id;
+    };
+    const first = admit('fail open when redis is down');
+    const second = admit('fail closed when redis is down');
+
+    const row = (id: number) =>
+      db.prepare('SELECT status, superseded_by FROM memory_notes WHERE id = ?').get(id) as {
+        status: string;
+        superseded_by: number | null;
+      };
+    expect(row(first)).toMatchObject({ status: 'superseded', superseded_by: second });
+    expect(row(second).status).toBe('current');
+    const out = JSON.stringify(recall(db, { query: 'rate limit redis fail', viewerId: ada.memberId }));
+    expect(out).toContain('fail closed');
+    expect(out).not.toContain('fail open');
     db.close();
   });
 });

@@ -219,11 +219,19 @@ is marked **possibly stale**, and both wait for a person in the Review inbox,
 in the dashboard, or:
 
 ```bash
-motif memory review                    # conflicts, both sides cited; stale notes
+motif memory review                    # proposals, conflicts (both sides), stale notes
+motif memory admit 52                  # a proposed team decision enters recall
+motif memory reject 52                 # ...or it never does, kept in the record
 motif memory prefer 47 --over 12       # rule: this claim wins, that one is superseded
 motif memory confirm 31                # vouch for a claim, verified beats machine-only
 motif memory retire 8                  # out of service, never out of the record
 ```
+
+A new team **decision** does not enter recall on its own: it lands as a
+**proposal** and waits for a human to admit it, so no single session's (or a
+whole fleet's) inference becomes what the team relies on unreviewed. Files,
+topics and personal notes are admitted on sight; conflicts are adjudicated as
+before.
 
 Rulings never delete, and the ruling itself is recorded, who ruled, over what,
 and why. Recall serves the outcome: retired notes disappear, human-verified

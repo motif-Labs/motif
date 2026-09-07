@@ -52,7 +52,7 @@ export function supportByEntity(db: Db, project?: string, viewerId?: number): Ma
        FROM memory_notes n
        ${project ? 'JOIN memory_entities e ON e.id = n.entity_id' : ''}
        ${scoped ? 'LEFT JOIN sessions s ON s.pk = n.source_session_pk' : ''}
-       WHERE n.status = 'current' AND n.verification != 'retired'
+       WHERE n.status = 'current' AND n.verification != 'retired' AND n.admitted = 1
        ${project ? 'AND e.project_path = ?' : ''}
        ${scoped ? "AND (COALESCE(s.visibility, n.orphan_visibility, 'team') != 'personal' OR COALESCE(s.member_id, n.member_id) = ?)" : ''}
        GROUP BY n.entity_id`,

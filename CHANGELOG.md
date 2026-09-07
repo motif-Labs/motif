@@ -19,6 +19,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   same blame the CLI offers, now native to any MCP agent. The lookup gates
   visibility in SQL, so a large history is filtered by the database instead of
   in memory.
+- **The admission gate: memory has a front door.** A distilled team _decision_
+  no longer enters recall on its own. It lands as a proposal, waits in the
+  review inbox, and only a human's `motif memory admit` (or `reject`) lets it
+  in, so no single session's inference, or a whole fleet's, becomes what the
+  team "knows" unreviewed. Files, topics, personal notes and conflicts (already
+  adjudicated) are unaffected. Admitting a proposal supersedes the decision it
+  updates; rejecting keeps it in the record but never serves it. The gate is a
+  live-pipeline policy: seeds and backfills still land as accepted memory.
 
 ### Security
 
