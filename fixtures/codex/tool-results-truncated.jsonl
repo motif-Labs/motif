@@ -1,0 +1,6 @@
+{"timestamp":"2026-03-02T10:00:00.000Z","ordinal":0,"type":"session_meta","payload":{"id":"0b0b0b0b-2222-7000-8000-000000000002","cwd":"/workspace/app","cli_version":"0.150.1"}}
+{"timestamp":"2026-03-02T10:00:01.000Z","ordinal":1,"type":"response_item","payload":{"type":"function_call","name":"exec_command","call_id":"call_a","arguments":"{\"cmd\":\"npm test\"}"}}
+{"timestamp":"2026-03-02T10:00:02.000Z","ordinal":2,"type":"response_item","payload":{"type":"function_call_output","call_id":"call_a","output":"Chunk ID: 9e8d7c\nWall time: 0.5000 seconds\nProcess exited with code 1\nOriginal token count: 4\nOutput:\nsynthetic: failed\n"}}
+not json at all
+{"timestamp":"2026-03-02T10:00:03.000Z","ordinal":3,"type":"response_item","payload":{"type":"function_call","name":"exec_command","call_id":"call_b","arguments":"{\"cmd\":\"npm test\"}"}}
+{"timestamp":"2026-03-02T10:00:04.000Z","ordinal":4,"type":"response_item","payload":{"type":"function_call_output","call_id":"call_b","output":"Chunk ID: 6b5a4f\nWall time: 0.4"}}
